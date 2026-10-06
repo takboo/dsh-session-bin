@@ -6,3 +6,7 @@ gh = "2.102.0"
 [tasks.env]
 description = "Show the pinned development tool versions"
 run = ["node --version", "pnpm --version", "gh --version"]
+
+[tasks."verify:compatibility"]
+description = "Verify pinned DSH SDK loading and scratch storage"
+run = "pnpm run verify:compatibility"
