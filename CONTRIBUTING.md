@@ -1,6 +1,6 @@
 # 贡献流程
 
-仓库目前只有设计与环境基线。功能是否可用以 [README](README.md) 的实现状态为准；行为约定在[设计提案](docs/design-proposal.md)。
+仓库保留设计、环境基线和[兼容性运行结论](docs/verification/dsh-0.2-compatibility.md)，验证工程在本地实验分支；尚未实现可发布插件。功能是否可用以 [README](README.md) 的实现状态为准；行为约定在[设计提案](docs/design-proposal.md)。
 
 ## Issue 与分支
 

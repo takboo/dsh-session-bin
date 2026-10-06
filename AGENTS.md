@@ -1,10 +1,10 @@
 # Agent 工作入口
 
-当前仓库是设计基线，尚无插件实现。[README](README.md)记录现状，[设计提案](docs/design-proposal.md)记录候选方案；提案不代表已完成能力。
+当前仓库保留设计与兼容性结论，尚无可发布插件。[README](README.md)记录现状，[设计提案](docs/design-proposal.md)记录候选方案；提案不代表已完成能力。
 
 ## 按任务加载
 
-- **实现或修改会话操作**：先读[设计提案](docs/design-proposal.md)及[当前 DSH 接口调研](docs/research/current-dsh-interfaces.md)，核对 archive、bin 和 purge 的语义及宿主版本。
+- **实现或修改会话操作**：先读[设计提案](docs/design-proposal.md)、[当前 DSH 接口调研](docs/research/current-dsh-interfaces.md)及[运行验证](docs/verification/dsh-0.2-compatibility.md)，核对 archive、bin、purge 的语义及已复现的存储差异。
 - **界面或插件挂载**：读[接口调研](docs/research/current-dsh-interfaces.md)的槽位与样式结论，再核对对应版本 SDK；使用原生控件和语义 token。
 - **打包、发布或市场提交**：读[分发与发布](docs/release.md)和[分发调研](docs/research/reference-and-distribution.md)，核对当前外部规则。
 - **Issue、分支或 PR**：读[贡献流程](CONTRIBUTING.md)。
