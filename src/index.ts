@@ -8,6 +8,7 @@ import { acquireBinLease } from './host/lease.js';
 import { DshBinPort } from './host/native.js';
 import { binDomainSpec, DomainBinStore } from './host/store.js';
 import { SessionBinModule, SessionBinError } from './host/module.js';
+import { installSessionBinRemote } from './host/remote.js';
 import type { BinPlan, PrepareRequest } from './operations/schema.js';
 
 export { acquireBinLease, BinLeaseError } from './host/lease.js';
@@ -15,6 +16,7 @@ export { DshBinPort } from './host/native.js';
 export { binDomainSpec, DomainBinStore } from './host/store.js';
 export type { BinStore } from './host/store.js';
 export { SessionBinModule, SessionBinError } from './host/module.js';
+export { SessionBinRemote, installSessionBinRemote } from './host/remote.js';
 export type { NativeBinPort, NativeSessionState, ReconcileReport } from './host/module.js';
 export type { BinEntry, BinPlan, BinResult, BinOperation, PrepareRequest } from './operations/schema.js';
 
@@ -23,7 +25,7 @@ export const Config = schema.object({
   coordinationDirectory: schema.string().description('Absolute shared directory for this Bin domain’s lifetime lock; defaults to $DSH_HOME/session-bin.'),
 });
 export const name = 'session-bin';
-export const inject = ['storageDomain', 'workspaceRegistry', 'sessions', 'sessionPersistence'];
+export const inject = ['storageDomain', 'workspaceRegistry', 'sessions', 'sessionPersistence', 'typert'];
 
 declare module '@deepseek-ai/cordis' {
   interface Context { sessionBin: SessionBin }
@@ -87,4 +89,7 @@ export class SessionBin extends Service {
   getOperation(operationId: string) { return this.requireModule().getOperation(operationId); }
   reconcile() { return this.requireModule().reconcile(); }
 }
-export async function apply(ctx: Context, config: Config = {}) { await ctx.plugin(SessionBin, config); }
+export async function apply(ctx: Context, config: Config = {}) {
+  await ctx.plugin(SessionBin, config);
+  await installSessionBinRemote(ctx);
+}

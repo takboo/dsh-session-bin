@@ -9,6 +9,7 @@ import * as storageDomain from '@deepseek-ai/dsh-storage-domain';
 import { SessionStore, SessionId } from '@deepseek-ai/dsh-session';
 import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
 import { WorkspaceRegistry } from '@deepseek-ai/dsh-workspace';
+import TypertRegistry from '@deepseek-ai/dsh-typert-registry';
 import * as binPlugin from '../../dist/index.js';
 
 export const workspaceRoot = fileURLToPath(new URL('../../', import.meta.url));
@@ -49,6 +50,7 @@ export async function openFixture(root, { seed = false, plugin = true, observe =
     if (errors.length) throw new AggregateError(errors, 'fixture teardown failed');
   };
   try {
+    await mount(TypertRegistry);
     await mount(Storage);
     await mount(storageJson, { root: join(root, 'storage') });
     await mount(storageDomain, { backend: 'json' });

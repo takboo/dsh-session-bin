@@ -23,8 +23,8 @@ const [pack] = JSON.parse(stdout);
 const files = pack.files.map(file => file.path).sort();
 assert(files.includes('dist/index.js') && files.includes('dist/index.d.ts'));
 assert(files.includes('dist/operations.js') && files.includes('cordis.patch.yml'));
-assert(files.includes('LICENSE') && files.includes('docs/host-lifecycle.md'));
-assert(files.every(file => ['package.json', 'README.md', 'LICENSE', 'cordis.patch.yml', 'docs/host-lifecycle.md'].includes(file)
+assert(files.includes('LICENSE') && files.includes('docs/host-lifecycle.md') && files.includes('docs/client-interface.md'));
+assert(files.every(file => ['package.json', 'README.md', 'LICENSE', 'cordis.patch.yml', 'docs/host-lifecycle.md', 'docs/client-interface.md'].includes(file)
   || file.startsWith('dist/')));
 const tarball = join(scratch, pack.filename);
 const installed = join(scratch, 'installed', 'node_modules', 'dsh-session-bin');
@@ -34,7 +34,10 @@ const require = createRequire(join(installed, 'anchor.cjs'));
 const manifest = JSON.parse(await readFile(require.resolve('dsh-session-bin/package.json'), 'utf8'));
 assert.equal(manifest.version, '0.1.0-dev.0');
 assert.equal(manifest.private, true);
-assert.equal(manifest.dsh.client, undefined, 'Host slice must not advertise a missing client bundle');
+assert.deepEqual(manifest.dsh.client, { platform: 'web' });
+assert.equal(require.resolve('dsh-session-bin/client'), join(installed, 'dist/client.js'));
+assert.equal(require.resolve('dsh-session-bin/remote'), join(installed, 'dist/remote.js'));
+assert(files.includes('dist/client.js') && files.includes('dist/remote.js'));
 const entryPath = require.resolve('dsh-session-bin');
 assert.equal(entryPath, join(installed, 'dist/index.js'));
 assert.equal(require.resolve('dsh-session-bin/operations'), join(installed, 'dist/operations.js'));

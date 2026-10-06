@@ -1,11 +1,11 @@
 # Agent 工作入口
 
-当前仓库已实现首个 Host 生命周期切片，尚无 Client 界面或可发布产品。[README](README.md)记录现状，[Host 生命周期](docs/host-lifecycle.md)记录正式接口与边界，[设计提案](docs/design-proposal.md)记录候选方案；提案不代表已完成能力。
+当前仓库已实现 Host 生命周期、严格 Remote 和原生客户端切片，仍是私有开发包。[README](README.md)记录现状，[Host 生命周期](docs/host-lifecycle.md)与[客户端接口](docs/client-interface.md)记录正式行为和边界，[设计提案](docs/design-proposal.md)记录后续候选方案；提案不代表已完成能力。
 
 ## 按任务加载
 
 - **实现或修改会话操作**：先读[设计提案](docs/design-proposal.md)、[当前 DSH 接口调研](docs/research/current-dsh-interfaces.md)、[兼容性验证](docs/verification/dsh-0.2-compatibility.md)、[Host 生命周期](docs/host-lifecycle.md)及[实现验证](docs/verification/host-lifecycle.md)，核对 archive、bin、purge 的语义及已复现的存储差异。
-- **界面或插件挂载**：读[接口调研](docs/research/current-dsh-interfaces.md)的槽位与样式结论，再核对对应版本 SDK；使用原生控件和语义 token。
+- **界面或插件挂载**：读[接口调研](docs/research/current-dsh-interfaces.md)的槽位与样式结论、[客户端接口](docs/client-interface.md)及[客户端验证](docs/verification/client-interface.md)，再核对对应版本 SDK；使用原生控件和语义 token。
 - **打包、发布或市场提交**：读[分发与发布](docs/release.md)和[分发调研](docs/research/reference-and-distribution.md)，核对当前外部规则。
 - **Issue、分支或 PR**：读[贡献流程](CONTRIBUTING.md)。
 

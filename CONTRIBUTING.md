@@ -1,6 +1,6 @@
 # 贡献流程
 
-仓库已有首个 Host 回收站生命周期切片；兼容性探针在本地实验分支，结论见[兼容性运行结论](docs/verification/dsh-0.2-compatibility.md)。尚无 Client 界面或可发布产品。功能是否可用以 [README](README.md) 的实现状态为准；当前接口与边界在[Host 生命周期](docs/host-lifecycle.md)，后续行为建议在[设计提案](docs/design-proposal.md)。
+仓库已有 Host 生命周期及[原生客户端切片](docs/client-interface.md)，当前为私有开发包；兼容性探针在本地实验分支，结论见[兼容性运行结论](docs/verification/dsh-0.2-compatibility.md)。功能是否可用以 [README](README.md) 的实现状态为准；正式行为分别在[Host 生命周期](docs/host-lifecycle.md)与[客户端接口](docs/client-interface.md)，后续候选能力在[设计提案](docs/design-proposal.md)。
 
 ## Issue 与分支
 
@@ -10,7 +10,7 @@
 
 ## 变更与验证
 
-使用 [mise.toml](mise.toml) 的固定工具。`mise run verify` 执行当前 Host 类型检查、构建、隔离行为测试与 tarball 检查；单项任务说明见[Host 生命周期](docs/host-lifecycle.md)。
+使用 [mise.toml](mise.toml) 的固定工具。`mise run verify` 执行两端类型检查、构建、隔离行为测试与 tarball 检查；`mise run verify:gui` 在独立 CLI profile 与系统 Chromium 中验证真实交互。单项任务及前提见[客户端接口](docs/client-interface.md)。
 
 会话状态变更需要从公共 Interface 检查成功、拒绝、重复提交和中断恢复。存储操作增加临时数据上的宿主集成验证，证明日志、查询索引和会话列表的一致性。界面验证覆盖原生浅色/深色、键盘、中文输入法和窄屏布局。对普通文案或样式调整采用与影响相称的检查。
 

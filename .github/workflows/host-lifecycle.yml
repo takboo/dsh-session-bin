@@ -1,4 +1,4 @@
-name: Host lifecycle
+name: Session Bin lifecycle
 
 on:
   push:

@@ -1,6 +1,6 @@
 # Host 回收站生命周期
 
-状态：首个 Host 实现切片；无 Client 面板或 Remote 传输，也不提供永久删除。包保留 `private: true`，仅在隔离测试宿主验证，不能作为已发布产品安装说明。
+状态：首个 Host 实现切片已接入[严格 Remote 和客户端](client-interface.md)，不提供永久删除。包保留 `private: true`，运行证据按[Host 验证](verification/host-lifecycle.md)与[客户端验证](verification/client-interface.md)分别记录，尚未公开发布。
 
 ## 公共接口
 

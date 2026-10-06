@@ -7,12 +7,16 @@ gh = "2.102.0"
 description = "Show the pinned development tool versions"
 run = ["node --version", "pnpm --version", "gh --version"]
 
+[tasks.install]
+description = "Install locked dependencies and populate the isolated GUI cache"
+run = "pnpm install --frozen-lockfile --ignore-scripts --store-dir .local/pnpm-store --cache-dir .local/pnpm-cache"
+
 [tasks.check]
-description = "Check Host types against the pinned SDK"
+description = "Check Host and Client types against the pinned SDK"
 run = "pnpm run check"
 
 [tasks.build]
-description = "Build precompiled Host artifacts and declarations"
+description = "Build precompiled Host and Client artifacts and declarations"
 run = "pnpm run build"
 
 [tasks.test]
@@ -26,5 +30,10 @@ depends = ["build"]
 run = "pnpm run verify:package"
 
 [tasks.verify]
-description = "Check, build, test, and verify the Host tarball"
+description = "Check, build, test, and verify the Host and Client tarball"
 run = "pnpm run verify"
+
+[tasks."verify:gui"]
+description = "Verify a real isolated Web profile with system Chromium"
+depends = ["build"]
+run = "pnpm run verify:gui"

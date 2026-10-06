@@ -12,5 +12,5 @@
     "outDir": "dist",
     "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/index.ts", "src/host/**/*.ts", "src/operations/**/*.ts", "src/remote/**/*.ts"]
 }

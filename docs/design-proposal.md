@@ -1,6 +1,6 @@
 # DSH Session Bin — 设计提案
 
-状态：完整产品仍为提案；首轮兼容性验证与首个 Host 生命周期切片已实现，见[Host 生命周期](host-lifecycle.md)和[实现验证](verification/host-lifecycle.md)。客户端、真实 GUI 和永久删除尚未实现。初始调研日期：2026-10-06；目标宿主 DSH `0.2.0-rc.2`。初始调研时 Web GUI 返回 HTTP 401，后续测试仍未声称完成真实界面验证。
+状态：Host 生命周期、严格 Remote、原生菜单和回收站面板已实现，见[Host 生命周期](host-lifecycle.md)、[客户端接口](client-interface.md)及[客户端验证](verification/client-interface.md)。完整产品分发及永久删除仍为后续方案。初始调研日期：2026-10-06；目标宿主 DSH `0.2.0-rc.2`。初始调研时 Web GUI 返回 HTTP 401；实际运行结果以对应验证报告为准。
 
 ## 定位与差异
 
@@ -46,7 +46,7 @@ scripts/        构建、打包与兼容性检查
 tests/          临时数据上的行为与宿主集成验证
 ```
 
-当前已建立 `src/host`、`src/operations`、`scripts` 和 `tests`；客户端目录随后续界面切片加入。正式接口与范围以[Host 生命周期](host-lifecycle.md)为准。
+当前已建立 `src/host`、`src/client`、`src/remote`、`src/operations`、`scripts` 和 `tests`。正式接口与范围以[Host 生命周期](host-lifecycle.md)及[客户端接口](client-interface.md)为准。
 
 核心 Module 是 `SessionBin`。对调用方暴露小的 Interface：查询条目、准备操作、执行已准备的操作。准备结果描述目标、阻止原因与版本；执行时重新检查，避免把预览当成有效授权状态。方法名称和 DTO 是设计建议，不是现有 DSH SDK 声明。
 
