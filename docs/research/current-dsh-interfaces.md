@@ -1,0 +1,155 @@
+# Current installed DSH interfaces and session-plugin compatibility
+
+## Conclusion and evidence scope
+
+The installed application is **DeepSeek Harness 0.2.0-rc.2**. Its application metadata, packaged runtime package, and desktop release metadata agree. The desktop metadata also records host protocol `4`, Node `24.18.1`, pnpm `11.7.0`, platform `darwin`, and architecture `arm64`. Sources: [application version:19](</Applications/DeepSeek Harness.app/Contents/Info.plist#L19>), [runtime package:1](<../../.local/dsh-runtime/dsh/package.json#L1>), [release metadata:1](<../../.local/dsh-runtime/dsh/desktop-runtime.json#L1>).
+
+**A reversible archive-backed Bin is feasible through supported interfaces, including a plugin-owned durable catalog. Permanent session deletion is unsupported by the public native APIs in this release.** The persistence seam explicitly has no deletion/retention API; the JSONL provider says nothing deletes session files; the native UI says sessions can be archived but never deleted. Sources: [persistence limits:149](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence/README.md#L149>), [provider limits:160](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/README.md#L160>), [native UI limit:214](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/README.md#L214>).
+
+This is an interface limit, not a conclusion that a separate provider adapter could never implement deletion. Plugin-owned metadata is allowed by the native domain interface. A native-interface-only design can avoid direct access to private `.dsh` files; archive and domain operations still persist indirectly through their owners.
+
+The supplied checkout path is inside an Electron `app.asar` archive, rather than an ordinary directory. Research used a workspace extraction of its packaged first-party JavaScript and READMEs. Each relative citation under `.local/dsh-runtime/dsh/node_modules/@deepseek-ai/<package>/…` corresponds to the original archive member `/Applications/DeepSeek Harness.app/Contents/Resources/app.asar/dsh/node_modules/@deepseek-ai/<package>/…`; line anchors point at the readable copy. Official upstream URLs supplement installed evidence and may describe newer `master` behavior. No installed file was modified, plugin executed, or session operation invoked.
+
+## Manifest and SDK contract
+
+There is no separate session-plugin manifest. Packages use npm identity, public DSH metadata, Cordis service injection, and client slot contributions. Public manifest metadata includes required package `name`/`version`, optional `dsh.manifestVersion: 1`, `engines.dsh`, client metadata, bundle patch metadata, and profile metadata. `engines.dsh` and manifest version are declarative; current installers/loaders do not enforce them. Sources: [manifest example:30](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-package-manifest/README.md#L30>), [public fields:46](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-package-manifest/README.md#L46>), [enforcement limit:92](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-package-manifest/README.md#L92>), [official public declarations](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/packages/util/package-manifest/src/types.ts).
+
+The installed `dsh.client` parser validates:
+
+| Field | Actual reader behavior |
+| --- | --- |
+| `platform` | Required string; the Web consumer selects `web`. |
+| `inject` | Optional string array of informational package edges in the client graph; not an activation-order guarantee and distinct from the plugin's Cordis `inject` service declarations. |
+| `external` | Optional string array of exact non-baseline module requests, including package `/client` subpaths. |
+| `immediately` | Optional boolean controlling the initial registration barrier. |
+
+The parser projects these four fields; it is not a strict schema validator for the whole npm manifest. Source: [installed parser:47](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-modules/lib/index.js#L47>). A client package must export its built `./client` bundle. The host serves built output, and missing bundles fail activation. Non-baseline requests must match the runtime module table and declared suppliers; missing suppliers, self-requests, and synchronous cycles fail composition. Sources: [client declaration:32](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-modules/README.md#L32>), [shared module rules:44](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-modules/README.md#L44>), [build requirement:48](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-modules/README.md#L48>). A concrete installed dual-face example is the [Session adapter manifest:16](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-session/package.json#L16>).
+
+A conservative packaged-plugin sketch is:
+
+```json
+{
+  "name": "dsh-session-bin",
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "dsh": "0.2.0-rc.2", "node": ">=24" },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": { "platform": "web" }
+  }
+}
+```
+
+This is a design sketch, not a complete build recipe: supply actual root/client bundles, declare needed package graph edges/non-baseline externals, and pin development SDK packages to the installed prerelease. React, React DOM, Cordis, slots, and primitives retain one browser identity, so another bundled copy can break compatibility. Source: [renderer identity:58](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-renderer/README.md#L58>).
+
+The official packaged row-action example imports `ui-workspace/client` for type augmentation, keeps the component at module scope, owns its locale namespace, and uses `ctx.slots.inject`. Source: [packaged plugin example:102](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/README.md#L102>). The ephemeral `cordis-client-runner` is a separate lane: plain JavaScript closures have no JSX, TypeScript, or imports, use fixed `React`, `console`, `styles`, and `host` names and declared services, and do not restore on refresh. Sources: [closure surface:32](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-cordis-client-runner/README.md#L32>), [lane distinction:165](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/README.md#L165>).
+
+## Native lifecycle APIs
+
+| Operation | Native interface and behavior |
+| --- | --- |
+| List/search | `ctx.remote.session.list/search`; the shared Client `ctx.sessions.list` catalog supplies observable summaries without activating cold Agents. |
+| Create/adopt | `session.create`; accepts `workspaceId` or `cwd`, never both. Explicit IDs adopt/resume known sessions; writer contention is reported. |
+| Read history | `session.page/follow`, projections, and Client retained references; separate from navigation/Agent creation. |
+| Rename/fork/prompt/cancel | Session Controller exposes these Remote methods with different activation policies. Fork creates a new ordinary session from an event prefix. |
+| Archive | Client `ctx.workspaces.archiveSession(id, { stopActivity? })`; Remote `workspace.archiveSession({ sessionId, stopActivity? })`; Host `ctx.workspaceRegistry.archiveSession`. |
+| Unarchive | `ctx.workspaces.unarchiveSession(id)` / `workspace.unarchiveSession({ sessionId })`; idempotently removes the archive mark. |
+| Pin/unpin | Workspace Controller/Registry APIs; archive removes the pin, unarchive does not restore it. |
+| Delete Workspace | `ctx.workspaces.delete(workspaceId)` removes only a registration and preserves its directory/session histories. |
+| Delete/trash/purge Session | No public native endpoint or persistence operation found. |
+
+Sources: [Session activation policies:34](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-session-controller/README.md#L34>), [actual Remote registrations:2581](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js#L2581>), [creation implementation:107](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-session-controller/lib/types/commands.js#L107>), [Client Workspace facade:58](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-workspace-controller/lib/types/client/service.js#L58>), [Host archive commands:118](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-workspace-controller/lib/types/commands.js#L118>), [registration delete contract:217](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/lib/types/index.js#L217>), and the explicit deletion limits above.
+
+### Archive semantics and protection
+
+**Archive retains history and membership.** The archive set is registry-global: a session is hidden from grouping surfaces but retains its Workspace `sessionIds` slot and recorded position. Workspace membership is irrelevant to archive admission. Source: [accounting contract:254](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/lib/types/index.js#L254>).
+
+**Missing-session checks are asymmetric.** Archive verifies a live session, cached header, or fresh persistence listing and returns `session/not-found` for a definite miss; storage faults propagate. Already archived IDs resolve before that check. Unarchive does not probe existence; missing/already unarchived IDs resolve as removal/no-op. Sources: [archive implementation:280](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/lib/types/index.js#L280>), [existence probe:382](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/lib/types/index.js#L382>), [unarchive:304](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/lib/types/index.js#L304>), [Remote errors:118](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-workspace-controller/lib/types/commands.js#L118>). Successful unarchive does not prove that a restorable transcript exists.
+
+**Running work is refused by default.** `workspace/session-activity` reports turn, subagent, job, and schedule activity; a nonempty answer yields `WorkspaceActiveSessionError` / `workspace/session-active` before writing. With `stopActivity: true`, compiled Registry code writes the archive first, then dispatches `workspace/session-stop`, so induced wakes see the gate. The call waits for stop requests, not for all workers to finish; provider failures are logged without undoing archive. Sources: [admission implementation:264](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/lib/types/index.js#L264>), [provider contract:101](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/README.md#L101>). Some controller prose says work stops “first”; the compiled Registry determines actual ordering.
+
+The activity check and archive write are not atomic with Agent start. A step admitted before the write can continue; the first proposed step after the write is blocked. Source: [documented race:175](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/README.md#L175>). The gate covers archived sessions and subagent descendants through durable `origin: 'subagent'` lineage; forks are independent conversations. Source: [step gate:17](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-session-controller/lib/types/archived-session-gate.js#L17>).
+
+**Current selection is a UI policy, not a Host refusal.** A quiet current session may be archived. `uiWorkspace.archiveSession` clears the main selection after success; its state subscription also clears a current session archived by another surface. Sources: [current action:861](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/lib/client.js#L861>), [navigation subscription:894](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/lib/client.js#L894>), [clear selection:957](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/lib/client.js#L957>). No native “do not delete current” policy can be claimed because Session deletion does not exist.
+
+**Native Undo already exists.** Quiet archive requires no confirmation. Active work raises a native stop-and-archive Modal. Successful archive offers Undo plus an archived-filter action; stopped-and-archived has the same restore path. Undo restores visibility, not stopped work, previous selection, or pin membership. Archived rows cannot open in native Conversation until restored; Rename and Fork remain available. Sources: [native behavior:56](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/README.md#L56>), [Undo wiring:4249](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/lib/client.js#L4249>).
+
+### Deletion and linked resources
+
+There is **no native Session deletion path that removes linked resources**. Archive preserves histories/resources. Attachments are content-addressed, deduplicated across references, and never deleted automatically; generic files use shared canonical objects and named read-only hard links. Sources: [retention:55](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-attachment-local/README.md#L55>), [object identity:84](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-attachment-local/README.md#L84>), [generic links:90](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-attachment-local/README.md#L90>). One Session ID is insufficient evidence of exclusive attachment ownership.
+
+SessionStore detach/disposal removes an exact live generation and emits disposal; it is not persistent erasure. Persistence reacts by draining and closing its writer. Sources: [store lifetime:783](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session/lib/types/index.js#L783>), [exact detach:934](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session/lib/types/index.js#L934>), [writer disposal:57](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence/README.md#L57>). The private SQLite `_deleteSession` helper deletes index rows and is used during index replacement, not Session erasure. Source: [index helper:760](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-query-sqlite/lib/index.js#L760>).
+
+No audited native purge transaction covers current/historical logs, writer locks, subagent/fork lineage, Workspace accounting, pins/archives, projections/search indexes, shared attachments, terminals, jobs, schedules, or Client selections. A provider adapter needs a separate compatibility spike proving those relationships; it must not be represented as public native support.
+
+## Invalidation, events, and Workspace scope
+
+Workspace follow begins with a full baseline then ordered `upsert`, `remove`, `order`, `archived`, and `pinned` frames. Global-state writes publish complete archive/pin sets; reconnect replaces the baseline rather than replaying durable incremental history. Sources: [follow contract:25](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-workspace-controller/README.md#L25>), [feed:57](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-workspace-controller/lib/types/feed.js#L57>), [archive frames:104](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-workspace-controller/lib/types/feed.js#L104>). Client unary replies install only while their request generation remains current; a pushed set/later request supersedes stale answers. Source: [Client race handling:122](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-workspace-controller/lib/types/client/model.js#L122>). Consume native snapshots/streams instead of synthesizing native invalidation events.
+
+`api-session/removed` means the Session left the live Host registry following `session/disposed`, not that durable history was erased. Agent status/user activity have separate events. Archive visibility comes from Workspace state. Source: [Session event bridge:239](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-session-controller/lib/types/index.js#L239>).
+
+Archive/pin sets are **Host-global**, not Workspace-specific, and their durable shape is ID arrays without entry timestamps/provenance. Membership belongs to canonical-path registrations and recorded Session cwd; a Session can belong to at most one Workspace and a foreign cwd cannot be moved into another. Sources: [durable shape:116](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/README.md#L116>), [membership:71](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/README.md#L71>), [cwd limitation:172](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/README.md#L172>). A Bin Workspace filter should join IDs to native `WorkspaceView.sessionIds`, with unmatched sessions under Ungrouped; filtering does not narrow the native action's scope.
+
+A Host plugin can declare a schema-validated sidecar domain using `defineDomain` and `ctx.storageDomain.open`, with durable writes and ordered `domain/changed` events, without touching backend files. The facility has no cross-table transactions or cross-process change push, so catalog and archive writes are not one atomic transaction. Sources: [sidecar use:28](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-storage-domain/README.md#L28>), [domain API:49](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-storage-domain/README.md#L49>), [commit/events:73](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-storage-domain/README.md#L73>), [limits:151](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-storage-domain/README.md#L151>).
+
+## Client slots and allowed mounting
+
+Slots support `single`, `list`, `keyed`, and `chain`. Declaring a slot claims rendering authority: only its owning registration renders it. Undeclared contributions, duplicate child declarations, conflicting scope mounts, or a chain without selector fail at load. Business plugins register components; the renderer/shell owns the React root. Sources: [slot shapes:28](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-slots/README.md#L28>), [ownership rules:46](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-slots/README.md#L46>), [mount ownership:32](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-renderer/README.md#L32>).
+
+| Slot/interface | Contribution |
+| --- | --- |
+| `sidebar.workspaces.session.menu.item` | Root-scoped ordered list. Receives row `sessionId`, `displayTitle`, standard hooks, and `useMenuOpenState`. Render one `MenuItemButton`; dismiss before invoking the action. Native Pin 100, Rename 200, Fork 300, Archive 400; plugin order 500 follows Archive. |
+| `sidebar.workspaces.session.row.action` | Root-scoped list of hover icon buttons. Native Archive order 100, Pin 200. Strip clicks do not open the Session row. |
+| `sidebar.session.row.leading` | Root-scoped list rendered only on idle ordinary rows; blank for archives. Suitable for a noninteractive marker. |
+| `sidebar.session.row.hover` | Root-scoped list mounted while its hover card is open. |
+| `sidebar.panellist` + `main` | Icon row with `id`, optional `order`, literal/locale-aware `label`, paired with a root-scoped `main` keyed body under the same ID. `ctx.layout.selectPanel(id)` validates the key; `null` shows Conversation without changing the retained Session. |
+| `shell.overlay` | Root-scoped list for the plugin's own Modal/Toast. Native rename, stop-and-archive, and row notices use it; render null when inactive. |
+| Settings | `settings.section` feature pages, `settings.plugins.tab` plugin tabs, `settings.onboarding` steps; declare-aware registration follows the actual shell owner. |
+
+Sources: [row contract/order:98](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/README.md#L98>), [row scope:90](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/README.md#L90>), [compiled declarations:4299](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/lib/client.js#L4299>), [overlay registrations:4377](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/lib/client.js#L4377>), [panel contract:38](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-sidebar/README.md#L38>), [main panel contract:32](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-layout/README.md#L32>), [settings slots:40](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-settings/README.md#L40>).
+
+Reusing a shipped action ID at another priority can shadow it; a distinct plugin ID avoids coupling to that native action. `ctx.slots.inject(slot, register)` is required even if the owner normally exists: it waits for declaration, removes contributions on collapse, and restores them when declaration returns. Sources: [action shadowing:98](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/README.md#L98>), [lifecycle registration:163](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/README.md#L163>).
+
+Root-scoped row slots receive an ID rather than retaining/activating every listed Session. Read-only preview should use temporary `sessions.retain`/`sessions.using` references and release them, or Controller page/follow; do not retain every archived Session to build a table. Sources: [row scope rationale:90](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/README.md#L90>), [reference ownership:74](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-session-controller/README.md#L74>). Navigation uses `ctx.uiWorkspace.openSession(target)` and `ctx.layout.beginNavigation`; supersession cancels UI commitment, not underlying Session creation. Sources: [navigation:72](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/README.md#L72>), [abort semantics:55](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-layout/README.md#L55>). Bin preview should avoid opening an archived Session in Conversation; verify cold read behavior in a fixture.
+
+## Native controls, tokens, and i18n
+
+Use exported primitives: `Button`, `Input`, `Checkbox`, `Menu`, `MenuItemButton`, `Modal`, `RiskConfirmation`, `Tooltip`, `Toast`, state dots, and shared icons. They own no Cordis/locale state and require caller-localized labels. Sources: [catalog:43](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-primitives/README.md#L43>), [label ownership:109](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-primitives/README.md#L109>).
+
+Modal supplies overlay geometry, top-layer Escape/Tab behavior, focus restoration, and blocking. Initial controls use `data-modal-autofocus`, not React `autoFocus`, so invoking focus is captured first. MenuItemButton integrates keyboard movement, focus return, shortcuts, and `separatorBefore`. Sources: [focus/modal behavior:28](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-primitives/README.md#L28>), [menu:48](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-primitives/README.md#L48>). Native archive confirmation is a plugin-owned Modal in `shell.overlay`, not a generic confirmation Remote API. Source: [confirmation component:3469](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/lib/client.js#L3469>).
+
+Feature styles consume semantic `--dsw-*` tokens, including primary/secondary/tertiary labels, interactive hover background, error state, focus-ring width/color, radius scale, toast aliases, menu fill/elevation, and frame clearances. Theme state belongs to `ctx.theme`; layout projects it onto the document. Sources: [theme consumption:28](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-theme/README.md#L28>), [focus:60](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-theme/README.md#L60>), [toast aliases:68](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-theme/README.md#L68>), [frame geometry:37](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-layout/README.md#L37>).
+
+Own copy in a plugin namespace: augment `LocaleNamespaceMap`, register complete `{ en, zh }` dictionaries in `ctx.effect`, set the registration's locale, and consume injected `t`. Slot-rendered copy updates on locale change. Package `LocalizedText` maps require an English fallback. Sources: [dictionary API:38](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-locale/README.md#L38>), [metadata resolution:42](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-locale/README.md#L42>), [typed action example:118](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/README.md#L118>).
+
+## Official examples and tests
+
+The installed [packaged Session action example:102](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/README.md#L102>) is the closest official plugin template: typed row props, owned dictionaries, native MenuItemButton, order 500, and declaration-aware registration. The installed [language-pack example:48](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-locale/README.md#L48>) demonstrates owned dictionary disposal.
+
+Official upstream source/tests inspected or discovered:
+
+- [Session action tests](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/client/ui-workspace/tests/session-actions.client.spec.tsx), read: menu dismissal, archive/unarchive, stop confirmation, pending/error handling, Undo/filter toasts; explicitly treats archive as nondestructive.
+- [Global panel tests](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/client/ui-sidebar/tests/panel-list.client.spec.tsx), read: `SlotTestRuntime`, paired sidebar/main contributions, ordering, locale refresh, late additions, disposal.
+- [Workspace Registry tests](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/workspace/workspace/tests/workspace.spec.ts) and [Workspace service tests](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/client/ui-workspace/tests/workspaces-service.client.spec.ts), discovered; full bodies not audited here.
+- [Persistence test directory](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/session/session-persistence/tests); installed documentation identifies `runPersistenceContract` and `runLiveWritePathContract` as provider conformance suites: [suite contract:79](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence/README.md#L79>).
+- Official [Client Modules reference](https://deepseek-harness.github.io/deepseek-harness/en/reference/subsystems/client-modules.md) and [package manifest README](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/packages/util/package-manifest/README.md) were read as supplementary primary sources.
+
+These are source inspections, not executed tests. Validate against pinned 0.2.0-rc.2 SDK/fixtures before claiming implementation compatibility.
+
+## Feasible design and hard limits
+
+**Small interface-only feature:** a packaged client plugin adds a dedicated Archived/Bin panel and optional row action, consumes native catalog/Workspace snapshots, calls official archive/unarchive, and uses native controls/locales. It reads/writes no private `.dsh` files. Native Undo and archived filtering already exist; add distinct organization, batch selection, or metadata rather than treating those as missing capabilities.
+
+**Distinct Bin semantics:** a Host plugin can own a `session-bin` domain with records such as `{ sessionId, binnedAt, workspaceIdAtBin, wasPinned, operationId, phase }`, expose its own Remote service, and compose native archive/unarchive. A Bin contains only plugin-owned records, not every native archive. Native IDs lack time/provenance, so the separate catalog is needed for Bin age/retention policy. The domain API supports sidecars, but offers no transaction across catalog and native archive state. Sources: [sidecar use:28](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-storage-domain/README.md#L28>), [ID-only state:116](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/README.md#L116>), [transaction limit:152](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-storage-domain/README.md#L152>).
+
+Recommended coordination policy: serialize plugin operations; persist intent/phase records; reconcile failures/restarts. Refuse already archived Sessions or record prior archive state so Restore does not unarchive an independently archived conversation. Reconcile external unarchive by dropping Bin ownership, distinguish missing/unknown rows, and preserve native running checks. ID-only sets have no per-entry versions/compare-and-set, so an external unarchive/rearchive cannot be attributed reliably by ID alone. This is a derived design limitation, not an additional native guarantee.
+
+For active work, default to plain archive; show structured refusal; pass `stopActivity: true` only for an explicit stop-and-move action. Undo restores visibility without restarting stopped work. Use `uiWorkspace` current-selection policy. Workspace filtering changes presentation only; the archive action remains Host-global. Restoring prior pins can be a separate plugin policy using native pin APIs, but is not part of unarchive and must consider subsequent user changes.
+
+**Permanent deletion boundary:** do not claim public-API-only Delete forever, timed purge, secure erasure, or linked-resource cleanup on this release. A future provider adapter remains possible research work requiring exact-version/provider gating and tests proving live writer/current/missing safeguards, lineage ownership, retained generations, shared-resource rules, indexes/events, and crash recovery. An upstream deletion/retention seam owning those relationships would provide a more stable implementation interface.

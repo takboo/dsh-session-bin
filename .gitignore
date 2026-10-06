@@ -1,0 +1,17 @@
+# Local inspection snapshots and developer state
+.local/
+.mise.local.toml
+.env
+.env.*
+!.env.example
+
+# Dependencies and generated output
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.tgz
+
+# Operating system files
+.DS_Store

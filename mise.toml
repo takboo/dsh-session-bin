@@ -1,0 +1,8 @@
+[tools]
+node = "24.18.1"
+pnpm = "11.7.0"
+gh = "2.102.0"
+
+[tasks.env]
+description = "Show the pinned development tool versions"
+run = ["node --version", "pnpm --version", "gh --version"]
