@@ -1,0 +1,55 @@
+{
+  "name": "dsh-session-bin",
+  "version": "0.1.0-dev.0",
+  "private": true,
+  "type": "module",
+  "description": "Archive-backed Session Bin Host lifecycle for DeepSeek Harness; development slice without UI or permanent deletion.",
+  "license": "MIT",
+  "packageManager": "pnpm@11.7.0",
+  "engines": { "node": "24.18.1", "dsh": "0.2.0-rc.2" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./operations": { "types": "./dist/operations/schema.d.ts", "default": "./dist/operations.js" },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist/", "cordis.patch.yml", "LICENSE", "docs/host-lifecycle.md"],
+  "dsh": { "manifestVersion": 1, "bundle": { "patch": "./cordis.patch.yml" } },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "build": "tsc --emitDeclarationOnly && node scripts/build.mjs",
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "verify:package": "node scripts/verify-package.mjs",
+    "verify": "pnpm run check && pnpm run build && pnpm run test && pnpm run verify:package"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "@deepseek-ai/dsh-session": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-persistence": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-storage-domain": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-workspace": "0.2.0-rc.2"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-home-paths": "0.2.0-rc.2",
+    "@deepseek-ai/node-addon-system": "0.1.2",
+    "@deepseek-ai/schemastery": "3.18.4",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "@deepseek-ai/cordis-plugin-loader": "1.0.5",
+    "@deepseek-ai/dsh-invariants": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-persistence": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-storage": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-storage-domain": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-storage-json": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-workspace": "0.2.0-rc.2",
+    "@types/node": "24.7.0",
+    "esbuild": "0.25.10",
+    "typescript": "5.9.3",
+    "yaml": "2.8.1"
+  }
+}

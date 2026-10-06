@@ -6,3 +6,25 @@ gh = "2.102.0"
 [tasks.env]
 description = "Show the pinned development tool versions"
 run = ["node --version", "pnpm --version", "gh --version"]
+
+[tasks.check]
+description = "Check Host types against the pinned SDK"
+run = "pnpm run check"
+
+[tasks.build]
+description = "Build precompiled Host artifacts and declarations"
+run = "pnpm run build"
+
+[tasks.test]
+description = "Test lifecycle behavior in isolated DSH data"
+depends = ["build"]
+run = "pnpm run test"
+
+[tasks."verify:package"]
+description = "Verify the tarball with the real Cordis Loader"
+depends = ["build"]
+run = "pnpm run verify:package"
+
+[tasks.verify]
+description = "Check, build, test, and verify the Host tarball"
+run = "pnpm run verify"

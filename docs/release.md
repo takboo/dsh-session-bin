@@ -1,12 +1,12 @@
 # 分发与发布
 
-状态：发布方案，尚未创建 npm 包、GitHub 远程仓库或市场提交。来源为[分发调研](research/reference-and-distribution.md)及[市场贡献规则](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/blob/main/contributing.md)，规则核对日期 2026-10-06。
+状态：发布方案；已创建并验证私有 Host 开发包，见[Host 生命周期](host-lifecycle.md)，尚无 Client 界面或正式产品发布，未创建 GitHub 远程仓库或市场提交。来源为[分发调研](research/reference-and-distribution.md)及[市场贡献规则](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/blob/main/contributing.md)，规则核对日期 2026-10-06。
 
 ## 一个包、同一份产物
 
 Host 与 Client 放在一个预编译 npm 包中；Host 使用 ESM，Client 使用 DSH Module Loader 的 lazy CommonJS factory 格式，并声明明确的 exports 和 files 白名单。发布物包含 Host 入口、DSH Module Loader 格式的 Client 入口、样式资源、bundle patch、README 与 LICENSE；项目文档按用户需要选取。排除本地源码快照、开发数据、测试会话及凭据。
 
-声明 `dsh.bundle.patch` 指向随包发布的 `cordis.patch.yml`，Client 使用 `dsh.client.platform = web` 与 `exports["./client"]`。只有 `dsh.client` 不能满足市场对可安装 bundle 的要求。patch 只挂载自己的 Host 行，不替换宿主的归档实现。完整 manifest 在首个可加载功能实现时创建并验证，避免当前 README-only 基线被误认成可安装插件。
+声明 `dsh.bundle.patch` 指向随包发布的 [cordis.patch.yml](../cordis.patch.yml)。当前 Host 开发切片已创建并验证 manifest 和 insert patch；patch 只挂载自己的 Host 行，不替换宿主归档实现。Client 实现后加入 `dsh.client.platform = web` 与 `exports["./client"]`，不得声明尚未提供的入口。只有 `dsh.client` 不能满足市场对可安装 bundle 的要求。
 
 官方宿主运行时包使用 peerDependencies，开发编译所需 SDK 固定版本放入 devDependencies。首轮验证目标锁定到已安装的 `0.2.0-rc.2`，通过运行验证后才声明支持；扩展范围时显式考虑 semver 对预发布版本的匹配。React、Cordis 和共享控件的运行时身份遵守宿主 Module Loader 外部模块契约，并通过真实 tarball 加载确认。
 

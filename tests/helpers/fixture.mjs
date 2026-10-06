@@ -1,0 +1,114 @@
+import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, realpath } from 'node:fs/promises';
+import { resolve, join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Context } from '@deepseek-ai/cordis';
+import Storage from '@deepseek-ai/dsh-storage';
+import * as storageJson from '@deepseek-ai/dsh-storage-json';
+import * as storageDomain from '@deepseek-ai/dsh-storage-domain';
+import { SessionStore, SessionId } from '@deepseek-ai/dsh-session';
+import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
+import { WorkspaceRegistry } from '@deepseek-ai/dsh-workspace';
+import * as binPlugin from '../../dist/index.js';
+
+export const workspaceRoot = fileURLToPath(new URL('../../', import.meta.url));
+export const ids = ['quiet', 'sibling', 'native-only', 'active', 'ungrouped', 'race', 'missing-later'];
+
+export async function createScratch(prefix = 'lifecycle-') {
+  const parent = join(workspaceRoot, '.local', 'lifecycle');
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(join(parent, prefix));
+  const canonical = await realpath(root);
+  const rel = relative(await realpath(workspaceRoot), canonical);
+  assert(rel && rel !== '..' && !rel.startsWith(`..${sep}`));
+  await mkdir(join(root, 'workspace'), { mode: 0o700 });
+  return root;
+}
+
+export async function openFixture(root, { seed = false, plugin = true, observe = true, compression = 'none' } = {}) {
+  root = await realpath(resolve(root));
+  const rel = relative(await realpath(join(workspaceRoot, '.local', 'lifecycle')), root);
+  assert(rel && rel !== '..' && !rel.startsWith(`..${sep}`), 'fixtures must use isolated workspace data');
+  process.env.DSH_HOME = join(root, 'dsh-home');
+  const ctx = new Context();
+  const fibers = [];
+  const state = { activity: new Map(), stops: [], changes: [], activityQueries: 0 };
+  const mount = async (implementation, config) => {
+    const fiber = ctx.plugin(implementation, config);
+    fibers.push(fiber);
+    await fiber;
+    if (fiber.error) throw fiber.error;
+    return fiber;
+  };
+  const close = async () => {
+    const errors = [];
+    for (const fiber of [...fibers].reverse()) {
+      try { await fiber.dispose(); } catch (error) { errors.push(error); }
+    }
+    try { await ctx.fiber.dispose(); } catch (error) { errors.push(error); }
+    if (errors.length) throw new AggregateError(errors, 'fixture teardown failed');
+  };
+  try {
+    await mount(Storage);
+    await mount(storageJson, { root: join(root, 'storage') });
+    await mount(storageDomain, { backend: 'json' });
+    await mount(SessionStore);
+    await mount(Jsonl, { root: join(root, 'logs'), compression });
+    if (seed) {
+      for (const [index, rawId] of ids.entries()) {
+        const session = ctx.sessions.prepare(SessionId(rawId), { meta: {
+          ...(rawId === 'ungrouped' ? {} : { cwd: join(root, 'workspace') }), createdAt: 10000 - index,
+        } });
+        const handle = await ctx.sessionPersistence.create(session.header);
+        try {
+          await handle.append([
+            { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
+            { type: 'turn/end', seq: 1, time: 2, data: { turn: 1, reason: { kind: 'completed' } } },
+          ]);
+          await handle.flush();
+        } finally { await handle.close(); }
+      }
+    }
+    ctx.on('workspace/session-activity', async ({ sessionId }, next) => {
+      state.activityQueries += 1;
+      return [...(state.activity.get(sessionId) ?? []).map(kind => ({ kind })), ...await next()];
+    });
+    ctx.on('workspace/session-stop', ({ sessionId }) => { state.stops.push(sessionId); });
+    ctx.on('domain/changed', change => { state.changes.push(structuredClone(change)); });
+    await mount(WorkspaceRegistry);
+    assert(ctx.workspaceRegistry);
+    let binFiber;
+    if (plugin) {
+      binFiber = await mount(binPlugin, { coordinationDirectory: join(root, 'coordination') });
+      assert(ctx.sessionBin);
+    }
+    return { root, ctx, state, binFiber, mount, close, bin: ctx.get('sessionBin'),
+      async openModule({ storeWrapper = value => value, nativeWrapper = value => value } = {}) {
+        const release = await binPlugin.acquireBinLease(join(root, 'coordination'));
+        let domain;
+        try { domain = await ctx.storageDomain.open(binPlugin.binDomainSpec); }
+        catch (error) { await release(); throw error; }
+        const store = new binPlugin.DomainBinStore(domain);
+        const native = new binPlugin.DshBinPort(ctx);
+        const module = new binPlugin.SessionBinModule(storeWrapper(store), nativeWrapper(native));
+        const off = observe ? ctx.on('domain/changed', change => {
+          if (change.domain === 'workspace' && change.table === '' && change.operation === 'put') {
+            void module.observeArchives(change.value.archivedSessionIds).catch(() => {});
+          }
+        }) : () => {};
+        try { await module.reconcile(); }
+        catch (error) { off(); await module.close(); await release(); throw error; }
+        return { module, store, native, async close() { try { await module.close(); } finally { off(); await domain.close(); await release(); } } };
+      },
+    };
+  } catch (error) { await close(); throw error; }
+}
+
+export async function transcript(fixture, id = 'quiet') {
+  const handle = await fixture.ctx.sessionPersistence.open(SessionId(id), 'read');
+  try { return structuredClone(await handle.read()); }
+  finally { await handle.close(); }
+}
+export function accounting(fixture) {
+  return fixture.ctx.workspaceRegistry.list().map(workspace => ({ id: workspace.id, sessions: [...workspace.sessionIds] }));
+}
