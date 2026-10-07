@@ -85,22 +85,50 @@ export async function openFixture(root, { seed = false, plugin = true, observe =
       assert(ctx.sessionBin);
     }
     return { root, ctx, state, binFiber, mount, close, bin: ctx.get('sessionBin'),
-      async openModule({ storeWrapper = value => value, nativeWrapper = value => value } = {}) {
+      async openModule({ storeWrapper = value => value, nativeWrapper = value => value, retirement = {} } = {}) {
         const release = await binPlugin.acquireBinLease(join(root, 'coordination'));
         let domain;
-        try { domain = await ctx.storageDomain.open(binPlugin.binDomainSpec); }
-        catch (error) { await release(); throw error; }
-        const store = new binPlugin.DomainBinStore(domain);
-        const native = new binPlugin.DshBinPort(ctx);
-        const module = new binPlugin.SessionBinModule(storeWrapper(store), nativeWrapper(native));
-        const off = observe ? ctx.on('domain/changed', change => {
-          if (change.domain === 'workspace' && change.table === '' && change.operation === 'put') {
-            void module.observeArchives(change.value.archivedSessionIds).catch(() => {});
+        let retirementDomain;
+        let retirementStore;
+        let store;
+        let native;
+        let module;
+        let off = () => {};
+        const dispose = async () => {
+          const errors = [];
+          try { await module?.close(); } catch (error) { errors.push(error); }
+          try { off(); } catch (error) { errors.push(error); }
+          for (const handle of [retirementStore, retirementDomain, domain]) {
+            try { await handle?.close(); } catch (error) { errors.push(error); }
           }
-        }) : () => {};
-        try { await module.reconcile(); }
-        catch (error) { off(); await module.close(); await release(); throw error; }
-        return { module, store, native, async close() { try { await module.close(); } finally { off(); await domain.close(); await release(); } } };
+          try { await release(); } catch (error) { errors.push(error); }
+          if (errors.length) throw new AggregateError(errors, 'module fixture teardown failed');
+        };
+        try {
+          domain = await ctx.storageDomain.open(binPlugin.binDomainSpec);
+          if (retirement.store) retirementStore = retirement.store;
+          else {
+            retirementDomain = await ctx.storageDomain.open(binPlugin.retirementDomainSpec);
+            retirementStore = new binPlugin.DomainRetirementStore(retirementDomain);
+          }
+          store = new binPlugin.DomainBinStore(domain);
+          native = new binPlugin.DshBinPort(ctx);
+          module = new binPlugin.SessionBinModule(storeWrapper(store), nativeWrapper(native), {
+            retirement: { ...retirement, store: retirementStore },
+          });
+          off = observe ? ctx.on('domain/changed', change => {
+            if (change.domain === 'workspace' && change.table === '' && change.operation === 'put') {
+              void module.observeArchives(change.value.archivedSessionIds).catch(() => {});
+            }
+          }) : () => {};
+          await module.reconcile();
+          let closing;
+          return { module, store, native, retirementStore, close: () => closing ??= dispose() };
+        } catch (error) {
+          try { await dispose(); }
+          catch (cleanup) { throw new AggregateError([error, cleanup], 'module fixture initialization and cleanup failed'); }
+          throw error;
+        }
       },
     };
   } catch (error) { await close(); throw error; }

@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { entrySchema, planSchema, prepareRequestSchema, resultSchema } from '../operations/schema.js';
 import type { BinBlocker, BinEntry, BinOperation, BinPlan, BinResult, PrepareRequest } from '../operations/schema.js';
 import type { BinStore } from './store.js';
+import { SessionBinPurgeModule } from './retirement.js';
+import type { RetirementOptions } from './retirement.js';
+import { preparePurgeRequestSchema, purgePlanSchema } from '../operations/retirement.js';
+import type { PreparePurgeRequest, PurgePlan } from '../operations/retirement.js';
 
 export class SessionBinError extends Error {
   constructor(readonly code: string, message: string, options?: ErrorOptions) {
@@ -34,8 +38,37 @@ export class SessionBinModule {
   private closePromise: Promise<void> | undefined;
   private readonly invalidated = new Set<string>();
   private readonly observedArchived = new Set<string>();
+  private readonly purge: SessionBinPurgeModule | undefined;
 
-  constructor(private readonly store: BinStore, private readonly native: NativeBinPort) {}
+  constructor(private readonly store: BinStore, private readonly native: NativeBinPort,
+    options: { retirement?: RetirementOptions } = {}) {
+    this.purge = options.retirement ? new SessionBinPurgeModule(options.retirement, {
+      entry: id => this.store.entry(id), invalidated: id => this.invalidated.has(id),
+      archived: async id => (await this.native.inspect(id)).archived,
+      activity: id => this.native.activity(id), deleteEntry: id => this.store.deleteEntry(id),
+      hasArchiveOperation: id => this.store.operation(id) !== undefined,
+      hasPendingArchiveOperation: id => this.store.operations().some(item => item.phase !== 'done' && item.plan.sessionId === id),
+    }) : undefined;
+  }
+
+  preparePurge(request: PreparePurgeRequest) {
+    const input = preparePurgeRequestSchema.parse(request);
+    return this.enqueue(async () => {
+      await this.reconcileInner();
+      return this.requirePurge().prepare(input);
+    });
+  }
+  executePurge(input: PurgePlan) {
+    const plan = purgePlanSchema.parse(input);
+    return this.enqueue(() => this.requirePurge().execute(plan));
+  }
+  getPurgeOperation(operationId: string) { return this.enqueue(async () => this.requirePurge().operation(operationId)); }
+  purgeOperations() { return this.enqueue(async () => this.requirePurge().operations()); }
+  reconcilePurge() { return this.enqueue(() => this.requirePurge().reconcile(true)); }
+  private requirePurge(): SessionBinPurgeModule {
+    if (!this.purge) throw new SessionBinError('bin/permanent-deletion-unsupported', 'No retirement journal/owner is composed.');
+    return this.purge;
+  }
 
   prepare(request: PrepareRequest): Promise<BinPlan> {
     const input = prepareRequestSchema.parse(request);
@@ -60,6 +93,9 @@ export class SessionBinModule {
     // Snapshot at admission: callers cannot mutate an enqueued request.
     const plan = planSchema.parse(input);
     return this.enqueue(async () => {
+      if (this.purge?.operation(plan.operationId)) {
+        throw new SessionBinError('bin/operation-id-reused', 'Operation identity belongs to a purge request.');
+      }
       const previous = this.store.operation(plan.operationId);
       if (previous) {
         if (!this.sameRequest(previous.plan, plan)) {
@@ -91,6 +127,7 @@ export class SessionBinModule {
       const operation: BinOperation = recovered ?? {
         ...this.emptyOperation(plan), entry, phase: 'intent',
       };
+      if (plan.action === 'bin' && !recovered) await this.purge?.capture(entry);
       await this.store.putOperation(operation);
       // The intent write itself yields. Check native state and activity again;
       // ordinary native archive still performs its own admission waterfall.
@@ -141,7 +178,12 @@ export class SessionBinModule {
   getOperation(operationId: string): Promise<BinOperation | undefined> {
     return this.enqueue(async () => this.store.operation(operationId));
   }
-  reconcile(): Promise<ReconcileReport> { return this.enqueue(() => this.reconcileInner()); }
+  reconcile(): Promise<ReconcileReport> {
+    return this.enqueue(async () => {
+      await this.purge?.reconcile(true);
+      return this.reconcileInner();
+    });
+  }
 
   /** Capture each native archive frame NOW, before queued reconciliation yields.
    * An observed unarchive/rearchive must not restore an old entry's ownership.
@@ -162,7 +204,7 @@ export class SessionBinModule {
     }
     return this.closing
       ? Promise.resolve({ completed: [], retryRequired: [], releasedEntries: [] })
-      : this.reconcile();
+      : this.enqueue(() => this.reconcileInner());
   }
 
   close(): Promise<void> {
@@ -170,7 +212,10 @@ export class SessionBinModule {
     return this.closePromise ??= this.tail.then(async () => {
       try {
         if (!this.failure) await this.reconcileInner();
-      } finally { await this.store.close(); }
+      } finally {
+        try { await this.purge?.close(); }
+        finally { await this.store.close(); }
+      }
     });
   }
 
@@ -183,6 +228,7 @@ export class SessionBinModule {
   }
   private async blockers(plan: BinPlan, state: NativeSessionState, entry: BinEntry | undefined): Promise<BinBlocker[]> {
     const blockers: BinBlocker[] = [];
+    if (this.purge?.blocks(plan.sessionId)) blockers.push({ code: 'pending-deletion' });
     if (!state.known) blockers.push({ code: 'session-not-found' });
     if (plan.action === 'bin' && entry) blockers.push({ code: 'already-in-bin' });
     if (plan.action === 'restore' && !entry) blockers.push({ code: 'not-in-bin' });
@@ -219,6 +265,9 @@ export class SessionBinModule {
       return this.finish(operation, 'conflict', 'archive-changed');
     }
     if (!state.known) return this.finish(operation, 'conflict', 'session-not-found');
+    if (operation.plan.action === 'bin' && this.purge && !(await this.purge.bindingMatches(entry))) {
+      return this.finish(operation, 'conflict', 'lifecycle-changed');
+    }
     const current = this.store.entry(entry.sessionId);
     if (current && current.entryId !== entry.entryId) {
       return this.finish(operation, 'conflict', 'entry-changed');
@@ -237,6 +286,7 @@ export class SessionBinModule {
   }
   private async reconcileInner(): Promise<ReconcileReport> {
     const report: ReconcileReport = { completed: [], retryRequired: [], releasedEntries: [] };
+    await this.purge?.reconcile();
     for (const operation of this.store.operations()) {
       if (operation.ownershipInvalidated && operation.entry) this.invalidated.add(operation.entry.entryId);
     }
@@ -252,6 +302,7 @@ export class SessionBinModule {
       report.retryRequired.push(operation.plan.operationId);
     }
     for (const entry of this.store.entries()) {
+      if (this.purge?.ownsPendingEntry(entry.entryId)) continue;
       if (this.invalidated.has(entry.entryId) || !(await this.native.inspect(entry.sessionId)).archived) {
         const owner = this.store.operation(entry.operationId);
         if (!owner || owner.entry?.entryId !== entry.entryId) {

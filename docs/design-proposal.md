@@ -76,6 +76,81 @@ UI 只持有会话身份、操作计划和逐项结果，路径由 Host 解析�
 
 归档型回收站的日志与协调范围见[Host 生命周期](host-lifecycle.md)及对应验证。永久删除仍须独立证明资源隔离、锁协调、缓存和索引一致性，不能从可逆归档的验证推断删除能力。
 
+## 永久删除资源生命周期候选协议
+
+本节为 **2026-10-07 的完整资源 owner 候选接口方案，尚未获得原生删除 provider 准入**。公开 npm DSH `0.2.0-rc.2` 上的 12 项[准入探针](../tests/deletion-admission.test.mjs)复现了资源寿命与身份缺口，不能据此启用删除；结果及精确基线见[Host 验证](verification/host-lifecycle.md#永久删除资源准入探针)。已实现严格的 Host 协议消费者、sidecar、授权 grant 与恢复 guard，正式行为见[Host 生命周期](host-lifecycle.md#host-单项删除协议消费者)，选定的消费者架构见 [ADR 0003](decisions/0003-retirement-consumer.md)。本插件不新增私有文件删除 Adapter 来绕过缺口，也不把下列建议名称当成已存在的 SDK Service。
+
+### 身份和范围
+
+需要资源所有者提供可持久化的 `{ storeId, sessionId, lifecycleId }`：`storeId` 标识持久化存储命名空间，`lifecycleId` 在逻辑会话首次创建时生成，跨 resume、重启和格式迁移保持，ID 重新创建必须更换。它与每次进入内存的 exact Session/Agent 对象身份、物理日志代际和变更 revision 分开。`createdAt/cwd` 可由调用方重复指定；persistence 的 `identity: symbol` 仅在进程内有效，`revision` 也不承诺跨实例比较。这些都不能替代上述删除身份。
+
+未来条目须在移入时绑定所有者生命周期，计划再绑定 `entryId`、条目版本、`operationId` 与资源清单摘要。准备及执行都检查本插件持久化条目、归档状态和所有者身份。原先未绑定的 v1 条目没有这样的生命周期见证，不能在删除时仅凭同名会话自动补齐；已选定的消费者实现保留原 v1 DTO，在新移入时另存 sidecar 见证。兼容方式为继续允许可逆恢复，经明确移入创建新的 entryId 和见证；生产 native 组合当前没有获准 owner，重新移入也不会启用删除。未观察到的取消归档再归档仍遵守现有归属限制，不以新身份方案宣称已恢复历史 actor 信息。
+
+单项指一个明确的插件条目和它绑定的逻辑会话，不隐式级联删除其他 Session。fork 与未选中的子代理会话保留；如果所有者不能证明父子日志、spill 或其他引用可安全分离，则拒绝此目标。将来显式选择的其他会话也须各有插件条目与身份，不能因为 `parentSession/origin` 而获得删除授权。批量及清空固定这些条目身份，不在重试或恢复时扩大集合。
+
+### 资源所有者接口草案
+
+优先由宿主提供统一 retirement 协调入口，persistence、Agent、Workspace、query/cache、attachment/spill 等提供方参与其公开协议。本插件负责条目授权和展示，资源清单、路径校验、关停与删除由相应所有者执行。接口形状建议如下，类型仅表达契约：
+
+```ts
+type LifecycleKey = { storeId: string; sessionId: string; lifecycleId: string };
+type BinBinding = { entryId: string; entryVersion: number };
+type RetirementRequest = {
+  operationId: string;
+  expected: LifecycleKey;
+  bin: BinBinding;
+  manifestDigest: string;
+};
+interface SessionRetirementOwnerV1 {
+  capabilities(): Promise<RetirementCapabilities>;
+  inspect(sessionId: string): Promise<LifecycleObservation>;
+  prepare(expected: LifecycleKey): Promise<ResourceManifest>;
+  retire(request: RetirementRequest, authorize: RetirementAuthorizer): Promise<RetirementState>;
+  getOperation(operationId: string): Promise<RetirementState | null>;
+  recover(operationId: string): Promise<RetirementState>;
+}
+```
+
+- `capabilities` 说明精确宿主/提供方、durable store 身份、协议版本与参与的资源所有者。所有已启用且可能保留会话数据的提供方必须有已验证的 retirement 能力；未覆盖的组合返回不支持，不能忽略可选插件中的数据副本。
+- `inspect` 区分可读生命周期、所有者已认证的不存在、不可读/未支持和观察失败。`stat` 缺省或 `list` 未列出不是不存在证书。无法给旧数据建立精确身份时返回缺口，不生成可执行计划。
+- `prepare` 返回无副作用清单：目标生命周期、所有历史/当前代际、独占资源、共享引用、保留资源及阻止原因。摘要覆盖影响确认的资源范围和参与者版本；不含客户端可提交的文件路径。清单变化要求重新准备和确认；不能用旧计划包住后来生成的日志代际。
+- `retire` 在宿主的生命周期准入围栏内复核 exact identity、清单和原生活动，并调用 Host 本地 `authorize` 重新核对持久化条目。围栏必须协调会话 create/resume/fork、写入、读取/订阅准入及 native archive/unarchive/pin 的相关变更；不能是另一把只有插件使用的锁。授权失败、活动存在或范围变化在不可逆步骤前返回持久化拒绝/冲突回执，不隐式停止任务。
+- `getOperation` 和 `recover` 只处理已保存的同一绑定。旧请求在 ID 重用后返回旧回执或身份冲突；不存在操作返回 `null`，不得清理同名资源后伪造成功。`recover` 不重新解析批量选择，也不把新生命周期绑定到旧操作。
+
+`RetirementAuthorizer` 是宿主调用、只读且可等待的条目核对回调，不是由客户端提供的授权位。授权在准入围栏内运行，本插件队列/lease 同时阻止自身恢复或条目替换；已观察的外部归属失效必须被核对。宿主若无法将原生变更与该围栏协调，授权后的 TOCTOU 仍存在，该接口不能准入。
+
+### 生命周期和完成屏障
+
+候选顺序是：插件持久化 intent → 所有者在围栏内最后核对并持久化 retirement intent/fence → 排空 exact lifecycle 的既有使用者 → 验证冻结资源清单 → 所有者清除资源 → Workspace/派生存储收敛 → 所有者持久化完成回执 → 插件核对回执并退出相同 `entryId` → 插件完成回执。
+
+围栏须在任何资源释放或清除前持久化，并在启动时先恢复、再允许 create/resume/读写/索引重建。最终活动检查必须在准入围栏内发生：检查前已准入的 turn、subagent、job、schedule 或 terminal 使用者仍活动时拒绝，不能从归档布尔值推断静止。不得以停止请求返回作为排空成功。quiet live 对象的退出通过它的资源所有者完成，等待 composite disposal、writer `close`、异步观察者和相关在途读请求；仅调用 SessionStore detach 或广播 removed 不满足屏障。已保留 handle、历史 preparation 和订阅须由各自 owner 关闭或持久化失效，此后旧对象的 read/write/缓存写回也须拒绝；不能只禁止新 open 而让已保留对象继续使用。读取快照已经被调用方复制的内容不可能追溯销毁，删除声明不包括外部导出或独立 fork 中已有的副本。
+
+JSONL 所有者在 writer 已关闭后取得相同稳定 `session.lock` inode 的写排他权，并保持到自身资源回执提交；单纯 `open('write')` 会读日志并可能迁移，不是无副作用的 retirement lease。不得删除、移动或替换锁文件及其父目录来改变这把锁的身份。历史/current raw/zstd 代际和 staging 文件由 provider 分类和核对真实文件身份后处理；未知或不可读资源阻止完整成功。retirement tombstone/操作记录应在重新查找和写入路径可见，阻止已缓存路径重新发布。锁及最小 tombstone/回执属于保留的协调元数据，不算未清除的会话内容；ID 重用需新的生命周期及经验证的 admission 规则。
+
+共享附件、命名 hard link、request-image cache 和 spill 按各自所有者的引用规则处理。spill 的 session 目录归组也不证明 bytes 独占：fork 可保留旧 locator。候选结果必须列出已解除的引用、已清除的独占资源、因其他存活引用保留的共享资源及失败项。未知引用按保留/阻止处理，不能扫描不完整的 session 列表后宣称零引用；无公开引用/保留协议时此提供方组合不准入。
+
+Workspace 所有者在其队列内清除该生命周期的成员、archive/pin 和 header 索引，并给出持久化确认；本插件不写其私有表。query/projection 所有者先持久化生命周期失效标记，再排空已开始的写回、清除属于它的派生记录，之后拒绝旧代晚到写入。重建和重开要消费同一失效记录；仅通知客户端、清掉一次 cache row 或等待下一次 SQLite 查询不构成完成。完成回执要求所有必要参与者已确认，后续 native list/search/follow 与重启结果一致。
+
+### 中断、结果及幂等
+
+所有者至少保存 `intent`、`fenced`、`quiesced`、`erasing`、`converging`、`done`，清除与收敛分别记录逐资源确认。phase 不是把多个存储伪装成事务：每个 owner 的动作必须可幂等恢复，回执含 exact lifecycle、请求绑定、清单摘要和参与者结果。插件只在所有者 `done` 后去掉相同条目；失败/待恢复条目不得继续提供普通 restore 来重开半删除的资源。
+
+| 中断边界 | 候选恢复语义 |
+| --- | --- |
+| 插件 intent 已落盘，所有者无记录 | 保留条目，完成为需新计划的中断冲突；启动不新发删除。显式同身份重试也先查 owner，避免未知 acknowledgement。 |
+| owner intent/fence 已落盘，但 quiescence 未确认 | 在宿主启动准入前恢复原操作并保留 fence；不从 SessionStore 空列表推断使用者已全部释放。 |
+| 任意资源清除前后确认丢失 | 通过该 owner 的持久化子回执判断，不通过 `stat === undefined` 或路径缺失猜测整体成功；未确认范围继续为待恢复/部分失败。 |
+| 日志已清除，Workspace/query/cache 未确认 | 保持 tombstone 和围栏；继续原操作收敛，条目显示待恢复，拒绝恢复或新生命周期进入旧操作。 |
+| owner done，插件条目/回执未完成 | 仅补插件元数据；owner 历史回执不再清除资源，后来同名条目不受影响。 |
+
+响应需区分 `rejected`、`conflict`、`pending-recovery`、`partial-failure` 和 `done`，并记录稳定 reason 与逐资源结果。连接丢失是客户端的未知观察，不改变 owner 已保存状态。取消仅在 owner admission 前或批量尚未开始的对象生效；durable fence 后卸载、断线或取消不能遗弃操作。无法证明恢复状态时保留围栏并报告人工介入条件，不解除保护后尝试普通恢复。
+
+### 当前缺口与验证门槛
+
+`0.2.0-rc.2` 未提供上述统一入口、持久化 lifecycle token、活动/归档联合准入围栏、逐目标 writer/read/observer 屏障、JSONL retirement lease/全代际清单、共享引用释放、Workspace 删除确认、派生数据持久化防复活或 owner 操作回执。AgentLoop 内部 composite teardown 有等待 idle 和 writer close 的顺序，但它不构成跨所有者的公开删除屏障。逐项源码依据见[资源所有者缺口表](research/permanent-deletion.md#resource-owner-contract-gaps)。因此默认 Host 组合没有执行原生 purge 的资格；原 `prepare/execute` 仍仅接受 `bin/restore`，新增 Host 专用 `preparePurge/executePurge` 在此组合返回可查询的不支持拒绝。它们已通过测试资源 owner 驱动协议消费者，但尚不向 Remote/UI 暴露删除。
+
+候选 owner 的临时数据验收必须覆盖：准备后生命周期/条目替换、native 活动切换和已准入工作、独立进程 writer 争用及稳定 lock inode、保留 reader/异步观察者、historical raw/zstd 全代际、未知/损坏资源、fork/子代理/spill/shared attachment 保留、晚到 cache/index 写回、每个 owner phase 的实际 SIGKILL 与重开、确认丢失、旧操作对新生命周期的拒绝，以及列表/搜索/Workspace/follow 的共同收敛。成功的准入缺口探针不替代这些删除与故障验收；只有 owner 实现通过独立验收后才将正式 Host 单项切片接到这一 seam。
+
 ## 能力验收边界
 
 ### 宿主兼容性

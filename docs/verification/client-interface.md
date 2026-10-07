@@ -63,3 +63,15 @@
 脚本仅在忽略的 `.local/gui/` 随机目录建立 DSH_HOME、Workspace、profile、缓存、浏览器数据、测试日志、projection、截图和报告。每次真实 Host 退出后才重开 SDK 检查；停止的进程组全部属于脚本。认证 token、cookie 和凭据不进入公开报告，未连接当前 19387 GUI。
 
 验证只证明上述精确平台和版本。单 Host、POSIX lease 与未观察归档变化的归属限制继续遵循[Host 契约](../host-lifecycle.md)；Windows、Linux 和多 Host 原生存储协调未扩大支持。浏览器文本输入和合成 composition 事件不等于真实操作系统中文输入法会话；中文和 English 已按上述分层矩阵实际验证。尚无公开发布、市场提交或 GitHub CI 远程运行记录，也不提供永久删除、日志预览或自动清空。
+
+## Host 删除消费者后的兼容性复验
+
+日期：2026-10-07。本节基线为 `c2f62b6` 加 Host 删除消费者及测试的未提交工作区变更；与上面的 `a151d56/667ff68/78cd924` 历史验收分开。精确实现/测试 SHA-256 清单、独立审阅、40 项新增故障检查及范围见[Host 验证](host-lifecycle.md#host-单项删除协议消费者验证)。当前客户端源码、原严格 Remote v1 DTO 和菜单/面板行为未扩展删除。
+
+`mise run verify` 的两端检查、构建、**90/90 项测试**与真实 Loader/tarball 验证通过。`mise run verify:gui` 随后用默认无 owner 的 Service 组合，在两个全新临时 Web/Chrome profile 顺序验证中文和 English：每轮 18 项检查和 27 个覆盖项均通过，browser console/pageErrors 为空。
+
+实际报告：[中文](../../.local/gui/client-zh-GA2y5b/verification.json)、[English](../../.local/gui/client-en-RRLeCz/verification.json)。实际截图：[中文浅色](../../.local/gui/client-zh-GA2y5b/artifacts/session-bin-light-zh.png)、[中文深色](../../.local/gui/client-zh-GA2y5b/artifacts/session-bin-dark-zh.png)、[中文窄屏](../../.local/gui/client-zh-GA2y5b/artifacts/session-bin-narrow-zh.png)；[English 浅色](../../.local/gui/client-en-RRLeCz/artifacts/session-bin-light-en.png)、[English 深色](../../.local/gui/client-en-RRLeCz/artifacts/session-bin-dark-en.png)、[English 窄屏](../../.local/gui/client-en-RRLeCz/artifacts/session-bin-narrow-en.png)。两轮与 Host tarball 的 SHA-256 相同：`d1680640ad92c36396b271b24c5a5cde0acb7b13221b7c7e05ec86dde8a02beb`。
+
+复验涵盖新 sidecar 下的启动/卸载、原生菜单、移入/Undo、单项与固定选择批量恢复、搜索/工作区筛选、真实 Settings 语言切换、日期/metadata、浅深色和 390px 窄屏、重载、SDK 重开及卸载后的新启动。测试端口为 `62576/62694`，仅连接脚本启动的临时 Host，未连接 `19387`，测试进程均由脚本关闭。
+
+这一结果证明新 Host 生命周期切片保持既有客户端兼容，**不证明原生永久删除、删除确认 Modal、批量删除或清空**。它们尚未向 Remote/UI 开放；provider 准入和真实资源 retirement 的限制见 Host 报告。环境仍为 macOS ARM64、Node `24.18.1`、pnpm `11.7.0`、DSH `0.2.0-rc.2`、Chrome `154.0.8037.98`，未扩大平台、原生存储并发或实际操作系统输入法支持。
