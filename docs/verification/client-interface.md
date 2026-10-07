@@ -2,9 +2,9 @@
 
 状态：本地两端验证及中文、English 真实 GUI 验证通过。目标为 DSH 0.2.0-rc.2、Node 24.18.1、pnpm 11.7.0、macOS ARM64，私有开发包 0.1.0-dev.0。真实浏览器为系统 Chrome 154.0.8037.98。
 
-## 本地集成基线
+## 验证基线
 
-Host 切片提交为 `a151d56c494d4ac63464a8abaf48e9ad2ee38524`，包含完整 Conventional Commit 正文、17 项 Host 测试和打包证据。已 fast-forward 合并本地 `main`，客户端从该提交新建的 `feat/bin-client` 分支继续。没有远程推送或公开发布。
+代码基线：Host `a151d56`、客户端 `667ff68`、中英补充 `78cd924`。本报告记录这些基线在上述 SDK 和平台上的检查结果，不作为当前开发计划或分支状态说明。实现状态见 [README](../../README.md)。
 
 ## 检查结果
 
@@ -22,25 +22,9 @@ Host 切片提交为 `a151d56c494d4ac63464a8abaf48e9ad2ee38524`，包含完整 C
 
 完整行为与文案测试为 **38 项全部通过**。逻辑载体测试使用真实 Gateway 与 Connection 的已准入 Fetch/stream 边界，不能作为 cookie、Host/Origin 或 WebSocket 网络鉴权的证明；真实浏览器层独立覆盖浏览器准入和实际网络交互。Client 产物测试丢弃平台 seed 的原生 CSS，明确只验证代码、共享身份与生命周期，视觉由 Chrome 层验证。
 
-## 客户端初始 GUI 验收
-
-此前客户端切片的[中文完整报告](../../.local/gui/client-K7Nop4/verification.json)记录了以下实际通过项；本轮中英补充验收见下一节。
-
-- 公开 CLI 真实安装并注册 bundle，客户端出现在原生 boot graph；独立新 profile 的预览说明及模型设置向导通过原生“继续 / 稍后配置”关闭，不填密钥、不创建 Agent 或发模型请求。
-- 空回收站排除普通原生归档；原生会话菜单的键盘导航、Escape 和焦点返回正常。
-- 移入、Toast Undo、面板单项恢复、批量恢复均经过实际传输；原先已归档的对象恢复后仍保持原生归档。
-- 真实标题来自持久化 projection，搜索与当前工作区筛选正确；composition 完成、Escape、键盘中文文字与 Tab 均执行检查。
-- 浅深色均由宿主主题呈现；390×844 视口中面板位于 x=56、宽 334、高 844，所有输入/选择/按钮横向边界在视口内，批量恢复按钮底部 y=815 可见。
-- 页面完整重载重建客户端与空目录；停止真正 Host 后通过 SDK 重开检查，四个测试日志内容完全相同，普通原生归档与原先已归档对象保持归档，两个恢复对象已取消归档。
-- 公开 CLI 卸载真实返回退出码 0，profile dependency 和 bundle 选择移除；第二次真正 Web 启动不再有本插件 boot entry 或入口，原生页面正常可用。
-
-实际截图：[浅色](../../.local/gui/client-K7Nop4/artifacts/session-bin-light.png)、[深色](../../.local/gui/client-K7Nop4/artifacts/session-bin-dark.png)、[窄屏](../../.local/gui/client-K7Nop4/artifacts/session-bin-narrow.png)。这些是独立测试 profile 的真实渲染，不是概念图。
-
-该轮[GUI tarball](../../.local/gui/client-K7Nop4/dsh-session-bin-0.1.0-dev.0.tgz) SHA-256：`60a8c46c63c838d7e289bec80d0b43a61a845314f6883d376658cde75508b0ff`。报告保存去除认证参数的 loopback URL；测试 Host 和 Chrome 均在验证结束时关闭。后续只改文档也会改变 tarball 摘要，其他运行的摘要以各自报告为准。
-
 ## 中文与 English 完整适配验证
 
-本轮补齐了原报告只有中文实跑、English 仅类型完整性的缺口，并修复英文单项语法、空名已分组工作区的语义，以及插件管理页的中文 metadata。`mise run verify:gui` 现在顺序运行两个独立 profile，不再用“中英任一匹配”的断言代替语言验证。
+双语验收针对中文和 English 两个独立 profile 使用精确语言断言，覆盖单项语法、空名工作区语义与插件管理 metadata。`mise run verify:gui` 顺序执行两种语言，不以“中英任一匹配”代替适配验证。
 
 | 覆盖内容 | 中文 | English | 证据层次 |
 | --- | --- | --- | --- |
@@ -70,7 +54,7 @@ Host 切片提交为 `a151d56c494d4ac63464a8abaf48e9ad2ee38524`，包含完整 C
 3. 测试 RpcStreamOpen 必须立即返回 AsyncIterable，公开 Gateway wireStream.open 返回 Promise<AsyncIterable>。载体改为 async generator 先等待再迭代，产品业务不因测试而改写。
 4. 冷 Session 摘要依赖持久化 projection cache。真实 fixture 通过公开 SessionProjectionRegistry、titleProjectionDefinition 与 SessionProjectionCache 建立冷标题并排空；产品仍只读原生摘要，不主动读取日志或激活 Agent。
 5. 目录推送可能早于执行回复。已在执行中的请求不会被自动回执查询提前结算，避免重复成功通知或提前开放不可用 Undo；断线后的未知请求仍可查询。
-6. pnpm 11 的 `remove` 不接受 `--ignore-scripts`，脚本使用实际识别的 `PNPM_CONFIG_IGNORE_SCRIPTS=true`。自动化进程设置非交互 CI 环境；此前继承环境下 CLI 卸载完成依赖移除却未退出的失败记录保留在独立旧目录，未伪装为成功。非交互探针与两轮完整新运行真正返回 0 并清理 bundle；不把具体等待机制归因于未证明的更新检查。
+6. pnpm 11 的 `remove` 不接受 `--ignore-scripts`。GUI 自动化通过 `PNPM_CONFIG_IGNORE_SCRIPTS=true` 和非交互 CI 环境控制子进程；两个独立 profile 的安装/卸载真实返回 0，依赖与 bundle 选择清除。该结果限定于所记录的运行条件，不推断其他环境的退出行为。
 
 ## 复现与边界
 

@@ -1,6 +1,6 @@
 # Host 生命周期实现验证
 
-状态：本地验证通过，范围为首个 Host 切片。目标 SDK：DSH 0.2.0-rc.2；平台：macOS ARM64。实现位于 `feat/bin-lifecycle` 分支，尚未发布产品。
+验证对象：Host 生命周期，代码基线 `a151d56`。结果：17 项本地检查通过。目标 SDK：DSH 0.2.0-rc.2；平台：macOS ARM64。本报告的范围限该基线，完整客户端验收另见[客户端验证](client-interface.md)。
 
 ## 环境与命令
 
@@ -35,4 +35,4 @@ Node 24.18.1、pnpm 11.7.0、GitHub CLI 2.102.0 由 [mise.toml](../../mise.toml)
 
 本轮覆盖的是 macOS ARM64 与固定公开 SDK。活动提供方为 fixture，没有启动真实 Agent turns、subagents、jobs 或 schedules；运行保护依赖原生 waterfall 的已验证拒绝行为。Linux 未执行本地验证，Windows 的 lease 能力会拒绝加载。支持部署仍为一个 Host 拥有原生 Workspace 存储；协作插件 lease 不协调其他 Host 的原生写入。未观察或尚未持久化的取消归档再归档无法恢复精确归属，详见[Host 生命周期](../host-lifecycle.md)。
 
-尚未验证完整 DSH profile/CLI 安装、真实浏览器渲染、浅深色、键盘、中文输入法和窄屏；Client 与 Remote 传输在下一切片补齐。[CI 配置](../../.github/workflows/host-lifecycle.yml)已加入，但本轮没有 GitHub 运行记录。原有[首轮兼容性探针](dsh-0.2-compatibility.md)的证据范围保持独立，不将其 fixture 结果扩大为全宿主能力。
+该 Host 验证未覆盖完整 DSH profile/CLI 安装、真实浏览器渲染、浅深色、键盘、中文输入法和窄屏。对应客户端及 Remote 的运行证据见[客户端验证](client-interface.md)，不扩大本报告的 fixture 范围。[CI 配置](../../.github/workflows/host-lifecycle.yml)和[首轮兼容性探针](dsh-0.2-compatibility.md)分别记录相关流程与独立证据。

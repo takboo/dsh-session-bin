@@ -1,6 +1,6 @@
 # Agent 工作入口
 
-当前仓库已实现 Host 生命周期、严格 Remote 和原生客户端切片，仍是私有开发包。[README](README.md)记录现状，[Host 生命周期](docs/host-lifecycle.md)与[客户端接口](docs/client-interface.md)记录正式行为和边界，[设计提案](docs/design-proposal.md)记录后续候选方案；提案不代表已完成能力。新的 session 先读[交接记录](docs/session-handoff.md)，核对主线和已通过的中英验证，再确定下一阶段任务。
+实现状态以 [README](README.md) 为准。[Host 生命周期](docs/host-lifecycle.md)与[客户端接口](docs/client-interface.md)记录正式行为和边界；[设计提案](docs/design-proposal.md)记录候选方案，不代表已完成能力。按任务加载下列文档。
 
 ## 按任务加载
 
@@ -22,4 +22,4 @@
 
 本地 `.local/` 为研究快照，排除于 Git 和发布产物。正式构建使用声明的 SDK 与依赖。复用上游代码时保留版权和许可。
 
-新增架构决定时只记录已经选定且影响后续工作的决定，连同依据；研究事实归研究文档，候选设计归设计提案，当前进度归 issue/PR 或工作记录。
+新增架构决定时只记录已经选定且影响后续工作的决定，连同依据；研究事实归研究文档，候选设计归设计提案，实现状态集中在 README。临时进度、会话交接和下一轮安排留在会话、issue/PR 或提交说明中，不另建长期交接或进度文档。

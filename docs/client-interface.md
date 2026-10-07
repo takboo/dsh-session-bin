@@ -1,6 +1,6 @@
 # 客户端与 Remote 接口
 
-状态：已实现客户端切片；正式验证结果见[客户端验证](verification/client-interface.md)。仍为私有开发包，永久删除不在该切片中。
+本文说明客户端交互、严格 Remote 合约和插件生命周期。实际验证结果见[客户端验证](verification/client-interface.md)，实现状态见 [README](../README.md)。
 
 ## 交互与所有权
 
@@ -43,7 +43,7 @@ Host follow 使用插件 domain 的变化订阅，先订阅后取基线，合并
 `./client` 导出预编译 DSH lazy CommonJS factory，React、React JSX runtime 和原生 primitives 从平台基线解析，保留共享身份。特有 CSS Modules 样式嵌入工厂并由 fiber 管理；`./remote` 导出浏览器安全的严格贡献，Host 入口不进入客户端依赖图。两个 TypeScript face 分开检查，避免同名 Context 服务冲突。配置与命令分别在 [mise.toml](../mise.toml) 和 [package.json](../package.json)。
 
 - `mise run verify`：两端类型检查、构建、Host/Remote/客户端模型测试和 tarball 检查。
-- `mise run verify:gui`：按顺序验收中文与 English，每轮在独立临时 DSH_HOME 中通过公开 CLI 安装 tarball，启动真正 `dsh web`，用隔离 Chrome profile 检查精确语言文案、切换和交互并截图，最后卸载并验证新启动的页面。它不连接当前 19387 GUI。
+- `mise run verify:gui`：按顺序验收中文与 English，每轮在独立临时 DSH_HOME 中通过公开 CLI 安装 tarball，启动真正 `dsh web`，用隔离 Chrome profile 检查精确语言文案、切换和交互并截图，最后卸载并验证新启动的页面。它只连接脚本启动的独立测试宿主，不使用开发者的运行中 profile。
 - `DSH_GUI_LOCALE=zh-CN` 或 `en-US` 与 `mise run verify:gui:locale`：仅用于单语诊断。
 
 GUI 检查先用 `mise run install` 将锁定依赖安装到项目并填充 `.local/` 下的离线 store/cache，再运行 `mise run verify:gui`。需要本机可用的 Chrome；可通过 `DSH_GUI_BROWSER_EXECUTABLE` 指定其他 Chromium 可执行文件。脚本为自己的 CLI 进程设置非交互 CI 环境，`--port 0` 使用系统空闲端口，私下消费认证 URL，日志与报告去除 token。数据、截图和报告保留在忽略的 `.local/gui/` 随机目录，不加入发布产物。

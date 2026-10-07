@@ -1,6 +1,6 @@
 # 贡献流程
 
-仓库已有 Host 生命周期及[原生客户端切片](docs/client-interface.md)，当前为私有开发包；兼容性探针在本地实验分支，结论见[兼容性运行结论](docs/verification/dsh-0.2-compatibility.md)。功能是否可用以 [README](README.md) 的实现状态为准；正式行为分别在[Host 生命周期](docs/host-lifecycle.md)与[客户端接口](docs/client-interface.md)，后续候选能力在[设计提案](docs/design-proposal.md)。
+实现状态以 [README](README.md) 为准。正式行为在[Host 生命周期](docs/host-lifecycle.md)与[客户端接口](docs/client-interface.md)，候选方案在[设计提案](docs/design-proposal.md)，版本兼容性证据在[验证文档](docs/verification/client-interface.md)。
 
 ## Issue 与分支
 
@@ -20,10 +20,10 @@
 
 说明具体问题、触发方式和修改后的行为，列出实际完成的验证与仍存在的限制。关联 originating issue 或对应设计完成条件。界面 PR 附真实的浅色和深色截图；生命周期 PR 列出涉及的活动、锁、并发和恢复场景。
 
-已有 [Host CI](.github/workflows/host-lifecycle.yml)，使用固定 mise 工具、frozen lockfile、禁用安装脚本以及实际 Host 验证任务；当前只执行了本地检查，GitHub 运行结果需远程仓库建立后确认。发布工作使用已通过检查的提交。远程仓库存在后设置 required checks、PR 审阅和 release 环境规则；不绕过失败的检查。
+[CI 配置](.github/workflows/host-lifecycle.yml)使用固定 mise 工具、frozen lockfile、禁用安装脚本和实际验证任务。PR 的检查结果以对应提交的运行记录为准；发布使用已通过检查的提交。远程仓库使用 required checks、PR 审阅和 release 环境规则，不绕过失败的检查。
 
 ## 文档与许可
 
-事实只在研究文档保存一份，设计选择归设计提案；已落实且需要长期记忆的架构决定另建 ADR。用户安装说明和兼容性表在实际安装验证后添加。复用代码附来源和保留上游版权。
+实现状态集中在 README；研究文档保存带版本与出处的事实，设计提案保存候选方案，ADR 保存已落实且影响后续工作的决定，验证报告保存明确基线的检查结果与限制。临时会话交接、代理分工和下一轮安排留在会话、issue/PR 或提交说明中，不写入长期文档。用户安装说明和兼容性表依据实际安装证据，复用代码附来源并保留上游版权。
 
 发布与市场提交遵循[分发与发布](docs/release.md)。远程仓库和 npm 发布身份建立后再填入具体地址，不把占位地址写成可用链接。

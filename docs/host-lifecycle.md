@@ -1,6 +1,6 @@
 # Host 回收站生命周期
 
-状态：首个 Host 实现切片已接入[严格 Remote 和客户端](client-interface.md)，不提供永久删除。包保留 `private: true`，运行证据按[Host 验证](verification/host-lifecycle.md)与[客户端验证](verification/client-interface.md)分别记录，尚未公开发布。
+本文说明归档型回收站的 Host 操作协议、持久化规则和并发边界。对应传输与界面见[客户端接口](client-interface.md)，运行证据见[Host 验证](verification/host-lifecycle.md)和[客户端验证](verification/client-interface.md)；实现状态集中在 [README](../README.md)。
 
 ## 公共接口
 

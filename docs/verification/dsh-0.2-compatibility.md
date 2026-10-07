@@ -8,7 +8,7 @@
 
 已验证：插件自有记录可通过 `storageDomain` 和 JSON 后端持久化；原生归档/恢复保留工作区成员与顺序；JSONL 的普通及 Zstandard 编码均支持读写往返和跨进程写入者排除。原生永久删除仍缺少公开能力；本轮没有实现或执行永久删除。
 
-源码、工具配置和依赖锁定保存在本地 `spike/dsh-0.2-compatibility` 分支，捕获提交为 `258be2d`，作为实验材料。正式产品实现从已验证的结论选取依赖与 Interface，不直接将整个探针工程作为发布包。
+探针源码、工具配置和依赖锁定的捕获提交为 `258be2d`，作为可复现的实验材料。该工程不作为产品发布包；正式接口与实现规则见[Host 生命周期](../host-lifecycle.md)和[客户端接口](../client-interface.md)。
 
 ## 环境与来源
 
@@ -48,15 +48,14 @@
 1. 使用原生 archive/unarchive，插件自有记录保留 `wasArchived`、操作身份、phase 和 schemaVersion。
 2. 使用公开 domain 持久化元数据，在 Module 的写入入口校验，避免让无效值阻止重启。
 3. 已归档对象单独复核活动；永久删除不能以 archive 成功或停止请求返回作为工作结束的证明。
-4. intent、原生归档与条目提交属于独立持久化写入。下一阶段必须验证中途失败和重启对账；本轮并发检查不证明跨进程事务或一致性。
+4. intent、原生归档与条目提交属于独立持久化写入。本探针没有验证中途失败和重启对账，并发检查不证明跨进程事务或一致性；正式操作恢复的独立证据见[Host 验证](host-lifecycle.md)。
 5. 保留经验证的 JSONL 写入者排除规则，当前不执行自行删除目录或锁文件的操作。
 
 ## 重跑
 
-切换到本地实验分支后，在仓库根运行：
+在隔离工作树或 checkout 中检出捕获提交 `258be2d`，然后从该 checkout 根目录运行：
 
 ```bash
-git switch spike/dsh-0.2-compatibility
 export MISE_DATA_DIR="$PWD/.local/mise-data"
 export MISE_STATE_DIR="$PWD/.local/mise-state"
 export MISE_CACHE_DIR="$PWD/.local/mise-cache"
@@ -67,8 +66,8 @@ mise exec -- pnpm install --frozen-lockfile --ignore-scripts \
 mise run verify:compatibility
 ```
 
-三个探针会自行创建随机 scratch 目录并输出位置；不会连接当前 GUI。Client 探针使用本地 tarball、模拟 DOM 与真实 SDK Loader，完整 profile/CLI 安装、真实 GUI 渲染、CSS、视觉和可访问性仍需后续验证。
+三个探针会自行创建随机 scratch 目录并输出位置，不连接开发者的 GUI。Client 探针使用本地 tarball、模拟 DOM 与真实 SDK Loader；本报告没有覆盖完整 profile/CLI 安装、真实 GUI、CSS、视觉或可访问性。
 
-## 后续完成条件
+## 证据边界
 
-先实现插件 Module 的校验与操作记录、移入及恢复，然后验证 phase 中断恢复和外部归档变化；客户端使用已验证的 Loader/槽位方式，并在真实 DSH 测试实例补齐安装与界面检查。永久删除还需要独立的资源与生命周期设计、提供方支持范围和故障测试，不因本轮 writer 检查通过而自动开放。
+本探针证明已确认持久化后的重开、原生归档语义、写入者排除与加载协议，不证明插件操作的中断恢复或完整界面行为。操作恢复见[Host 验证](host-lifecycle.md)，安装和界面见[客户端验证](client-interface.md)，各报告的基线与 fixture 范围保持独立。永久删除仍需要另行证明资源生命周期、提供方支持和故障行为，不能由 writer 排除结果自动推断。
