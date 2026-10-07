@@ -24,7 +24,8 @@ const files = pack.files.map(file => file.path).sort();
 assert(files.includes('dist/index.js') && files.includes('dist/index.d.ts'));
 assert(files.includes('dist/operations.js') && files.includes('cordis.patch.yml'));
 assert(files.includes('LICENSE') && files.includes('docs/host-lifecycle.md') && files.includes('docs/client-interface.md'));
-assert(files.every(file => ['package.json', 'README.md', 'LICENSE', 'cordis.patch.yml', 'docs/host-lifecycle.md', 'docs/client-interface.md'].includes(file)
+assert(files.includes('locale/en.json') && files.includes('locale/zh.json'));
+assert(files.every(file => ['package.json', 'README.md', 'LICENSE', 'cordis.patch.yml', 'docs/host-lifecycle.md', 'docs/client-interface.md', 'locale/en.json', 'locale/zh.json'].includes(file)
   || file.startsWith('dist/')));
 const tarball = join(scratch, pack.filename);
 const installed = join(scratch, 'installed', 'node_modules', 'dsh-session-bin');
@@ -38,6 +39,18 @@ assert.deepEqual(manifest.dsh.client, { platform: 'web' });
 assert.equal(require.resolve('dsh-session-bin/client'), join(installed, 'dist/client.js'));
 assert.equal(require.resolve('dsh-session-bin/remote'), join(installed, 'dist/remote.js'));
 assert(files.includes('dist/client.js') && files.includes('dist/remote.js'));
+for (const locale of ['en', 'zh']) {
+  assert.equal(require.resolve(`dsh-session-bin/locale/${locale}.json`), join(installed, 'locale', `${locale}.json`));
+}
+const sdkRequire = createRequire(import.meta.url);
+const cliRequire = createRequire(sdkRequire.resolve('@deepseek-ai/dsh/package.json'));
+const { readPluginMeta } = await import(pathToFileURL(cliRequire.resolve('@deepseek-ai/dsh-app-boot')).href);
+const localizedMeta = readPluginMeta('dsh-session-bin', pathToFileURL(join(installed, 'anchor.mjs')).href);
+assert.deepEqual(localizedMeta?.title, { en: 'Session Bin', zh: '会话回收站' });
+assert.deepEqual(localizedMeta?.description, {
+  en: 'Move conversations to a recoverable bin with native menus, metadata search, workspace filters, and batch restore.',
+  zh: '通过原生菜单暂时收起会话，支持元数据搜索、工作区筛选与批量恢复。',
+});
 const entryPath = require.resolve('dsh-session-bin');
 assert.equal(entryPath, join(installed, 'dist/index.js'));
 assert.equal(require.resolve('dsh-session-bin/operations'), join(installed, 'dist/operations.js'));

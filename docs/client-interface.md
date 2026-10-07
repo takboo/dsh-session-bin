@@ -10,7 +10,7 @@
 
 选中对象使用 `entryId`，每个恢复请求再次核对 Host 准备结果中的条目身份。批量开始时固定对象集合，后来移入的会话不加入批次。成功项取消选择，失败项仍可检查原因；目录中已经失效的对象退出选择。移入前已经归档的条目显示原归档提示，恢复后仍保持原生归档。
 
-界面使用宿主 Button、Checkbox、Input、MenuItemButton、Toast 和图标；特有布局使用 CSS Modules 与宿主语义 token。字典在独立 `dshSessionBin` namespace 注册完整中英文。搜索在 composition 期间保留草稿，结束后应用筛选；Escape 不截断组合输入。浅深色由宿主主题解析，窄屏保持控件与列表可访问。
+界面使用宿主 Button、Checkbox、Input、MenuItemButton、Toast 和图标；特有布局使用 CSS Modules 与宿主语义 token。字典在独立 `dshSessionBin` namespace 注册完整中英文，单项数量使用专用模板；空名已分组工作区与未分组分别显示，不改变用户提供的名称。原生插件管理名称和描述由公开的 [English metadata](../locale/en.json) 与[中文 metadata](../locale/zh.json)提供。原生 Settings 切换语言时面板、菜单、侧栏、辅助标签与日期更新，选择和搜索草稿保留；具体证明见[双语验证矩阵](verification/client-interface.md)。搜索在 composition 期间保留草稿，结束后应用筛选；Escape 不截断组合输入。浅深色由宿主主题解析，窄屏保持控件与列表可访问。
 
 ## 严格 Remote 边界
 
@@ -43,7 +43,8 @@ Host follow 使用插件 domain 的变化订阅，先订阅后取基线，合并
 `./client` 导出预编译 DSH lazy CommonJS factory，React、React JSX runtime 和原生 primitives 从平台基线解析，保留共享身份。特有 CSS Modules 样式嵌入工厂并由 fiber 管理；`./remote` 导出浏览器安全的严格贡献，Host 入口不进入客户端依赖图。两个 TypeScript face 分开检查，避免同名 Context 服务冲突。配置与命令分别在 [mise.toml](../mise.toml) 和 [package.json](../package.json)。
 
 - `mise run verify`：两端类型检查、构建、Host/Remote/客户端模型测试和 tarball 检查。
-- `mise run verify:gui`：在独立临时 DSH_HOME 中通过公开 CLI 安装 tarball，启动真正 `dsh web`，用隔离 Chrome profile 检查交互并截图，最后卸载并验证新启动的页面。它不连接当前 19387 GUI。
+- `mise run verify:gui`：按顺序验收中文与 English，每轮在独立临时 DSH_HOME 中通过公开 CLI 安装 tarball，启动真正 `dsh web`，用隔离 Chrome profile 检查精确语言文案、切换和交互并截图，最后卸载并验证新启动的页面。它不连接当前 19387 GUI。
+- `DSH_GUI_LOCALE=zh-CN` 或 `en-US` 与 `mise run verify:gui:locale`：仅用于单语诊断。
 
 GUI 检查先用 `mise run install` 将锁定依赖安装到项目并填充 `.local/` 下的离线 store/cache，再运行 `mise run verify:gui`。需要本机可用的 Chrome；可通过 `DSH_GUI_BROWSER_EXECUTABLE` 指定其他 Chromium 可执行文件。脚本为自己的 CLI 进程设置非交互 CI 环境，`--port 0` 使用系统空闲端口，私下消费认证 URL，日志与报告去除 token。数据、截图和报告保留在忽略的 `.local/gui/` 随机目录，不加入发布产物。
 

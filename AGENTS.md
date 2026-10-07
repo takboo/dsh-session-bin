@@ -1,6 +1,6 @@
 # Agent 工作入口
 
-当前仓库已实现 Host 生命周期、严格 Remote 和原生客户端切片，仍是私有开发包。[README](README.md)记录现状，[Host 生命周期](docs/host-lifecycle.md)与[客户端接口](docs/client-interface.md)记录正式行为和边界，[设计提案](docs/design-proposal.md)记录后续候选方案；提案不代表已完成能力。
+当前仓库已实现 Host 生命周期、严格 Remote 和原生客户端切片，仍是私有开发包。[README](README.md)记录现状，[Host 生命周期](docs/host-lifecycle.md)与[客户端接口](docs/client-interface.md)记录正式行为和边界，[设计提案](docs/design-proposal.md)记录后续候选方案；提案不代表已完成能力。新的 session 先读[交接记录](docs/session-handoff.md)，核对主线和已通过的中英验证，再确定下一阶段任务。
 
 ## 按任务加载
 

@@ -78,11 +78,12 @@ export function BinPanel({ useBin, useSessions, useWorkspaces, model, formatDate
   const unconfirmed = state.pending.filter(plan => !state.busy.includes(plan.sessionId));
   const unnamed = t('unnamed');
   const ungrouped = t('ungrouped');
+  const unnamedWorkspace = t('unnamedWorkspace');
   const rows = useMemo(() => state.entries.map(entry => {
     const title = sessions.byId[entry.sessionId as SessionId]?.title || unnamed;
     const workspace = workspaces.find(item => item.sessionIds.includes(entry.sessionId as SessionId));
-    return { entry, title, workspaceId: workspace?.workspaceId ?? 'ungrouped', workspaceTitle: workspace?.title || ungrouped };
-  }).sort((a, b) => b.entry.binnedAt.localeCompare(a.entry.binnedAt)), [state.entries, sessions, workspaces, unnamed, ungrouped]);
+    return { entry, title, workspaceId: workspace?.workspaceId ?? 'ungrouped', workspaceTitle: workspace ? workspace.title || unnamedWorkspace : ungrouped };
+  }).sort((a, b) => b.entry.binnedAt.localeCompare(a.entry.binnedAt)), [state.entries, sessions, workspaces, unnamed, ungrouped, unnamedWorkspace]);
   const visible = rows.filter(row => (workspaceFilter === 'all' || row.workspaceId === workspaceFilter)
     && `${row.title} ${row.workspaceTitle}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const targets = rows.filter(row => selected.has(row.entry.entryId));
@@ -114,7 +115,7 @@ export function BinPanel({ useBin, useSessions, useWorkspaces, model, formatDate
   };
   return <section className={styles.panel} aria-label={t('title')}>
     <header className={styles.heading}>
-      <div><p className={styles.count}>{t('count', { count: state.entries.length })}</p>
+      <div><p className={styles.count}>{t(state.entries.length === 1 ? 'countOne' : 'count', { count: state.entries.length })}</p>
         <h1 className={styles.title}>{t('title')}</h1><p className={styles.description}>{t('description')}</p></div>
       <Button variant="ghost" size="sm" icon={<IconRefreshOutlineRegular size={16} />} onClick={() => { void model.refresh(); }}>{t('refresh')}</Button>
     </header>
@@ -126,13 +127,13 @@ export function BinPanel({ useBin, useSessions, useWorkspaces, model, formatDate
         onKeyDown={event => { if (event.key === 'Escape' && !composing.current && !event.nativeEvent.isComposing) { setDraft(''); setQuery(''); } }} />
       <select className={styles.filter} aria-label={t('workspace')} value={workspaceFilter} onChange={event => setWorkspaceFilter(event.currentTarget.value)}>
         <option value="all">{t('allWorkspaces')}</option>
-        {workspaces.map(workspace => <option key={workspace.workspaceId} value={workspace.workspaceId}>{workspace.title || t('ungrouped')}</option>)}
+        {workspaces.map(workspace => <option key={workspace.workspaceId} value={workspace.workspaceId}>{workspace.title || unnamedWorkspace}</option>)}
         <option value="ungrouped">{t('ungrouped')}</option>
       </select>
     </div>
     {state.error && <div className={styles.alert} role="alert"><span>{reasonText(state.error, t)}</span>
       <Button size="sm" onClick={() => { void (state.pending.length ? model.checkPending() : model.refresh()); }}>{t(state.pending.length ? 'checkPending' : 'retry')}</Button></div>}
-    {unconfirmed.length > 0 && !state.error && <div className={styles.alert} role="status"><span>{t('pending', { count: unconfirmed.length })}</span>
+    {unconfirmed.length > 0 && !state.error && <div className={styles.alert} role="status"><span>{t(unconfirmed.length === 1 ? 'pendingOne' : 'pending', { count: unconfirmed.length })}</span>
       <Button size="sm" onClick={() => { void model.checkPending(); }}>{t('checkPending')}</Button></div>}
     {visible.length > 0 && <Checkbox label={t('selectAll')} checked={allSelected} disabled={!ready || batchBusy} onChange={checked => {
       setSelected(previous => { const next = new Set(previous); for (const row of visible) { if (checked) next.add(row.entry.entryId); else next.delete(row.entry.entryId); } return next; });

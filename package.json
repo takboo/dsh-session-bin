@@ -14,16 +14,18 @@
     "./operations": { "types": "./dist/operations/schema.d.ts", "default": "./dist/operations.js" },
     "./remote": { "types": "./dist/remote/contracts.d.ts", "default": "./dist/remote.js" },
     "./client": { "types": "./dist/types/client/index.d.ts", "default": "./dist/client.js" },
+    "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
-  "files": ["dist/", "cordis.patch.yml", "LICENSE", "docs/host-lifecycle.md", "docs/client-interface.md"],
+  "files": ["dist/", "locale/", "cordis.patch.yml", "LICENSE", "docs/host-lifecycle.md", "docs/client-interface.md"],
   "dsh": { "manifestVersion": 1, "bundle": { "patch": "./cordis.patch.yml" }, "client": { "platform": "web" } },
   "scripts": {
     "check": "tsc --noEmit && tsc --project tsconfig.client.json --noEmit",
     "build": "tsc --emitDeclarationOnly && tsc --project tsconfig.client.json --emitDeclarationOnly && node scripts/build.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
     "verify:package": "node scripts/verify-package.mjs",
-    "verify:gui": "node scripts/verify-gui.mjs",
+    "verify:gui": "node scripts/verify-gui-locales.mjs",
+    "verify:gui:locale": "node scripts/verify-gui.mjs",
     "verify": "pnpm run check && pnpm run build && pnpm run test && pnpm run verify:package"
   },
   "peerDependencies": {

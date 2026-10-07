@@ -34,6 +34,11 @@ description = "Check, build, test, and verify the Host and Client tarball"
 run = "pnpm run verify"
 
 [tasks."verify:gui"]
-description = "Verify a real isolated Web profile with system Chromium"
+description = "Verify Chinese and English isolated Web profiles sequentially"
 depends = ["build"]
 run = "pnpm run verify:gui"
+
+[tasks."verify:gui:locale"]
+description = "Verify one locale from DSH_GUI_LOCALE for diagnosis"
+depends = ["build"]
+run = "pnpm run verify:gui:locale"
