@@ -78,7 +78,7 @@ UI 只持有会话身份、操作计划和逐项结果，路径由 Host 解析�
 
 ## 永久删除资源生命周期候选协议
 
-本节为 **2026-10-07 的完整资源 owner 候选接口方案，尚未获得原生删除 provider 准入**。公开 npm DSH `0.2.0-rc.2` 上的 12 项[准入探针](../tests/deletion-admission.test.mjs)复现了资源寿命与身份缺口，不能据此启用删除；结果及精确基线见[Host 验证](verification/host-lifecycle.md#永久删除资源准入探针)。已实现严格的 Host 协议消费者、sidecar、授权 grant 与恢复 guard，正式行为见[Host 生命周期](host-lifecycle.md#host-单项删除协议消费者)，选定的消费者架构见 [ADR 0003](decisions/0003-retirement-consumer.md)。本插件不新增私有文件删除 Adapter 来绕过缺口，也不把下列建议名称当成已存在的 SDK Service。
+本节为 **2026-10-07 的完整资源 owner 候选接口方案，尚未获得原生删除 provider 准入**。公开 npm DSH `0.2.0-rc.2` 上的 12 项[准入探针](../tests/deletion-admission.test.mjs)复现了资源寿命与身份缺口，不能据此启用删除；结果及精确基线见[Host 验证](verification/host-lifecycle.md#永久删除资源准入探针)。已实现严格的 Host 协议消费者、sidecar、授权 grant 与恢复 guard，并提炼可复用 owner 阶段协调器及逐参与者 journal。正式行为见[Host 生命周期](host-lifecycle.md#host-单项删除协议消费者)，选定架构见 [ADR 0003](decisions/0003-retirement-consumer.md)与 [ADR 0004](decisions/0004-retirement-owner-coordination.md)。完整 native 资源端口仍须由实际所有者提供和独立验收。本插件不新增私有文件删除 Adapter 来绕过缺口，也不把下列建议名称当成已存在的 SDK Service。
 
 ### 身份和范围
 
@@ -105,7 +105,8 @@ interface SessionRetirementOwnerV1 {
   capabilities(): Promise<RetirementCapabilities>;
   inspect(sessionId: string): Promise<LifecycleObservation>;
   prepare(expected: LifecycleKey): Promise<ResourceManifest>;
-  retire(request: RetirementRequest, authorize: RetirementAuthorizer): Promise<RetirementState>;
+  retire(request: RetirementRequest, authorize: RetirementAuthorizer,
+    frozenManifest?: ResourceManifest): Promise<RetirementState>;
   getOperation(operationId: string): Promise<RetirementState | null>;
   recover(operationId: string): Promise<RetirementState>;
 }
@@ -117,7 +118,7 @@ interface SessionRetirementOwnerV1 {
 - `retire` 在宿主的生命周期准入围栏内复核 exact identity、清单和原生活动，并调用 Host 本地 `authorize` 重新核对持久化条目。围栏必须协调会话 create/resume/fork、写入、读取/订阅准入及 native archive/unarchive/pin 的相关变更；不能是另一把只有插件使用的锁。授权失败、活动存在或范围变化在不可逆步骤前返回持久化拒绝/冲突回执，不隐式停止任务。
 - `getOperation` 和 `recover` 只处理已保存的同一绑定。旧请求在 ID 重用后返回旧回执或身份冲突；不存在操作返回 `null`，不得清理同名资源后伪造成功。`recover` 不重新解析批量选择，也不把新生命周期绑定到旧操作。
 
-`RetirementAuthorizer` 是宿主调用、只读且可等待的条目核对回调，不是由客户端提供的授权位。授权在准入围栏内运行，本插件队列/lease 同时阻止自身恢复或条目替换；已观察的外部归属失效必须被核对。宿主若无法将原生变更与该围栏协调，授权后的 TOCTOU 仍存在，该接口不能准入。
+`RetirementAuthorizer` 是宿主调用、只读且可等待的条目核对回调，不是由客户端提供的授权位。Host 提供完整冻结清单的独立第三参数，旧二参 owner 可忽略；新协调器对新操作要求它并在任何 grant/fence 前核对摘要及身份，范围漂移的拒绝仍引用原冻结清单。授权在准入围栏内运行，本插件队列/lease 同时阻止自身恢复或条目替换；已观察的外部归属失效必须被核对。宿主若无法将原生变更与该围栏协调，授权后的 TOCTOU 仍存在，该接口不能准入。
 
 ### 生命周期和完成屏障
 

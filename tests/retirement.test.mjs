@@ -128,7 +128,7 @@ test('fixture purge erases only its frozen resource set and preserves native JSO
     assert.equal(fixture.owner.authorizeCalls, 1);
     assert.equal(fixture.store.entry('quiet'), undefined);
     await assertResourcesRetired(fixture.owner, plan.binding.lifecycle);
-    await assert.rejects(fixture.owner.appendFixtureResource(plan.binding.lifecycle, 'resurrection'), /exact lifecycle/);
+    await assert.rejects(fixture.owner.appendFixtureResource(plan.binding.lifecycle, 'resurrection'), /exact lifecycle|retired|fenced/);
     assert.deepEqual(await transcript(fixture), nativeLog, 'fixture owner must never erase native JSONL');
     assert.deepEqual(accounting(fixture), nativeAccounting);
     assert(fixture.ctx.workspaceRegistry.archivedSessionIds.includes('quiet'));
@@ -233,7 +233,7 @@ for (const mode of ['pending', 'partial']) {
       const result = await fixture.module.executePurge(plan);
       assert.equal(result.status, mode === 'pending' ? 'pending-recovery' : 'partial-failure');
       await assert.rejects(fixture.owner.appendFixtureResource(plan.binding.lifecycle, 'late writer'), /fenced/);
-      await assert.rejects(fixture.owner.createLifecycle('quiet'), /fenced/);
+      await assert.rejects(fixture.owner.createLifecycle('quiet'), /fenced|fences|retired/);
       assert(fixture.store.entry('quiet'));
       assert.notEqual((await restore(fixture)).status, 'success');
       assert(fixture.ctx.workspaceRegistry.archivedSessionIds.includes('quiet'));
@@ -463,7 +463,12 @@ for (const nonce of ['forged', 'missing']) {
           phase: 'fenced', reason: null, resources: [] };
         // A raw invalid fixture-owner record also tests fail-closed open. The
         // shipped SDK admits invalid put; consumer/product stores must not.
-        await owner.domain.table('operations').put(request.operationId, state);
+        await owner.journalDomain.table('operations').put(request.operationId, {
+          schemaVersion: 1, state, blockedReason: null,
+          participants: manifest.capabilities.participants.map(participant => ({ ...participant,
+            fenced: false, quiesced: false, converged: false })),
+          lifecycleQuiesced: false, lifecycleFinalized: false,
+        });
         return state;
       } });
     } });

@@ -103,3 +103,29 @@ Node `24.18.1`、pnpm `11.7.0`、DSH `0.2.0-rc.2`、Cordis `4.0.4`，平台 macO
 [Host tarball 报告](../../.local/lifecycle/package-alE3Rq/verification.json)、[中文 GUI 报告](../../.local/gui/client-zh-GA2y5b/verification.json)与[English GUI 报告](../../.local/gui/client-en-RRLeCz/verification.json)使用同一 tarball SHA-256：`d1680640ad92c36396b271b24c5a5cde0acb7b13221b7c7e05ec86dde8a02beb`。Chrome `154.0.8037.98` 每个 profile 18 项检查、27 个覆盖项；脚本测试端口分别为 `62576` 和 `62694`，测试 Host 已由脚本关闭。安装、移入/Undo、单项及固定选择批量恢复、双语切换、浅深色、390px 窄屏、重载、SDK 重开和卸载后新启动均通过。这是原有交互的兼容性复验，没有删除确认界面或删除 Remote 的验收。
 
 **范围限制：通过的是 Host 协议消费者与闭世界参考 owner，默认 native 永久删除仍不支持。** 参考 owner 的对象只在测试 domain 内；测试 V3/V4 是它拥有的资源记录，不是本轮擦除 SDK JSONL 文件。没有证明真实 Agent/worker、writer/retained reader 的联合 retirement、native 索引/缓存物理清除、shared attachment GC 或其他 provider 的准入。GUI 使用默认无 owner 组合，仅验证既有功能；中文 synthetic composition 仍不等于真实操作系统输入法。单 Host、相同协调目录、未观察归档 ABA 和平台限制不变，公开发布、删除批量/清空与删除 UI 均未完成。
+
+## 可复用资源 owner 协调验证
+
+日期：2026-10-07。上一节消费者及研究材料已由本地检查点 `8f0dc3d8d57564dca9da218fc0d114b7402fe1fc` 捕获。本节基线为该提交加可复用 owner 的未提交工作区实现、端口适配和测试；没有将上一节 90 项结果当成本节验收。九个变更实现/测试文件的[源码指纹](../../.local/lifecycle/owner-evidence-KGPxKz/source.sha256)已逐项校验，清单 SHA-256 为 `86e5d229930ebdfdbfff49082c3838753c98a0099b161219e02f3c24f8870be9`；[协调器](../../src/host/retirement-owner.ts)自身 SHA-256 为 `e5cc8b7c5ce0a388a9d765e649f4951ea671e44ba933ab407d7f309fd7774a58`。选定机制见 [ADR 0004](../decisions/0004-retirement-owner-coordination.md)。
+
+`mise run verify` 的两端检查、构建、**123/123 项测试**和真实 Loader/tarball 检查均通过，退出码 0：原有 90 项加[owner 直接测试](../../tests/retirement-owner.test.mjs)33 项。原消费者 36 项已改接生产协调器，参考 helper 只提供独立测试资源端口，没有手写 phase 推进。数据 domain 与 owner journal 分开，四个 domain 在同一原有 lease 下打开和关闭。环境仍为 macOS ARM64、Node `24.18.1`、pnpm `11.7.0`、SDK `0.2.0-rc.2`。
+
+| owner 验收层次 | 实际检查 |
+| --- | --- |
+| 原子阶段与参与者 | 三个参与者覆盖日志、派生记录和共享资源；先持久化 owner fence，再逐个 fence/排空，scope 与全部参与者确认前资源效果数为 0。逐资源、各参与者收敛及 lifecycle finalize 都确认后才 done。 |
+| 生命周期与 scope | 正常 scope 排他地阻止新代际和新写入，missing/replacement/活动/缺少完整冻结清单在 grant 前拒绝；已保存操作的维护 scope 可从部分清除或已 finalize 状态继续，不 create/resume 旧 Session。 |
+| 实际排空与漂移 | 等待真实 fixture retained-use Promise，既有排空写入发布新 revision 后保持 quiesced fence 和明确阻止原因，不扩大旧确认范围或继续擦除。已知 pending barrier 可重开后续办。 |
+| 逐资源及旧引用 | 错 owner/resource/disposition 回执不能确认或释放 fence；历史回执不重放，完成后的旧 cache/writer 引用及旧 exact token 拒绝，新 token 可创建。共享引用、独立生命周期和协调记录保留。 |
+| medium/memory 不一致 | 在公开 JSON backend `putRecord` 已真实提交、Domain 尚未更新 memory 前注入失败；确认 medium 有 fenced record 而内存没有。scope release 等待期间所有 guard 仍立即拒绝，不依赖旧 memory。owner/resource acknowledgement 丢失须新实例重开。 |
+| 并发健康与预算 | 并行 inspect I/O 失败或等待期间参与者 version 漂移，当前动作可 settle，但不能写其 ack 或执行下一动作；scope/participant quiesce、converge 各确认后的预算暂停不越界。falsy store/budget rejection 也暂停。 |
+| ownership 与关闭 | 新取得 scope/disposer 后才发现版本变化，仍执行 release/teardown；独立慢 inspect 被 close join；已入队 prepare/retire 和私有授权观察可 drain，外部 closing 请求及普通 routes 继续拒绝；初始化取消禁用 guard routes。 |
+| journal 信任边界 | 拒绝不可能的排空确认顺序、参与者集合/版本不匹配、终态回执改写和确认回退；保存 state 与进度为一个原子 record。initialize 只校验/绑定，不自动 erase。 |
+| 真实进程终止 | [owner worker](../../tests/helpers/retirement-owner-worker.mjs)在 19 个 owner/参与者/生命周期确认处 SIGKILL，重开核对原请求、清单、资源、共享引用、tombstone 和 native 快照；消费者原有 7 个 SIGKILL 边界也在同次全量通过。 |
+
+19 个边界为：owner fenced；三个 participant fenced；lifecycle quiesced；三个 participant quiesced；owner quiesced/erasing；resource effect/receipt；owner converging；三个 participant converged；lifecycle finalize effect/finalized；owner done。代表样本：[完整 owner](../../.local/lifecycle/owner-complete-fmaex0/)、[首次 fence](../../.local/lifecycle/owner-crash-GlgU2i/)、[资源 effect](../../.local/lifecycle/owner-crash-zLAhkj/)、[finalize effect](../../.local/lifecycle/owner-crash-56bAEW/)、[owner done](../../.local/lifecycle/owner-crash-MIWcoP/)。原生 transcript/accounting 前后及重开后保持一致。
+
+独立静态审阅发现并复审了未知失败的释放窗口、并行 control-plane/版本失败后的继续推进、独立观察关闭排空、预算漏检查、falsy 暂停、schema 顺序、返回 ownership 接管和内部 close-drain 共八类修复。运行故障回归覆盖这些具体窗口；静态复审结论仅限被检查代码，不替代 native 资格。直接套件单次曾因测试 helper 的关闭微任务时序失败，该测试改为直接调用生产 Core.close 后，定向及本次统一 33/33 均通过；没有把拆分通过当作本次完整结果。
+
+[Host tarball 报告](../../.local/lifecycle/package-Ejrbkw/verification.json)、[中文 GUI 报告](../../.local/gui/client-zh-WaxHrq/verification.json)与[English GUI 报告](../../.local/gui/client-en-dbREN7/verification.json)的 tarball SHA-256 同为 `68efcf15e636f126bbd99d87d5c3433633f0aa55ad9428c4f9e0d86675f6fdd7`。`mise run verify:gui` 两个独立 profile 各 18 检查/27 覆盖项通过，console/pageErrors 为空。测试端口为 `64909/65062`，由脚本启动并关闭，不连接 `19387`。
+
+**本节证明的是可复用协调器与 fixture 端口的实际持久化协议，不是 native 资源删除。** normal/read/write/retained-use 与 fake V3/V4 资源都归测试端口所有；真实 JSONL writer lease、Agent/reader 异步屏障、native 缓存/索引防复活、shared attachment GC 和发布资格仍未证明。维护 scope 在新进程必须重建真实 runtime 排他权，过去的 quiesce ack 本身不是当前 lease。默认 native 仍无 owner，Remote/UI、批量 purge、清空未开放，现有部署与未观察归档 ABA 边界保持。

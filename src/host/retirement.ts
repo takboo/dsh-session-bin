@@ -19,7 +19,7 @@ export interface SessionRetirementOwnerV1 {
   capabilities(): Promise<RetirementCapabilities>;
   inspect(sessionId: string): Promise<LifecycleKey | null>;
   prepare(expected: LifecycleKey): Promise<RetirementManifest>;
-  retire(request: RetirementRequest, authorize: () => Promise<RetirementAuthorization>): Promise<RetirementState>;
+  retire(request: RetirementRequest, authorize: () => Promise<RetirementAuthorization>, frozenManifest?: RetirementManifest): Promise<RetirementState>;
   getOperation(operationId: string): Promise<RetirementState | null>;
   recover(operationId: string): Promise<RetirementState>;
 }
@@ -223,7 +223,8 @@ export class SessionBinPurgeModule {
     let state: RetirementState | undefined;
     const failures: unknown[] = [];
     try {
-      state = await this.ownerCall(() => this.options.owner!.retire(requestFor(plan), authorize));
+      state = await this.ownerCall(() => this.options.owner!.retire(requestFor(plan), authorize,
+        retirementManifestSchema.parse(plan.manifest)));
     } catch (error) { failures.push(error); }
     finally {
       revoked = true;

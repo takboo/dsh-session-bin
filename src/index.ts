@@ -25,6 +25,14 @@ export * from './operations/retirement.js';
 export * from './host/retirement-store.js';
 export { retirementManifestDigest } from './host/retirement.js';
 export type { SessionRetirementOwnerV1, RetirementOptions, PurgeReconcileReport } from './host/retirement.js';
+export * from './operations/retirement-owner.js';
+export * from './host/retirement-owner-store.js';
+export { RetirementOwnerCoordinator, RetirementOwnerError } from './host/retirement-owner.js';
+export type {
+  RetirementOwnerGuards, RetirementLifecycleScope, RetirementLifecyclePort,
+  RetirementResourceParticipant, RetirementOwnerCoordinatorOptions, RetirementOwnerCheckpoint,
+  RetirementResource, RetirementResourceReceipt,
+} from './host/retirement-owner.js';
 
 export interface Config { coordinationDirectory?: string }
 export const Config = schema.object({

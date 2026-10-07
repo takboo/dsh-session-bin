@@ -55,7 +55,29 @@ owner 的 `fenced/quiesced/erasing/converging/done` 和逐资源回执由资源�
 
 普通 prepare/list 与归档帧仅查询进度和补已确认元数据，不调用 owner recover 清除资源。启动、显式 reconcile/reconcilePurge 及同计划显式重试只恢复已保存的相同 owner 操作，不从插件 intent 新发删除，也不重新选择目标。
 
-[参考 owner](../tests/helpers/retirement-owner.mjs)独立拥有测试 domain 中的资源、引用和 fence，用于实际持久化、故障与进程终止验证；它不删除 native JSONL、Workspace、索引、锁或附件。其通过不构成原生资源 owner 准入，运行结果和限制见[Host 验证](verification/host-lifecycle.md)。
+### 可复用资源 owner 协调
+
+[Owner 协调器](../src/host/retirement-owner.ts)将阶段推进从测试 helper 提炼为正式实现，[owner journal](../src/host/retirement-owner-store.ts)在独立 `session_bin_retirement_owner` v1 domain 中原子保存 public state、逐参与者 fence/quiesce/converge 确认、生命周期排空/完成确认和阻止原因。能力 descriptor 与参与者集合、版本绑定后不可切换；回执、成功资源确认和阶段不允许倒退。
+
+它通过公开定义的生命周期 port 与资源 participant 调用实际资源所有者；这些是本项目的接入契约，不是当前 SDK 已提供的 native Service。default Service 仍不挂载 owner。接入组合必须独立证明这些端口覆盖实际 create/resume/read/write/visibility、writer/读取引用、持久化资源及派生存储；实例化协调器或声明 capability 不构成资格。
+
+| 端口 | 契约 |
+| --- | --- |
+| `lifecycle.inspect/acquire` | inspect 只读；普通 scope 排他地复核当前生命周期及活动，维护 scope 绑定已保存 exact operation，可在日志已消失或 finalize 确认丢失后恢复，不能重建旧 Session；每次恢复须重新取得所有参与者当前 runtime 排他权/租约，过去的 quiesce 确认不能替代它。 |
+| `bindGuards` | 对正常新请求、保留引用和晚到缓存写入安装同一持久化保护；返回的 disposer 必须禁用其路由/引用，不能使它们变成无 guard。初始化完成前不开放请求。 |
+| `participant.manifest/fence/quiesce/applyResource/converge` | 每个参与者只报告自己的资源，所有参与者确认 fence 和排空后才能清除；资源动作、收敛和 scope finalize 按同一 operation/lifecycle/resource/revision 幂等。 |
+| barrier boolean | `true` 表示已确认完成，`false` 为已知等待并保留阶段/guard，抛错为未知结果并暂停。没有资源行的参与者也不能省略其屏障。 |
+| `canAdvance` | 每个持久化确认后检查预算；暂停返回已保存进度，不撤销 durable fence。只有明确恢复推进后续动作。 |
+
+Host 将完整冻结清单作为可选第三参传给 `retire`；已有二参 owner 可忽略它。新协调器对新操作要求完整清单，在任何 grant/fence 前复核请求摘要、生命周期和 descriptor。准备后的范围、生命周期或活动变化用旧冻结清单记录拒绝，grant 为 null、资源回执为空。排空可能发布既有缓冲写入或新代际；排空后清单变化会保留 quiesced fence 和 `blockedReason`，不自动扩大删除范围，需要资源所有者维护处理。
+
+顺序为 owner fence 落盘 → 全部 participant fence 确认 → 生命周期及全部 participant 排空确认 → 逐资源效果与回执 → 全部 participant 收敛确认 → 生命周期 finalize 确认 → owner done。effect 成功但 acknowledgement 未落盘时，只能在已保存冻结操作的维护 scope 中幂等续办。初始化、prepare、inspect、getOperation 及历史 done 不隐式推进资源清除。
+
+guard 除了查询 journal，还检查 initializing、closing 和 sticky failure；任何未知 I/O，包括 falsy rejection，都立即拒绝旧引用和新 generation，不能从可能过期的 memory 推断没有 fence。进行中的 admitted phase 阻止同 SID 新代际；done 对 exact 旧 token 保留永久 tombstone，新 token 可创建；rejected/conflict 不永久封住 SID。每个等待结束及下一动作前重新检查故障和参与者版本。
+
+维护队列使用私有异步上下文，已入队授权观察可完成 close-drain；外部正常路由继续拒绝 closing。独立 control-plane inspect 不重入队列，但关闭会等待其完成。scope/disposer 成功返回后先接管 cleanup，再做健康复核；任何未知错误先暂停，再释放 scope，release 失败与原错误聚合。最终排空初始化、维护请求与观察，禁用所有 guard 路由，再关闭 owner journal。
+
+[参考 owner](../tests/helpers/retirement-owner.mjs)现在仅实现独立测试资源的端口，实际调用该协调器，不再自行推进 phase。它不删除 native JSONL、Workspace、索引、锁或附件；运行证据与仍缺的原生能力见[Host 验证](verification/host-lifecycle.md)。
 
 ## 并发与部署边界
 

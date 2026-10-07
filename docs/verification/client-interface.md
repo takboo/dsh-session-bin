@@ -75,3 +75,11 @@
 复验涵盖新 sidecar 下的启动/卸载、原生菜单、移入/Undo、单项与固定选择批量恢复、搜索/工作区筛选、真实 Settings 语言切换、日期/metadata、浅深色和 390px 窄屏、重载、SDK 重开及卸载后的新启动。测试端口为 `62576/62694`，仅连接脚本启动的临时 Host，未连接 `19387`，测试进程均由脚本关闭。
 
 这一结果证明新 Host 生命周期切片保持既有客户端兼容，**不证明原生永久删除、删除确认 Modal、批量删除或清空**。它们尚未向 Remote/UI 开放；provider 准入和真实资源 retirement 的限制见 Host 报告。环境仍为 macOS ARM64、Node `24.18.1`、pnpm `11.7.0`、DSH `0.2.0-rc.2`、Chrome `154.0.8037.98`，未扩大平台、原生存储并发或实际操作系统输入法支持。
+
+## 可复用 owner 包的兼容性复验
+
+日期：2026-10-07。基线为检查点 `8f0dc3d` 加 owner 协调器及端口适配的未提交变更，精确源码和 33 项新增 owner 检查见[Host 验证](host-lifecycle.md#可复用资源-owner-协调验证)。`mise run verify` 的两端检查、构建、**123/123** 测试及 tarball 通过；`mise run verify:gui` 的中文和 English 两个独立 profile 各 18 检查/27 覆盖项通过，console/pageErrors 为空。
+
+实际报告：[中文](../../.local/gui/client-zh-WaxHrq/verification.json)、[English](../../.local/gui/client-en-dbREN7/verification.json)。浅深色、窄屏和切换截图位于各自报告的 artifacts；两轮与 Host tarball 的 SHA-256 同为 `68efcf15e636f126bbd99d87d5c3433633f0aa55ad9428c4f9e0d86675f6fdd7`。测试端口 `64909/65062` 仅属脚本临时 Host，均已关闭，未连接 `19387`。
+
+客户端及严格 Remote DTO 未扩展删除。GUI 仍验证默认无 owner 的安装/卸载、既有移入/Undo、恢复、筛选、固定选择批量恢复、语言偏好、浅深色/390px 布局及重开；没有据此声明 native 删除、删除 Modal/批量/清空或其他平台已支持。环境及操作系统输入法限制与前节一致。
