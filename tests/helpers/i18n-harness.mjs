@@ -64,7 +64,7 @@ export async function createI18nHarness() {
     }, module, module.exports);
     return module.exports;
   };
-  const primitives = await bundle("export { Button, Checkbox, Input, MenuItemButton, Toast, IconTrashOutlineRegular, IconRefreshOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';", 'i18n-native-seed.js');
+  const primitives = await bundle("export { Button, Checkbox, Input, Toast, IconTrashOutlineRegular, IconRefreshOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';", 'i18n-native-seed.js');
   const components = await bundle("export * from './src/client/components.tsx'; export * from './src/client/locales.ts';", 'i18n-components.tsx', {
     '@deepseek-ai/dsh-client-ui-primitives': primitives,
   });
@@ -87,13 +87,11 @@ export async function createI18nHarness() {
   const bin = mutable(baseState);
   const sessions = mutable({ byId: {} });
   const workspaces = mutable({ items: [] });
-  const menu = mutable(true);
   const calls = [];
   const model = {
     refresh: async () => { calls.push(['refresh']); },
-    move: async id => { calls.push(['move', id]); },
-    restore: async entry => { calls.push(['restore', entry]); return { sessionId: entry.sessionId, entryId: entry.entryId, status: 'success', reason: null }; },
-    restoreMany: async entries => { calls.push(['restoreMany', entries]); return entries.map(entry => ({ sessionId: entry.sessionId, entryId: entry.entryId, status: 'success', reason: null })); },
+    unarchive: async entry => { calls.push(['unarchive', entry]); return { sessionId: entry.sessionId, entryId: entry.entryId, status: 'success', reason: null }; },
+    unarchiveMany: async entries => { calls.push(['unarchiveMany', entries]); return entries.map(entry => ({ sessionId: entry.sessionId, entryId: entry.entryId, status: 'success', reason: null })); },
     checkPending: async () => { calls.push(['checkPending']); },
     dismissNotice: () => { calls.push(['dismissNotice']); bin.set({ ...bin.getSnapshot(), notice: null }); },
   };
@@ -101,13 +99,12 @@ export async function createI18nHarness() {
   const root = createRoot(dom.window.document.getElementById('test-root'));
   let view = 'panel';
   let ownerProps = {};
-  const formatDate = date => new Intl.DateTimeFormat(locale.getLocale().active, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date));
   function CopyView() {
     React.useSyncExternalStore(listener => locale.subscribe(listener), () => locale.getSnapshot());
-    const props = { t, useBin: hook(bin), model, formatDate,
+    const props = { t, useBin: hook(bin), model,
       useSessions: hook(sessions), useWorkspaces: hook(workspaces),
-      useMenuOpenState: () => { const open = React.useSyncExternalStore(menu.subscribe, menu.getSnapshot); return [open, value => { calls.push(['setMenuOpen', value]); menu.set(value); }]; }, ...ownerProps };
-    const Component = view === 'panel' ? components.BinPanel : view === 'notice' ? components.BinNotice : components.BinMenu;
+      ...ownerProps };
+    const Component = view === 'panel' ? components.BinPanel : components.BinNotice;
     return React.createElement(Component, props);
   }
   const flush = async fn => { await act(async () => { await fn?.(); }); };
@@ -117,8 +114,8 @@ export async function createI18nHarness() {
   const click = async element => flush(() => element.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })));
   await render();
   return {
-    dom, document: dom.window.document, React, components, ctx, locale, t, baseState, bin, sessions, workspaces, menu, calls,
-    render, state, language, click, flush, formatDate,
+    dom, document: dom.window.document, React, components, ctx, locale, t, baseState, bin, sessions, workspaces, calls,
+    render, state, language, click, flush,
     text: () => dom.window.document.body.textContent,
     async close() {
       try { await flush(() => root.unmount()); removeDictionary(); await ctx.fiber.dispose(); }

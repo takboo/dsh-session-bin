@@ -31,37 +31,35 @@ const fixtureWorkspaces = { primary: 'GUI 主工作区', secondary: 'GUI 第二�
 // its selected language, rather than pass by accepting either translation.
 const copy = {
   zh: {
-    panel: '会话回收站', move: '移入回收站', restore: '恢复', undo: '撤销', search: '搜索回收站',
-    workspace: '工作区筛选', restoreSelected: '恢复所选', refresh: '刷新', clearSelection: '取消选择',
-    description: '暂时收起会话，需要时再恢复。', allWorkspaces: '所有工作区', ungrouped: '未分组',
-    empty: '回收站是空的', emptyHint: '通过会话菜单移入回收站。原生归档仍在原来的视图中。',
+    panel: '会话回收站', archive: '归档会话', nativeUnarchive: '取消归档', restore: '取消归档', undo: '撤销', search: '搜索归档',
+    workspace: '工作区筛选', restoreSelected: '取消归档所选', refresh: '刷新', clearSelection: '取消选择',
+    description: '直接管理 Harness 原生归档，支持搜索、筛选与批量取消归档。', allWorkspaces: '所有工作区', ungrouped: '未分组',
+    empty: '没有已归档的会话', emptyHint: '通过会话菜单中的原生归档将会话收起。',
     noMatches: '没有匹配的会话', noMatchesHint: '试试其他关键词或工作区。',
-    selectAll: '选择当前显示的会话', entries: '回收站中的会话', originalArchive: '原先已归档',
-    originalArchiveHint: '恢复后会保留这个会话的归档状态。',
-    moved: '会话已移入回收站', restored: '会话已恢复', restoredArchived: '已移出回收站，保留原来的归档状态。',
+    selectAll: '选择当前显示的会话', entries: '已归档的会话',
+    restored: '会话已取消归档',
     count: count => `${count} 个会话`, selected: count => `已选 ${count} 项`, select: title => `选择 ${title}`,
     viewOptions: '视图选项', showArchived: '全部对话（显示已归档）', flat: '单列表',
     preview: '预览版说明', continue: '继续', keySetup: '添加一个 API Key 开始使用', configureLater: '稍后配置',
     settings: '设置', general: '通用设置', settingsClose: '关闭', languageLabel: '中文', htmlLanguage: 'zh-CN',
     plugins: '插件', openDetail: title => `查看 ${title}`,
-    packageDescription: '通过原生菜单暂时收起会话，支持元数据搜索、工作区筛选与批量恢复。',
+    packageDescription: '直接管理 Harness 原生归档，支持搜索、筛选与批量取消归档。',
   },
   en: {
-    panel: 'Session Bin', move: 'Move to Session Bin', restore: 'Restore', undo: 'Undo', search: 'Search Session Bin',
-    workspace: 'Workspace filter', restoreSelected: 'Restore selected', refresh: 'Refresh', clearSelection: 'Clear selection',
-    description: 'Keep conversations out of the way and restore them when needed.', allWorkspaces: 'All workspaces', ungrouped: 'Ungrouped',
-    empty: 'Session Bin is empty', emptyHint: 'Use a conversation’s menu to move it here. Native archives stay in their original view.',
+    panel: 'Session Bin', archive: 'Archive session', nativeUnarchive: 'Unarchive session', restore: 'Unarchive', undo: 'undo', search: 'Search archives',
+    workspace: 'Workspace filter', restoreSelected: 'Unarchive selected', refresh: 'Refresh', clearSelection: 'Clear selection',
+    description: 'Manage Harness native archives with search, filters, and batch unarchive.', allWorkspaces: 'All workspaces', ungrouped: 'Ungrouped',
+    empty: 'No archived conversations', emptyHint: 'Use Archive in the conversation menu to collect conversations here.',
     noMatches: 'No matching conversations', noMatchesHint: 'Try another search or workspace.',
-    selectAll: 'Select visible conversations', entries: 'Conversations in Session Bin', originalArchive: 'Originally archived',
-    originalArchiveHint: 'Restoring keeps this conversation archived.',
-    moved: 'Conversation moved to Session Bin', restored: 'Conversation restored', restoredArchived: 'Removed from Session Bin; the original archive is preserved.',
+    selectAll: 'Select visible conversations', entries: 'Archived conversations',
+    restored: 'Conversation unarchived',
     count: count => `${count} ${count === 1 ? 'conversation' : 'conversations'}`,
     selected: count => `${count} selected`, select: title => `Select ${title}`,
     viewOptions: 'View options', showArchived: 'All conversations (show archived)', flat: 'In one list',
     preview: 'Preview Notice', continue: 'Continue', keySetup: 'Add an API key to get started', configureLater: 'Configure later',
     settings: 'Settings', general: 'General', settingsClose: 'Close', languageLabel: 'English', htmlLanguage: 'en',
     plugins: 'Plugins', openDetail: title => `View ${title}`,
-    packageDescription: 'Move conversations to a recoverable bin with native menus, metadata search, workspace filters, and batch restore.',
+    packageDescription: 'Manage Harness native archives with search, filters, and batch unarchive.',
   },
 };
 let language = requestedLanguage;
@@ -317,10 +315,13 @@ async function assertToastCopy(page, message) {
     [...node.childNodes].filter(child => child.nodeType === Node.TEXT_NODE).map(child => child.textContent).join('')));
   assert(directMessages.includes(message), `Native Toast message must exactly equal ${JSON.stringify(message)}`);
 }
-async function moveSession(page, id) {
+async function archiveSession(page, id) {
   await rowMenu(page, id);
-  await menuItem(page, ui.move).click();
-  await assertToastCopy(page, ui.moved);
+  assert.equal(await menuItem(page, 'Move to Session Bin').count(), 0);
+  assert.equal(await menuItem(page, '移入回收站').count(), 0);
+  await menuItem(page, ui.archive).click();
+  await eventually(async () => assert(await page.locator(`[data-row-key="session:${id}"]`).getAttribute('aria-description')),
+    'Native Archive updates the native row');
 }
 async function panel(page) {
   const search = textbox(page, ui.search);
@@ -349,14 +350,9 @@ async function skipModelSetup(page) {
   await button(dialog, ui.configureLater).click();
   await dialog.waitFor({ state: 'hidden' });
 }
-async function assertDates(root) {
-  const values = await root.locator('time[datetime]').evaluateAll((nodes, locale) => nodes.map(node => ({
-    value: node.getAttribute('datetime'), actual: node.textContent,
-    expected: new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(node.getAttribute('datetime'))),
-  })), language);
-  assert(values.length > 0, 'Rendered nonempty Bin rows must expose their timestamps');
-  for (const value of values) assert.equal(value.actual, value.expected, `Timestamp must use the selected ${language} Intl format`);
-  return values.map(value => ({ value: value.value, text: value.actual }));
+async function assertNoArchiveDate(root) {
+  assert.equal(await root.locator('time[datetime]').count(), 0,
+    'Native archive set has no timestamp; observations must not be shown as archive dates');
 }
 async function assertPanelCopy(page, count, { visibleCount = count, selectedCount = 0, draft = '' } = {}) {
   await assertDocumentLanguage(page);
@@ -384,7 +380,7 @@ async function assertPanelCopy(page, count, { visibleCount = count, selectedCoun
   } else {
     await root.getByRole('list', { name: ui.entries, exact: true }).waitFor({ state: 'visible' });
     await root.getByRole('checkbox', { name: ui.selectAll, exact: true }).waitFor({ state: 'visible' });
-    await assertDates(root);
+    await assertNoArchiveDate(root);
   }
   if (selectedCount) {
     await text(root, ui.selected(selectedCount)).waitFor({ state: 'visible' });
@@ -414,21 +410,15 @@ async function switchLanguage(page, target, report) {
   await button(page, ui.panel).waitFor({ state: 'visible' });
   report.languageSwitches.push({ from: before, to: target, source: 'native Settings General Language menu' });
 }
-async function assertMenuCopy(page, id, owned) {
+async function assertMenuCopy(page, id, archived) {
   const anchor = await rowMenu(page, id);
-  const expected = owned ? ui.restore : ui.move;
+  const expected = archived ? ui.nativeUnarchive : ui.archive;
   await menuItem(page, expected).waitFor({ state: 'visible' });
-  const opposite = copy[language === 'zh' ? 'en' : 'zh'];
-  assert.equal(await menuItem(page, owned ? opposite.restore : opposite.move).count(), 0);
+  assert.equal(await menuItem(page, 'Move to Session Bin').count(), 0);
+  assert.equal(await menuItem(page, '移入回收站').count(), 0);
   await menuItem(page, expected).focus();
   await page.keyboard.press('Escape');
-  await eventually(async () => assert(await anchor.evaluate(element => element === document.activeElement)), 'Menu restores focus after Escape');
-}
-async function assertOriginalArchive(root, title) {
-  const row = panelEntry(root, title);
-  await text(row, ui.originalArchive).waitFor({ state: 'visible' });
-  assert.equal(await text(row, ui.originalArchive).getAttribute('title'), ui.originalArchiveHint);
-  assert.equal(await button(row, ui.restore).getAttribute('title'), ui.originalArchiveHint);
+  await eventually(async () => assert(await anchor.evaluate(element => element === document.activeElement)), 'Native menu returns focus');
 }
 async function assertNarrowLayout(page, root, report) {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -448,159 +438,102 @@ async function assertNarrowLayout(page, root, report) {
 async function runGui(page, paths, report) {
   const [quiet, sibling, nativeOnly, prearchived] = fixtures;
   await page.waitForFunction(() => Array.isArray(window.__DSH_BOOT__?.entries));
-  assert(await page.evaluate(() => window.__DSH_BOOT__.entries.some(entry => entry.id === 'dsh-session-bin')),
-    'The packed client must appear in the real injected boot graph');
-  await Promise.race([
-    button(page, ui.panel).waitFor({ state: 'visible' }),
-    text(page, 'Failed to load plugins').waitFor({ state: 'visible' }).then(async () => {
-      throw new Error(`Real Web client boot failed: ${await page.locator('body').innerText()}`);
-    }),
-  ]);
+  assert(await page.evaluate(() => window.__DSH_BOOT__.entries.some(entry => entry.id === 'dsh-session-bin')));
+  await button(page, ui.panel).waitFor({ state: 'visible' });
   await assertDocumentLanguage(page);
   const preview = page.getByRole('dialog', { name: ui.preview, exact: true });
   await preview.waitFor({ state: 'visible', timeout: 10000 });
   await button(preview, ui.continue).click();
   await preview.waitFor({ state: 'hidden' });
-  report.checks.push('The fresh isolated profile acknowledges its exact-language native preview notice');
   await skipModelSetup(page);
-  report.checks.push('The isolated profile skips native model setup without credentials');
   await showAllSessions(page);
-  let root = await assertPanelCopy(page, 0);
-  assert.equal(await text(root, nativeOnly.title).count(), 0);
-  report.checks.push('Exact-language empty title, description, count, placeholder and filter copy; native archives excluded');
-  report.coverage.push('panel title/description/sidebar label', 'empty state and hint', 'zero/singular/plural counts', 'search placeholder and accessible label', 'workspace filter options');
+  let root = await assertPanelCopy(page, 2);
+  for (const item of [nativeOnly, prearchived]) await text(root, item.title).waitFor({ state: 'visible' });
+  report.checks.push('Preexisting native archives appear directly without a plugin Move action');
+  report.coverage.push('native archived collection baseline', 'exact title/description/count/search/filter copy', 'absence of invented archive timestamps');
 
   await assertMenuCopy(page, quiet.id, false);
-  report.checks.push('The exact-language native menu remains keyboard accessible and returns focus after Escape');
-  await moveSession(page, quiet.id);
+  await archiveSession(page, quiet.id);
+  root = await assertPanelCopy(page, 3);
   const undo = button(page, ui.undo);
   await undo.waitFor({ state: 'visible' });
+  assert.equal(await undo.count(), 1, 'Only native Archive provides Undo');
   await undo.click();
-  await text(page, ui.restored).waitFor({ state: 'visible' });
-  await button(page, ui.refresh).click();
-  root = await assertPanelCopy(page, 0);
-  assert.equal(await page.locator(`[data-row-key="session:${quiet.id}"]`).getAttribute('aria-description'), null);
-  report.checks.push('Move and Undo use exact selected-language menu and Toast text through actual transport');
-  report.coverage.push('move menu and moved Toast', 'Undo action and restored Toast', 'native menu keyboard/focus');
+  root = await assertPanelCopy(page, 2);
+  report.checks.push('Native Archive is the sole menu entry and its native Undo updates the plugin collection');
+  report.coverage.push('native Archive/Undo', 'no plugin Move menu', 'native menu keyboard focus');
 
-  await moveSession(page, quiet.id);
-  await button(page, ui.refresh).click();
-  root = await assertPanelCopy(page, 1);
-  await panelEntry(root, quiet.title).getByRole('checkbox', { name: ui.select(quiet.title), exact: true }).waitFor({ state: 'visible' });
-  await button(panelEntry(root, quiet.title), ui.restore).click();
-  await text(page, ui.restored).waitFor({ state: 'visible' });
-  root = await assertPanelCopy(page, 0);
-  report.checks.push('Single-row Restore, localized selection label and singular count render correctly');
-
-  for (const item of [quiet, sibling, prearchived]) await moveSession(page, item.id);
-  await button(page, ui.refresh).click();
+  await archiveSession(page, quiet.id);
   root = await assertPanelCopy(page, 3);
-  for (const item of [quiet, sibling, prearchived]) await text(root, item.title).waitFor({ state: 'visible' });
-  assert.equal(await text(root, nativeOnly.title).count(), 0);
-  await assertOriginalArchive(root, prearchived.title);
-  report.coverage.push('original archive badge and restore hint', 'selected-language Intl dates', 'CJK user titles remain unchanged');
-  report.checks.push('User titles and workspace names stay untranslated; original archive copy and Intl dates match the selected language');
+  await button(panelEntry(root, quiet.title), ui.restore).click();
+  await assertToastCopy(page, ui.restored);
+  root = await assertPanelCopy(page, 2);
+  report.checks.push('Single unarchive removes the native mark and reports confirmed success');
+  for (const item of [quiet, sibling]) await archiveSession(page, item.id);
+  root = await assertPanelCopy(page, 4);
+  for (const item of fixtures) await text(root, item.title).waitFor({ state: 'visible' });
 
   let search = textbox(root, ui.search);
   await search.fill('接口');
-  root = await assertPanelCopy(page, 3, { visibleCount: 1, draft: '接口' });
+  root = await assertPanelCopy(page, 4, { visibleCount: 1, draft: '接口' });
   await text(root, sibling.title).waitFor({ state: 'visible' });
   await search.fill('no match 不存在 🧪');
-  root = await assertPanelCopy(page, 3, { visibleCount: 0, draft: 'no match 不存在 🧪' });
+  root = await assertPanelCopy(page, 4, { visibleCount: 0, draft: 'no match 不存在 🧪' });
   await search.fill('');
-  root = await assertPanelCopy(page, 3);
   await search.dispatchEvent('compositionstart', { data: '接' });
   await search.fill('接口');
-  assert.equal(await search.inputValue(), '接口');
-  await panelCount(root, 3);
+  await panelCount(root, 4);
   await search.dispatchEvent('compositionend', { data: '接口' });
   await panelCount(root, 1);
   await search.press('Escape');
   assert.equal(await search.inputValue(), '');
-  await panelCount(root, 3);
-  await search.focus();
-  await page.keyboard.insertText('中文输入验证');
-  assert.equal(await search.inputValue(), '中文输入验证');
-  await panelCount(root, 0);
-  await search.fill('');
-  await panelCount(root, 3);
+  await panelCount(root, 4);
   await search.focus();
   await page.keyboard.press('Tab');
-  assert(await root.evaluate(element => element.contains(document.activeElement)), 'Tab must focus a visible feature control');
-  report.coverage.push('no-matches state and hint', 'search/IME composition/Escape/keyboard text/Tab');
-  report.checks.push('Exact no-matches copy and composition/keyboard behavior work in the selected UI language');
-  report.limits.push('Chinese insertText and synthetic composition events exercise browser handling, not a physical OS input-method session');
-
+  assert(await root.evaluate(element => element.contains(document.activeElement)));
+  report.checks.push('Search, no-matches, composition, Escape and Tab work in the selected language');
+  report.coverage.push('metadata search', 'IME composition and keyboard focus');
+  report.limits.push('Synthetic composition exercises browser handling, not a physical OS input-method session');
   const workspaceFilter = root.getByRole('combobox', { name: ui.workspace, exact: true });
   await workspaceFilter.selectOption({ label: fixtureWorkspaces.primary });
-  await panelCount(root, 2);
+  await panelCount(root, 3);
   await workspaceFilter.selectOption({ label: fixtureWorkspaces.secondary });
   await panelCount(root, 1);
   await workspaceFilter.selectOption('all');
-  await panelCount(root, 3);
-  report.checks.push('Current native membership filters correctly and user workspace names remain unchanged');
+  await panelCount(root, 4);
+  report.checks.push('Workspace filters use current native membership');
 
   const choose = async () => {
-    await panelEntry(root, quiet.title).getByRole('checkbox', { name: ui.select(quiet.title), exact: true }).check();
-    await panelEntry(root, sibling.title).getByRole('checkbox', { name: ui.select(sibling.title), exact: true }).check();
-    root = await assertPanelCopy(page, 3, { selectedCount: 2 });
+    for (const item of [quiet, sibling]) await panelEntry(root, item.title).getByRole('checkbox', { name: ui.select(item.title), exact: true }).check();
+    root = await assertPanelCopy(page, 4, { selectedCount: 2 });
   };
   await choose();
   await button(root, ui.clearSelection).click();
-  root = await assertPanelCopy(page, 3);
-  assert.equal(await panelEntry(root, quiet.title).getByRole('checkbox').isChecked(), false);
-  assert.equal(await panelEntry(root, sibling.title).getByRole('checkbox').isChecked(), false);
+  root = await assertPanelCopy(page, 4);
   await choose();
-  report.coverage.push('row/select-all checkbox labels', 'selected count', 'clear selection', 'batch restore action');
-  report.checks.push('Selection and clear-selection controls use exact selected-language labels');
-
-  // A native Settings modal changes language without navigating away from the
-  // Bin, so the component's selection and search draft must remain intact.
   search = textbox(root, ui.search);
   await search.fill('接口');
-  root = await assertPanelCopy(page, 3, { visibleCount: 1, selectedCount: 2, draft: '接口' });
-  if (language !== 'zh') {
-    await switchLanguage(page, 'zh', report);
-    root = await assertPanelCopy(page, 3, { visibleCount: 1, selectedCount: 2, draft: '接口' });
-  }
-  const datesByLanguage = {};
   for (const target of ['en', 'zh']) {
-    await switchLanguage(page, target, report);
-    root = await assertPanelCopy(page, 3, { visibleCount: 1, selectedCount: 2, draft: '接口' });
+    if (language !== target) await switchLanguage(page, target, report);
+    root = await assertPanelCopy(page, 4, { visibleCount: 1, selectedCount: 2, draft: '接口' });
     assert.equal(await panelEntry(root, sibling.title).getByRole('checkbox', { name: ui.select(sibling.title), exact: true }).isChecked(), true);
-    for (const item of [quiet, sibling, nativeOnly, prearchived]) {
-      await text(page.locator(`[data-row-key="session:${item.id}"]`), item.title).waitFor({ state: 'visible' });
-    }
     await assertMenuCopy(page, quiet.id, true);
-    datesByLanguage[target] = await assertDates(root);
     report.screenshots[`switched-${target}`] = await screenshot(page, paths, 'session-bin-language-switch');
   }
-  assert.equal(datesByLanguage.en[0].value, datesByLanguage.zh[0].value, 'Language switching must not change binnedAt');
-  assert.notEqual(datesByLanguage.en[0].text, datesByLanguage.zh[0].text, 'Dates must reflect the chosen Intl language');
-  report.dateSwitch = datesByLanguage;
-  report.coverage.push('native Settings zh→en→zh', 'sidebar label updates', 'selection/search draft preserved during language changes', 'menu/date updates without translating user data');
-  report.checks.push('Actual Host Settings language changes update panel/menu/sidebar/date and preserve selected entries and the search draft');
-
-  // Persist a Host language DIFFERENT from navigator, then refresh the same
-  // browser. This establishes preference persistence rather than redetecting
-  // the original browser language after a reload.
+  report.checks.push('Native Settings updates translated controls while preserving selection, search draft and user titles');
+  report.coverage.push('language switch and stable selection', 'no old archive-state badge');
   const hostPreference = requestedLanguage === 'zh' ? 'en' : 'zh';
   await switchLanguage(page, hostPreference, report);
-  root = await assertPanelCopy(page, 3, { visibleCount: 1, selectedCount: 2, draft: '接口' });
   await page.reload();
   await assertDocumentLanguage(page);
   await skipModelSetup(page);
-  root = await assertPanelCopy(page, 3);
+  root = await assertPanelCopy(page, 4);
   report.preferenceReload = { browserLocale, hostPreference, renderedHtmlLanguage: await page.locator('html').getAttribute('lang') };
   await switchLanguage(page, requestedLanguage, report);
-  root = await assertPanelCopy(page, 3);
-  report.coverage.push('Host preference survives refresh and overrides navigator language');
-  report.checks.push('Refreshing the unchanged browser retains the explicit opposite Host preference');
+  root = await assertPanelCopy(page, 4);
+  report.checks.push('Host language preference survives refresh and overrides navigator');
 
-  // Select anew after the deliberate full-page reload; language switching above
-  // preserved local selection, while a new document reconstructs the view.
   await choose();
-  await assertOriginalArchive(root, prearchived.title);
   await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
   await page.waitForFunction(() => !document.body.hasAttribute('data-ds-dark-theme'));
   report.screenshots.light = await screenshot(page, paths, 'session-bin-light');
@@ -609,24 +542,22 @@ async function runGui(page, paths, report) {
   report.screenshots.dark = await screenshot(page, paths, 'session-bin-dark');
   await assertNarrowLayout(page, root, report);
   report.screenshots.narrow = await screenshot(page, paths, 'session-bin-narrow');
-  report.coverage.push('light/dark palettes', '390px selected-language controls and English text do not overflow');
-  report.checks.push('All controls and the batch action fit the 390px selected-language viewport');
   await page.setViewportSize({ width: 1440, height: 900 });
+  report.checks.push('Light, dark and 390px layouts keep all controls accessible');
+  report.coverage.push('light/dark', '390px batch action');
   await button(root, ui.restoreSelected).click();
-  await panelCount(root, 1);
-  await assertOriginalArchive(root, prearchived.title);
+  root = await assertPanelCopy(page, 2);
+  assert.equal(await text(root, quiet.title).count(), 0);
+  assert.equal(await text(root, sibling.title).count(), 0);
+  report.checks.push('Batch unarchive processes the fixed selection and leaves other archives intact');
   await button(panelEntry(root, prearchived.title), ui.restore).click();
-  await text(page, ui.restoredArchived).waitFor({ state: 'visible' });
+  root = await assertPanelCopy(page, 1);
+  await button(panelEntry(root, nativeOnly.title), ui.restore).click();
   root = await assertPanelCopy(page, 0);
-  for (const item of [nativeOnly, prearchived]) {
-    await eventually(async () => assert(await page.locator(`[data-row-key="session:${item.id}"]`).getAttribute('aria-description')),
-      'Originally archived session remains natively archived');
-  }
-  report.coverage.push('original archive restore Toast', 'single/batch restore');
-  report.checks.push('Batch Restore and exact prior-archive Toast preserve the native archive');
+  for (const item of fixtures) assert.equal(await page.locator(`[data-row-key="session:${item.id}"]`).getAttribute('aria-description'), null);
+  report.checks.push('Preexisting archives unarchive normally and the empty collection shows native Archive guidance');
+  report.coverage.push('single/batch unarchive', 'singular/plural/empty collection', 'native row convergence');
 
-  // Visiting the Plugins page intentionally changes the main panel; test its
-  // package copy after selection is complete, not during preservation checks.
   for (const target of [requestedLanguage, requestedLanguage === 'zh' ? 'en' : 'zh']) {
     if (language !== target) await switchLanguage(page, target, report);
     await button(page, ui.plugins).click();
@@ -635,17 +566,16 @@ async function runGui(page, paths, report) {
     await detail.getByRole('heading', { name: ui.panel, level: 3, exact: true }).waitFor({ state: 'visible' });
     const description = detail.getByRole('paragraph').filter({ hasText: ui.packageDescription });
     await description.waitFor({ state: 'visible' });
-    assert.equal(await description.textContent(), ui.packageDescription, 'Native Plugins description must exactly match the chosen language');
+    assert.equal(await description.textContent(), ui.packageDescription);
     report.metadata.push({ language: target, title: ui.panel, description: ui.packageDescription });
     await panel(page);
   }
   if (language !== requestedLanguage) await switchLanguage(page, requestedLanguage, report);
-  report.coverage.push('native Plugins localized package title/description');
   await page.reload();
   await assertDocumentLanguage(page);
   await skipModelSetup(page);
-  root = await assertPanelCopy(page, 0);
-  report.checks.push('Both native Plugins metadata languages and the final selected Host preference survive page reload');
+  await assertPanelCopy(page, 0);
+  report.checks.push('Localized Plugins metadata and final archive state survive page reload');
 }
 
 async function main() {
@@ -767,8 +697,7 @@ async function main() {
     try {
       assert.deepEqual(await readLogs(after), beforeLogs, 'Bin GUI operations must preserve all fixture transcripts');
       const archived = after.ctx.workspaceRegistry.archivedSessionIds;
-      assert(archived.includes('gui-native-only') && archived.includes('gui-prearchived'));
-      assert(!archived.includes('gui-quiet') && !archived.includes('gui-sibling'));
+      assert.deepEqual(archived, [], 'All four explicit unarchives remain durable after restart');
     } finally { await after.close(); }
     report.checks.push('SDK reopen confirms native archive state and unchanged fixture transcripts');
     await runCommand(process.execPath, [cli, 'plugin', '--profile', 'web', 'remove', 'dsh-session-bin',

@@ -2,6 +2,40 @@
 
 状态：本地两端验证及中文、English 真实 GUI 验证通过。目标为 DSH 0.2.0-rc.2、Node 24.18.1、pnpm 11.7.0、macOS ARM64，私有开发包 0.1.0-dev.0。真实浏览器为系统 Chrome 154.0.8037.98。
 
+## 原生归档管理重构验证
+
+本节针对原生 Archive 唯一入口的重构工作区，区别于下文旧 Bin 历史基线。新协议及旧缓存兼容行为见[客户端接口](../client-interface.md)和 [ADR 0005](../decisions/0005-native-archive-collection.md)。
+
+固定工具环境下两端 `mise run check` 与新版预编译构建通过。定向 Client 检查 **17/17 通过，退出码 0**：模型 11 项、双语文案 5 项、实际 lazy factory 加载 1 项。运行命令为既有 `mise exec -- node --test --test-concurrency=1 tests/client-model.test.mjs tests/client-i18n.test.mjs tests/client-load.test.mjs`，没有新增工具或依赖来源。
+
+| 检查 | 实际证据 |
+| --- | --- |
+| 原生成员 | 真实 RPC baseline 和 Workspace 原生归档创建列表；无需旧 Bin 置入。 |
+| 操作与断线 | 丢失回复后重开只查询，缺少回执时显式同身份 retry；推送早于回复不会重复结算；批次排除后来归档，旧观察身份不能操作新身份。 |
+| 旧浏览器缓存 | v1 bin/restore 迁移为 query-only；自动与显式查询都不重发旧变更；合法历史 done 不伪报取消归档，缺少旧回执不阻止明确的新取消归档。损坏项及存储拒绝保持有效身份。 |
+| 文案与交互 | 中英文可见及 aria 文案、单复数、pending deletion/legacy reason、语言切换时选择及草稿保留；不显示旧时间/归档标签，不提供重复 Undo；合成 composition/Escape 验证。 |
+| 挂载与清理 | 真实 factory 共享 React 和原生图标；仅 main、panellist、overlay 三个贡献，会话菜单贡献为 0；等待/collapse/重建与卸载释放 style、locale、stream。 |
+
+实时 Client Inspect 的 Slots、Theme、Service 查询超时；实现核对的是锁定 SDK 的公开槽位及 locale 声明和主题 token，不能据此声称已验收当前运行中 GUI。定向测试使用隔离 RPC 与 DOM；真实浏览器结果需由 `mise run verify:gui` 单独记录。合成 composition 不证明实际操作系统输入法会话。
+
+## 本次最终 CLI 与浏览器验收
+
+最终源码基线、31 文件指纹和故障检查见[Host 重构验证](host-lifecycle.md#原生归档管理重构验证)。`mise run verify` 的两端类型检查、构建、**161/161 项测试**和 tarball 检查通过。随后对最终构建执行既有 `mise exec -- pnpm run verify:gui`（完整任务 `mise run verify:gui` 另包含构建），中文和 English 各 **14 检查 / 15 覆盖项通过**，退出码 0。
+
+[中文报告](../../.local/gui/client-zh-LN3ZAO/verification.json)、[English 报告](../../.local/gui/client-en-1wqHFE/verification.json)与[Host tarball 报告](../../.local/lifecycle/package-aUVuyj/verification.json)使用相同 tarball SHA-256：`dc7e1a5970634ba941edb04acd9c25444b1a09c1cbea38cfd3684bdc10bd4cee`。SDK `0.2.0-rc.2`、Node `24.18.1`、macOS ARM64、系统 Chrome `154.0.8037.98`；console/pageErrors 均为空。
+
+实际覆盖：插件安装前的原生归档直接显示、菜单无 Move 贡献、原生 Archive 与其唯一 Undo、确认成功的单项取消归档、固定选择批量取消归档、搜索/工作区筛选、composition/Escape/Tab、原生 Settings 语言切换时保留选择及草稿、语言偏好刷新保留、浅深色、390px 控件、原生插件 metadata、SDK 重开时 native archive 与日志一致，以及 CLI 卸载后的真正 Web 重启。两次最终测试 Host 位于 `49866/49979`，均正常退出；未连接当前 `19387` GUI。
+
+真实截图：[中文浅色](../../.local/gui/client-zh-LN3ZAO/artifacts/session-bin-light-zh.png)、[中文深色](../../.local/gui/client-zh-LN3ZAO/artifacts/session-bin-dark-zh.png)、[中文窄屏](../../.local/gui/client-zh-LN3ZAO/artifacts/session-bin-narrow-zh.png)；[English 浅色](../../.local/gui/client-en-1wqHFE/artifacts/session-bin-light-en.png)、[English 深色](../../.local/gui/client-en-1wqHFE/artifacts/session-bin-dark-en.png)、[English 窄屏](../../.local/gui/client-en-1wqHFE/artifacts/session-bin-narrow-en.png)。
+
+初次浏览器运行在空状态文案断言处失败，原因是脚本仍期待旧 Bin 文案；校正独立中英文期望后完整双语流程通过。随后补齐 Host 同步观察读取故障保护，再对最终同一 tarball 完整复验，以上报告只指最终运行。此证据不扩大永久删除、真实 OS 输入法、多 Host 或其他平台支持。
+
+## 本地安装开发包 0.1.0-dev.1
+
+原生归档重构验收后，为区分用户本地的旧包，开发版本递增为 `0.1.0-dev.1`；功能源码与上述最终验收一致，打包脚本的版本校验改为读取项目 manifest，避免另存固定版本。使用固定工具运行 `mise run check` 和 `mise run verify:package`，两端类型检查、重新构建、文件白名单、公开导出与真实 Loader 加载/取消归档/卸载/重载全部通过，退出码 0。
+
+[安装包](../../.local/packages/dsh-session-bin-0.1.0-dev.1.tgz)为本轮[打包报告](../../.local/lifecycle/package-CXjVh4/verification.json)中 tarball 的同字节副本，SHA-256 为 `72d08c9073dfc9a8a71c61e2799452712e0dac73ae40b6b7176ba6cd53251d95`，大小 340629 bytes，附[校验摘要](../../.local/packages/dsh-session-bin-0.1.0-dev.1.tgz.sha256)。本轮只编译和验证交付物，没有安装到用户正在运行的 Harness；前述真实双语 GUI 证据仍对应 `0.1.0-dev.0` 重构验收包。
+
 ## 验证基线
 
 代码基线：Host `a151d56`、客户端 `667ff68`、中英补充 `78cd924`。本报告记录这些基线在上述 SDK 和平台上的检查结果，不作为当前开发计划或分支状态说明。实现状态见 [README](../../README.md)。

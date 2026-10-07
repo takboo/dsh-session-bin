@@ -13,6 +13,16 @@ export class SessionBinError extends Error {
     this.name = 'SessionBinError';
   }
 }
+const businessRefusals = new WeakSet<SessionBinError>();
+/** Internal marker: external failures using the same public Error class remain unknown. */
+export function sessionBinRefusal(code: string, message: string): SessionBinError {
+  const error = new SessionBinError(code, message);
+  businessRefusals.add(error);
+  return error;
+}
+export function isSessionBinRefusal(error: unknown): boolean {
+  return error instanceof SessionBinError && businessRefusals.has(error);
+}
 export interface NativeSessionState {
   archived: boolean;
   known: boolean;
@@ -34,6 +44,7 @@ export interface ReconcileReport {
 export class SessionBinModule {
   private tail: Promise<unknown> = Promise.resolve();
   private closing = false;
+  private failed = false;
   private failure: unknown;
   private closePromise: Promise<void> | undefined;
   private readonly invalidated = new Set<string>();
@@ -41,8 +52,9 @@ export class SessionBinModule {
   private readonly purge: SessionBinPurgeModule | undefined;
 
   constructor(private readonly store: BinStore, private readonly native: NativeBinPort,
-    options: { retirement?: RetirementOptions } = {}) {
+    private readonly options: { retirement?: RetirementOptions; legacyReadOnly?: boolean } = {}) {
     this.purge = options.retirement ? new SessionBinPurgeModule(options.retirement, {
+      newRequestsDisabled: options.legacyReadOnly === true,
       entry: id => this.store.entry(id), invalidated: id => this.invalidated.has(id),
       archived: async id => (await this.native.inspect(id)).archived,
       activity: id => this.native.activity(id), deleteEntry: id => this.store.deleteEntry(id),
@@ -66,7 +78,7 @@ export class SessionBinModule {
   purgeOperations() { return this.enqueue(async () => this.requirePurge().operations()); }
   reconcilePurge() { return this.enqueue(() => this.requirePurge().reconcile(true)); }
   private requirePurge(): SessionBinPurgeModule {
-    if (!this.purge) throw new SessionBinError('bin/permanent-deletion-unsupported', 'No retirement journal/owner is composed.');
+    if (!this.purge) throw sessionBinRefusal('bin/permanent-deletion-unsupported', 'No retirement journal/owner is composed.');
     return this.purge;
   }
 
@@ -94,15 +106,20 @@ export class SessionBinModule {
     const plan = planSchema.parse(input);
     return this.enqueue(async () => {
       if (this.purge?.operation(plan.operationId)) {
-        throw new SessionBinError('bin/operation-id-reused', 'Operation identity belongs to a purge request.');
+        throw sessionBinRefusal('bin/operation-id-reused', 'Operation identity belongs to a purge request.');
       }
       const previous = this.store.operation(plan.operationId);
       if (previous) {
         if (!this.sameRequest(previous.plan, plan)) {
-          throw new SessionBinError('bin/operation-id-reused', 'Operation identity belongs to a different request.');
+          throw sessionBinRefusal('bin/operation-id-reused', 'Operation identity belongs to a different request.');
         }
         if (previous.result) return resultSchema.parse(previous.result);
         if (previous.phase === 'applied') return this.finalize(previous);
+      }
+      if (this.options.legacyReadOnly) {
+        await this.reconcileInner();
+        const receipt = this.store.operation(plan.operationId)?.result;
+        return receipt ? resultSchema.parse(receipt) : this.finish(this.emptyOperation(plan), 'rejected', 'legacy-operation-disabled');
       }
       await this.reconcileInner();
       const recovered = this.store.operation(plan.operationId);
@@ -190,17 +207,24 @@ export class SessionBinModule {
    * No archive-generation token exists in the SDK for an unobserved restart ABA.
    */
   observeArchives(archivedSessionIds: readonly string[]): Promise<ReconcileReport> {
-    if (this.failure) return Promise.reject(this.unavailable());
+    if (this.failed) return Promise.reject(this.unavailable());
     const archived = new Set(archivedSessionIds);
-    for (const entry of this.store.entries()) {
-      if (!archived.has(entry.sessionId)) this.invalidated.add(entry.entryId);
-    }
-    for (const operation of this.store.operations()) {
-      const entry = operation.entry;
-      if (operation.phase === 'done' || !entry) continue;
-      if (archived.has(entry.sessionId)) this.observedArchived.add(entry.entryId);
-      else if (operation.phase === 'applied' || entry.wasArchived
-        || this.observedArchived.has(entry.entryId)) this.invalidated.add(entry.entryId);
+    try {
+      for (const entry of this.store.entries()) {
+        if (!archived.has(entry.sessionId)) this.invalidated.add(entry.entryId);
+      }
+      for (const operation of this.store.operations()) {
+        const entry = operation.entry;
+        if (operation.phase === 'done' || !entry) continue;
+        if (archived.has(entry.sessionId)) this.observedArchived.add(entry.entryId);
+        else if (operation.phase === 'applied' || entry.wasArchived
+          || this.observedArchived.has(entry.entryId)) this.invalidated.add(entry.entryId);
+      }
+    } catch (error) {
+      // Capture runs outside the queue so frames cannot be lost behind a yield.
+      // Store reads here are still external I/O boundaries, never business refusals.
+      this.failed = true; this.failure = error;
+      return Promise.reject(error);
     }
     return this.closing
       ? Promise.resolve({ completed: [], retryRequired: [], releasedEntries: [] })
@@ -211,7 +235,7 @@ export class SessionBinModule {
     this.closing = true;
     return this.closePromise ??= this.tail.then(async () => {
       try {
-        if (!this.failure) await this.reconcileInner();
+        if (!this.failed) await this.reconcileInner();
       } finally {
         try { await this.purge?.close(); }
         finally { await this.store.close(); }
@@ -318,19 +342,19 @@ export class SessionBinModule {
     return report;
   }
   private unavailable(): SessionBinError {
-    return new SessionBinError(this.failure ? 'bin/recovery-required' : 'bin/closed',
-      this.failure ? 'An unexpected failure suspended this Module. Close and reopen before retrying.' : 'Session Bin is closing.',
-      this.failure ? { cause: this.failure } : undefined);
+    return new SessionBinError(this.failed ? 'bin/recovery-required' : 'bin/closed',
+      this.failed ? 'An unexpected failure suspended this Module. Close and reopen before retrying.' : 'Session Bin is closing.',
+      this.failed ? { cause: this.failure } : undefined);
   }
   private enqueue<T>(work: () => Promise<T>): Promise<T> {
-    if (this.closing || this.failure) return Promise.reject(this.unavailable());
+    if (this.closing || this.failed) return Promise.reject(this.unavailable());
     const result = this.tail.then(async () => {
-      if (this.failure) throw this.unavailable();
+      if (this.failed) throw this.unavailable();
       try { return await work(); }
       catch (error) {
         // An I/O rejection may follow a durable rename. Do not keep writing from
         // an in-memory snapshot that could now differ from the backend medium.
-        if (!(error instanceof SessionBinError)) this.failure = error;
+        if (!isSessionBinRefusal(error)) { this.failed = true; this.failure = error; }
         throw error;
       }
     });

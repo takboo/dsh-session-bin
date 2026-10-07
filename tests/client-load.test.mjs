@@ -15,6 +15,7 @@ import { Loader } from '@deepseek-ai/cordis-plugin-loader';
 import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 import { openRemoteFixture, within } from './helpers/remote-fixture.mjs';
+import { SessionId } from '@deepseek-ai/dsh-session';
 import { workspaceRoot } from './helpers/fixture.mjs';
 
 const require = createRequire(import.meta.url);
@@ -24,7 +25,8 @@ const LOCALE = '@deepseek-ai/dsh-client-locale';
 const PRIMITIVES = '@deepseek-ai/dsh-client-ui-primitives';
 const PRODUCT = 'dsh-session-bin';
 const panelId = 'dsh-session-bin.panel';
-const seats = ['main', 'sidebar.panellist', 'sidebar.workspaces.session.menu.item', 'shell.overlay'];
+const seats = ['main', 'sidebar.panellist', 'shell.overlay'];
+const menuSeat = 'sidebar.workspaces.session.menu.item';
 
 /** Build one actual npm primitive seed, retaining platform React identity.
  * Native CSS is deliberately discarded: this tier verifies code/lifecycle,
@@ -33,7 +35,7 @@ const seats = ['main', 'sidebar.panellist', 'sidebar.workspaces.session.menu.ite
 async function nativeSeed(context, seed) {
   const result = await build({
     absWorkingDir: workspaceRoot,
-    stdin: { contents: `export { IconTrashOutlineRegular, IconRefreshOutlineRegular, Button, Input, Checkbox, MenuItemButton, Toast } from '${PRIMITIVES}';`,
+    stdin: { contents: `export { IconTrashOutlineRegular, IconRefreshOutlineRegular, Button, Input, Checkbox, Toast } from '${PRIMITIVES}';`,
       resolveDir: workspaceRoot, sourcefile: 'artifact-platform-primitives.js' },
     bundle: true, write: false, format: 'cjs', platform: 'browser', target: 'es2022',
     external: Object.keys(seed),
@@ -152,8 +154,8 @@ test('the built lazy Client factory registers real components and cleans up ever
         `${seat} injection must wait for its declaration`);
 
       const ownerPlugin = { name: 'artifact-documented-slot-owner', inject: ['slots'], apply(ctx) {
-        // Only the four documented native slot contracts. No shell component,
-        // real DOM renderer, native session surface or visual behavior is claimed.
+        // The three product slots and the native menu seat to verify absence.
+        // No shell component, real DOM renderer or visual behavior is claimed.
         ctx.slots.register({ name: 'root', children: {
           main: { kind: 'keyed', scope: 'root' },
           'sidebar.panellist': { kind: 'list', scope: 'root' },
@@ -172,7 +174,7 @@ test('the built lazy Client factory registers real components and cleans up ever
         assert(React.isValidElement(element));
         assert.equal(element.type, seed[PRIMITIVES].IconTrashOutlineRegular);
         assert.equal(element.props.size, 16);
-        assert.equal(fixture.client.slots.entries('sidebar.workspaces.session.menu.item')[0].options.order, 500);
+        assert.equal(fixture.client.slots.entries(menuSeat).length, 0, 'native Archive remains the only conversation menu entry');
         assert.equal(fixture.client.slots.entries('main')[0].locale, 'dshSessionBin');
       };
       owner = fixture.client.plugin(ownerPlugin);
@@ -181,10 +183,13 @@ test('the built lazy Client factory registers real components and cleans up ever
       const model = fixture.client.slots.entries('main')[0].inject().model;
       await modelReady(model, t.signal);
       assert.equal(listenerCount(fixture), baselineListeners + 1, 'artifact owns exactly one live metadata stream');
-      const moved = await model.move('quiet');
-      assert.equal(moved.status, 'success');
-      const restored = await model.restore({ sessionId: 'quiet', entryId: moved.entryId });
-      assert.equal(restored.status, 'success');
+      await fixture.ctx.workspaceRegistry.archiveSession(SessionId('quiet'));
+      const [entry] = await fixture.bin.list();
+      const unarchived = await model.unarchive(entry);
+      assert.equal(unarchived.status, 'success');
+      assert(!fixture.ctx.workspaceRegistry.archivedSessionIds.includes('quiet'));
+      assert.equal(model.move, undefined);
+      assert.equal(model.restore, undefined);
       assert.equal(fixture.client.locale.bind('dshSessionBin')('title'), 'Session Bin');
       await owner.dispose();
       owner = undefined;

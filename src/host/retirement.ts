@@ -11,7 +11,7 @@ import type {
   RetirementCapabilities, RetirementManifest, RetirementRequest, RetirementState, RetirementAuthorization,
 } from '../operations/retirement.js';
 import type { RetirementStore } from './retirement-store.js';
-import { SessionBinError } from './module.js';
+import { sessionBinRefusal } from './module.js';
 
 /** The resource owner implements its own durable admission fence and recovery.
  * This interface is a plugin seam, not a native DSH SDK service. */
@@ -30,6 +30,7 @@ export interface RetirementOptions {
   verified?: (capabilities: RetirementCapabilities) => boolean;
 }
 export interface PurgeHooks {
+  newRequestsDisabled?: boolean;
   entry(sessionId: string): BinEntry | undefined;
   invalidated(entryId: string): boolean;
   archived(sessionId: string): Promise<boolean>;
@@ -154,11 +155,11 @@ export class SessionBinPurgeModule {
   async execute(input: PurgePlan): Promise<PurgeResult> {
     const plan = purgePlanSchema.parse(input);
     if (this.hooks.hasArchiveOperation(plan.operationId)) {
-      throw new SessionBinError('bin/operation-id-reused', 'Operation identity belongs to an archive request.');
+      throw sessionBinRefusal('bin/operation-id-reused', 'Operation identity belongs to an archive request.');
     }
     const previous = this.store.operation(plan.operationId);
     if (previous) {
-      if (!samePlan(previous.plan, plan)) throw new SessionBinError('bin/operation-id-reused', 'Purge identity belongs to a different request.');
+      if (!samePlan(previous.plan, plan)) throw sessionBinRefusal('bin/operation-id-reused', 'Purge identity belongs to a different request.');
       if (previous.phase === 'done') return purgeResultSchema.parse(previous.result);
       return this.recover(previous);
     }
@@ -258,6 +259,11 @@ export class SessionBinPurgeModule {
     return this.options.verified?.(retirementCapabilitiesSchema.parse(capabilities)) === true ? capabilities : null;
   }
   private async check(plan: PurgePlan, requireManifest: boolean, authorizing = false): Promise<string | null> {
+    if (this.hooks.newRequestsDisabled) {
+      if (this.store.operations().some(item => item.phase !== 'done' && item.plan.sessionId === plan.sessionId
+        && item.plan.operationId !== plan.operationId)) return 'pending-deletion';
+      return await this.hooks.archived(plan.sessionId) ? 'permanent-deletion-unsupported' : 'not-archived';
+    }
     const entry = this.hooks.entry(plan.sessionId);
     if (!entry) return 'not-in-bin';
     if (entry.entryId !== plan.expectedEntryId) return 'entry-changed';

@@ -2,6 +2,29 @@
 
 验证对象：Host 生命周期，代码基线 `a151d56`。结果：17 项本地检查通过。目标 SDK：DSH 0.2.0-rc.2；平台：macOS ARM64。本报告的范围限该基线，完整客户端验收另见[客户端验证](client-interface.md)。
 
+## 原生归档管理重构验证
+
+本节针对原生 Archive 唯一入口的重构工作区，基线为 `d7d982e35a3603ad4c7d4f63c8540474f988e67d` 加本轮未提交变更，区别于下文旧 Bin、删除消费者和 owner 的历史基线。31 个实现、脚本、locale 和测试文件的[源码指纹](../../.local/lifecycle/native-archive-evidence-2fm_3rlz/source.sha256)已全部校验；清单 SHA-256 为 `fa70b0b40b563e7cb3e122f697db59768d320b9aa6321ce64bf5c53c8696423a`。新正式协议见[Host 生命周期](../host-lifecycle.md)，选定架构见 [ADR 0005](../decisions/0005-native-archive-collection.md)。固定 SDK 与工具仍为 DSH `0.2.0-rc.2`、Node `24.18.1`、pnpm `11.7.0`、macOS ARM64。
+
+新增[归档回归](../../tests/archive.test.mjs) **32 项**和[新版真实进程中断](../../tests/archive-crash.test.mjs) **1 项（内部 5 个 SIGKILL 边界）**已随最终 `mise run verify` 全部通过：两端类型检查、构建、**161/161 项测试**及 tarball/真实 Loader 检查均成功，退出码 0。此前 31 项定向检查也通过；定向复现使用既有固定工具命令 `mise exec -- node --test --test-concurrency=1 tests/archive.test.mjs tests/archive-crash.test.mjs`。所有会话、日志、故障、协调目录与测试 owner 数据均位于忽略的 `.local/lifecycle/` 随机目录。
+
+| 范围 | 实际检查 |
+| --- | --- |
+| 原生成员与兼容 | 全部 native archives（含未分组）直接出现；观察 UUID 重开稳定；旧 wasArchived 对象的新取消归档确实移除 native mark；旧 v1 回执可查，未知旧 execute 不能开始 native 变更；跨协议 operationId 拒绝。 |
+| 启动与删除边界 | 旧 intent/applied 的 metadata-only 对账不改 native archive，不补生命周期见证；default native purge unsupported；已保存 owner pending guard 重开后阻止新版 unarchive，不推进资源清除。 |
+| 动态成员与 admission | 已观察 ABA 更换 UUID，旧计划冲突；慢 put 中新归档、当前取消和 ABA 均收敛到完整当前集合；intent 后身份、存在性、pending purge 变化再次复核，原生调用数为 0。 |
+| 原生发布顺序 | 锁定 SDK domain 已提交帧早于 Registry 内存投影，native port 只读公开 global snapshot；missing archive member 可见但不能以幂等 unarchive 当存在证明。missing 样本只在临时 native domain 中故意构造，不操作用户数据。 |
+| 未知 I/O | native/applied acknowledgement 丢失暂停请求；新旧 core 对外部同业务错误类及 undefined/null/false/0 的 committed intent rejection 都暂停；真实 backend 已提交旧失效记录后抛错，生产 Archive 也暂停，重开保守修复。 |
+| 生命周期与真实死亡 | 第三个 archive domain 打开失败/等待取消释放旧两 domain 与 lease；新版 unarchive 在 intent/native/applied/entry/done 各 SIGKILL，重开只补元数据，旧计划只返回历史回执；日志和工作区位置保持。 |
+
+独立只读审阅发现并复审了未知错误类豁免及 falsy 健康位两个暂停缺口；运行回归覆盖这些窗口。第一次全量尝试发现原生帧/Registry 投影时序差异并在等待中的慢 put 测试处被主动取消，取消运行不算验收通过；修复后上述 31 项定向全部通过。
+
+即时归档帧捕获中的外部 entries/operations 同步读取失败也进入独立 failed 保护，不能绕过队列暂停或中断新版帧的即时捕获；最终两项补充回归已计入上述 161 项。
+
+[最终 tarball 报告](../../.local/lifecycle/package-aUVuyj/verification.json)、[中文 GUI 报告](../../.local/gui/client-zh-LN3ZAO/verification.json)与[English GUI 报告](../../.local/gui/client-en-1wqHFE/verification.json)的 tarball SHA-256 同为 `dc7e1a5970634ba941edb04acd9c25444b1a09c1cbea38cfd3684bdc10bd4cee`。两个独立 profile 各 14 检查/15 覆盖项通过，console/pageErrors 为空。测试端口 `49866/49979` 仅属于脚本临时宿主，均已关闭；未连接当前 `19387` GUI，未改真实用户会话。
+
+本轮不扩大原生永久删除资格。旧 Bin core 保留为兼容与 test-only owner 回归，默认生产不提供新的 bin/restore 或 native purge；归档观察不是 exact lifecycle 或删除授权。原生取消归档排队不提供代际/CAS，插件最后复核与宿主实际提交不原子，未观察 ABA 和单 Host 部署限制继续适用。
+
 ## 环境与命令
 
 Node 24.18.1、pnpm 11.7.0、GitHub CLI 2.102.0 由 [mise.toml](../../mise.toml) 固定。构建依赖锁定 TypeScript 5.9.3、esbuild 0.25.10；运行依赖与 [package.json](../../package.json) 和 [pnpm-lock.yaml](../../pnpm-lock.yaml) 一致。

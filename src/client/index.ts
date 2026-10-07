@@ -5,7 +5,7 @@ import type {} from '@deepseek-ai/dsh-api-gateway/client';
 import type { SessionBinRemoteApi } from '../remote/contracts.js';
 import { sessionBinRemoteContribution } from '../remote/contracts.js';
 import { SessionBinClientModel, browserPendingCache } from './model.js';
-import { BinMenu, BinPanel, BinIcon, BinNotice } from './components.js';
+import { BinPanel, BinIcon, BinNotice } from './components.js';
 import type { BinInjected } from './components.js';
 import { NS, en, zh } from './locales.js';
 
@@ -35,13 +35,7 @@ async function initialize(ctx: Context): Promise<void> {
   ctx.effect(() => () => model.dispose(), 'session-bin.model');
   const face = (): BinInjected => ({
     hooks: { bin: model }, model,
-    formatDate: date => new Intl.DateTimeFormat(ctx.locale.getLocale().active, {
-      dateStyle: 'medium', timeStyle: 'short',
-    }).format(new Date(date)),
   });
-  ctx.slots.inject('sidebar.workspaces.session.menu.item', () => ctx.slots.register({
-    name: 'sidebar.workspaces.session.menu.item', id: 'dsh-session-bin.move', order: 500, locale: NS, inject: face,
-  }, BinMenu));
   ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: panelId, locale: NS, inject: face }, BinPanel));
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
     name: 'sidebar.panellist', id: panelId, order: 500, label: () => ctx.locale.bind(NS)('title'),

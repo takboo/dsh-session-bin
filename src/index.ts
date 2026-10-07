@@ -6,18 +6,25 @@ import { workspaceDomainState } from '@deepseek-ai/dsh-workspace';
 import type {} from '@deepseek-ai/dsh-session-persistence';
 import { acquireBinLease } from './host/lease.js';
 import { DshBinPort } from './host/native.js';
-import { binDomainSpec, DomainBinStore } from './host/store.js';
+import { archiveDomainSpec, DomainArchiveStore, binDomainSpec, DomainBinStore } from './host/store.js';
 import { retirementDomainSpec, DomainRetirementStore } from './host/retirement-store.js';
 import type { PreparePurgeRequest, PurgePlan } from './operations/retirement.js';
-import { SessionBinModule, SessionBinError } from './host/module.js';
+import { preparePurgeRequestSchema, purgePlanSchema } from './operations/retirement.js';
+import { SessionBinModule, SessionBinError, sessionBinRefusal } from './host/module.js';
+import { ArchiveModule } from './host/archive.js';
 import { installSessionBinRemote } from './host/remote.js';
-import type { BinPlan, PrepareRequest } from './operations/schema.js';
+import { planSchema } from './operations/schema.js';
+import type { BinPlan } from './operations/schema.js';
+import type { ArchivePlan, ArchivePrepareRequest } from './operations/archive.js';
 
 export { acquireBinLease, BinLeaseError } from './host/lease.js';
 export { DshBinPort } from './host/native.js';
-export { binDomainSpec, DomainBinStore } from './host/store.js';
-export type { BinStore } from './host/store.js';
+export { binDomainSpec, DomainBinStore, archiveDomainSpec, DomainArchiveStore } from './host/store.js';
+export type { BinStore, ArchiveStore } from './host/store.js';
 export { SessionBinModule, SessionBinError } from './host/module.js';
+export { ArchiveModule } from './host/archive.js';
+export type { NativeArchivePort, ArchiveOptions } from './host/archive.js';
+export * from './operations/archive.js';
 export { SessionBinRemote, installSessionBinRemote } from './host/remote.js';
 export type { NativeBinPort, NativeSessionState, ReconcileReport } from './host/module.js';
 export type { BinEntry, BinPlan, BinResult, BinOperation, PrepareRequest } from './operations/schema.js';
@@ -45,10 +52,12 @@ declare module '@deepseek-ai/cordis' {
   interface Context { sessionBin: SessionBin }
 }
 
-/** Host-only public Interface. Client transport and UI are a later slice. */
+/** Production native archive interface; v1 core is confined to compatibility. */
 export class SessionBin extends Service {
   static inject = inject;
-  private module!: SessionBinModule;
+  private module!: ArchiveModule;
+  private legacy!: SessionBinModule;
+  private archiveStore!: DomainArchiveStore;
   private ready = false;
   constructor(ctx: Context, private readonly config: Config = {}) { super(ctx, 'sessionBin'); }
 
@@ -69,15 +78,12 @@ export class SessionBin extends Service {
       this.ctx.effect(() => async () => {
         disposed = true;
         this.ready = false;
-        // Keep the lease while an asynchronous domain open/initial reconciliation
-        // settles. A cancelled initialization cannot publish a late unowned handle.
         await initializing;
         const errors: unknown[] = [];
         try { if (this.module) await this.module.close(); } catch (error) { errors.push(error); }
+        try { if (this.legacy) await this.legacy.close(); } catch (error) { errors.push(error); }
         try { stopListening?.(); } catch (error) { errors.push(error); }
         try { await closeDomains(); } catch (error) { errors.push(error); }
-        // Domain.close refuses new writes before draining, even when unit.close
-        // rejects. All admitted Module/callback writes have settled at this point.
         try { await release(); } catch (error) { errors.push(error); }
         if (errors.length) throw new AggregateError(errors, 'Session Bin teardown failed.');
       }, 'session-bin.dispose');
@@ -93,38 +99,73 @@ export class SessionBin extends Service {
       const retirementDomain = await this.ctx.storageDomain.open(retirementDomainSpec);
       domains.push(() => retirementDomain.close());
       this.ctx.fiber.assertActive();
-      // No native adapter is admitted in 0.2.0-rc.2. Config cannot turn a
-      // self-reported provider capability into deletion authorization.
-      this.module = new SessionBinModule(new DomainBinStore(domain), new DshBinPort(this.ctx), {
-        retirement: { store: new DomainRetirementStore(retirementDomain) },
+      const archiveDomain = await this.ctx.storageDomain.open(archiveDomainSpec);
+      domains.push(() => archiveDomain.close());
+      this.ctx.fiber.assertActive();
+      const native = new DshBinPort(this.ctx);
+      const legacyStore = new DomainBinStore(domain);
+      const retirementStore = new DomainRetirementStore(retirementDomain);
+      // No admitted native owner. Observation and migration never capture grants.
+      this.legacy = new SessionBinModule(legacyStore, native, {
+        legacyReadOnly: true, retirement: { store: retirementStore },
+      });
+      this.archiveStore = new DomainArchiveStore(archiveDomain);
+      this.module = new ArchiveModule(this.archiveStore, native, {
+        operationIdClaimed: id => legacyStore.operation(id) !== undefined || retirementStore.operation(id) !== undefined,
+        pendingPurge: id => retirementStore.operations().some(operation => operation.phase !== 'done' && operation.plan.sessionId === id),
+        reconcileLegacy: () => this.legacy.operations(),
       });
       stopListening = this.ctx.root.on('domain/changed', change => {
         if (change.domain !== 'workspace' || change.table !== '' || change.operation !== 'put') return;
         const state = workspaceDomainState.parse(change.value);
-        void this.module.observeArchives(state.archivedSessionIds).catch(error => {
+        // Both consumers capture the frame synchronously before their queues yield.
+        const legacy = this.legacy.observeArchives(state.archivedSessionIds);
+        const archive = this.module.observeArchives(state.archivedSessionIds);
+        void Promise.all([legacy, archive]).catch(error => {
           this.ctx.logger.warn(`session-bin: reconciliation failed: ${String(error)}`);
         });
       });
+      await this.legacy.reconcile();
       await this.module.reconcile();
       this.ctx.fiber.assertActive();
       if (!disposed) this.ready = true;
     } finally { finishInitializing(); }
   }
 
-  private requireModule(): SessionBinModule {
+  private requireModule(): ArchiveModule {
     if (!this.ready) throw new SessionBinError('bin/not-ready', 'Session Bin has not finished initialization or is unloading.');
     return this.module;
   }
-  prepare(request: PrepareRequest) { return this.requireModule().prepare(request); }
-  preparePurge(request: PreparePurgeRequest) { return this.requireModule().preparePurge(request); }
-  executePurge(plan: PurgePlan) { return this.requireModule().executePurge(plan); }
-  getPurgeOperation(operationId: string) { return this.requireModule().getPurgeOperation(operationId); }
-  purgeOperations() { return this.requireModule().purgeOperations(); }
-  reconcilePurge() { return this.requireModule().reconcilePurge(); }
-  execute(plan: BinPlan) { return this.requireModule().execute(plan); }
+  private checkLegacyClaim(operationId: string) {
+    if (this.archiveStore.operation(operationId)) {
+      throw sessionBinRefusal('bin/operation-id-reused', 'Operation identity belongs to an archive request.');
+    }
+  }
+  prepare(request: ArchivePrepareRequest) { return this.requireModule().prepare(request); }
+  preparePurge(request: PreparePurgeRequest) {
+    const input = preparePurgeRequestSchema.parse(request);
+    return this.requireModule().compatibility(async () => {
+      if (input.operationId) this.checkLegacyClaim(input.operationId);
+      return this.legacy.preparePurge(input);
+    });
+  }
+  executePurge(input: PurgePlan) {
+    const plan = purgePlanSchema.parse(input);
+    return this.requireModule().compatibility(async () => { this.checkLegacyClaim(plan.operationId); return this.legacy.executePurge(plan); });
+  }
+  getPurgeOperation(operationId: string) { return this.requireModule().compatibility(() => this.legacy.getPurgeOperation(operationId)); }
+  purgeOperations() { return this.requireModule().compatibility(() => this.legacy.purgeOperations()); }
+  reconcilePurge() { return this.requireModule().compatibility(() => this.legacy.reconcilePurge()); }
+  execute(input: ArchivePlan | BinPlan) {
+    if (input.schemaVersion === 2) return this.requireModule().execute(input);
+    const plan = planSchema.parse(input);
+    return this.requireModule().compatibility(async () => { this.checkLegacyClaim(plan.operationId); return this.legacy.execute(plan); });
+  }
   list() { return this.requireModule().list(); }
   operations() { return this.requireModule().operations(); }
-  getOperation(operationId: string) { return this.requireModule().getOperation(operationId); }
+  getOperation(operationId: string) {
+    return this.requireModule().compatibility(async () => this.archiveStore.operation(operationId) ?? await this.legacy.getOperation(operationId));
+  }
   reconcile() { return this.requireModule().reconcile(); }
 }
 export async function apply(ctx: Context, config: Config = {}) {

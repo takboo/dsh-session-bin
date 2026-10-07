@@ -6,8 +6,9 @@ import { SessionBinError } from './module.js';
 import { entriesSchema, optionalOperationSchema, sessionBinHostContribution, sessionBinRemoteNamespace,
   sessionBinRemoteServiceKey, snapshotSchema, binRemoteErrorCodes } from '../remote/contracts.js';
 import type { BinRemoteErrorCode, BinSnapshot } from '../remote/contracts.js';
-import { planSchema, resultSchema } from '../operations/schema.js';
-import type { BinOperation, BinPlan, BinResult, PrepareRequest } from '../operations/schema.js';
+import { archivePlanSchema as planSchema, archiveResultSchema as resultSchema } from '../operations/archive.js';
+import type { ArchiveOperation, ArchivePlan as BinPlan, ArchiveResult as BinResult, ArchivePrepareRequest as PrepareRequest } from '../operations/archive.js';
+import type { BinOperation } from '../operations/schema.js';
 
 const knownRemoteCodes = new Set<string>(binRemoteErrorCodes);
 function isBinRemoteCode(code: string): code is BinRemoteErrorCode { return knownRemoteCodes.has(code); }
@@ -48,7 +49,7 @@ export class SessionBinRemote extends TypertRemoteService {
   list(signal: AbortSignal) {
     return this.call(signal, async () => entriesSchema.parse(await this.ctx.sessionBin.list()));
   }
-  getOperation(operationId: string, signal: AbortSignal): Promise<BinOperation | null> {
+  getOperation(operationId: string, signal: AbortSignal): Promise<ArchiveOperation | BinOperation | null> {
     return this.call(signal, async () => optionalOperationSchema.parse(await this.ctx.sessionBin.getOperation(operationId) ?? null));
   }
 
@@ -89,7 +90,7 @@ export class SessionBinRemote extends TypertRemoteService {
     // Subscribe before the first list. Every generation receives a full baseline;
     // notifications are coalesced into replacement snapshots, with no replay cursor.
     const off = this.ctx.root.on('domain/changed', change => {
-      if (change.domain === 'session_bin') changed();
+      if (change.domain === 'session_archive' || change.domain === 'workspace') changed();
     });
     signal.addEventListener('abort', changed, { once: true });
     let previous: string | undefined;
@@ -98,7 +99,7 @@ export class SessionBinRemote extends TypertRemoteService {
         if (dirty) {
           dirty = false;
           const snapshot = await this.call(signal, async () => snapshotSchema.parse({
-            schemaVersion: 1, entries: await this.ctx.sessionBin.list(),
+            schemaVersion: 2, entries: await this.ctx.sessionBin.list(),
           }));
           if (signal.aborted || this.closed) return;
           const signature = JSON.stringify(snapshot);

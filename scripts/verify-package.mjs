@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { Loader } from '@deepseek-ai/cordis-plugin-loader';
 import { parse } from 'yaml';
 import { acquireBinLease } from '../dist/index.js';
+import { SessionId } from '@deepseek-ai/dsh-session';
 import { createScratch, openFixture, workspaceRoot } from '../tests/helpers/fixture.mjs';
 
 const exec = promisify(execFile);
@@ -33,7 +34,8 @@ await mkdir(installed, { recursive: true });
 await exec('tar', ['-xzf', tarball, '--strip-components=1', '-C', installed]);
 const require = createRequire(join(installed, 'anchor.cjs'));
 const manifest = JSON.parse(await readFile(require.resolve('dsh-session-bin/package.json'), 'utf8'));
-assert.equal(manifest.version, '0.1.0-dev.0');
+const sourceManifest = JSON.parse(await readFile(join(workspaceRoot, 'package.json'), 'utf8'));
+assert.equal(manifest.version, sourceManifest.version);
 assert.equal(manifest.private, true);
 assert.deepEqual(manifest.dsh.client, { platform: 'web' });
 assert.equal(require.resolve('dsh-session-bin/client'), join(installed, 'dist/client.js'));
@@ -48,12 +50,15 @@ const { readPluginMeta } = await import(pathToFileURL(cliRequire.resolve('@deeps
 const localizedMeta = readPluginMeta('dsh-session-bin', pathToFileURL(join(installed, 'anchor.mjs')).href);
 assert.deepEqual(localizedMeta?.title, { en: 'Session Bin', zh: '会话回收站' });
 assert.deepEqual(localizedMeta?.description, {
-  en: 'Move conversations to a recoverable bin with native menus, metadata search, workspace filters, and batch restore.',
-  zh: '通过原生菜单暂时收起会话，支持元数据搜索、工作区筛选与批量恢复。',
+  en: 'Manage Harness native archives with search, filters, and batch unarchive.',
+  zh: '直接管理 Harness 原生归档，支持搜索、筛选与批量取消归档。',
 });
 const entryPath = require.resolve('dsh-session-bin');
 assert.equal(entryPath, join(installed, 'dist/index.js'));
 assert.equal(require.resolve('dsh-session-bin/operations'), join(installed, 'dist/operations.js'));
+assert(files.includes('dist/operations/index.d.ts') && files.includes('dist/operations/archive.d.ts'));
+const operationContracts = await import(pathToFileURL(require.resolve('dsh-session-bin/operations')).href);
+assert(operationContracts.archivePlanSchema && operationContracts.planSchema, 'Packed operations export both v2 and legacy schemas');
 const packedRequire = createRequire(entryPath);
 for (const [name, version] of Object.entries(manifest.peerDependencies)) {
   const manifestPath = await realpath(packedRequire.resolve(`${name}/package.json`));
@@ -73,14 +78,15 @@ try {
   await fixture.ctx.loader.await();
   const bin = fixture.ctx.get('sessionBin');
   assert(bin, 'packed Host Service must activate through the real Loader');
-  const result = await bin.execute(await bin.prepare({ action: 'bin', sessionId: 'quiet' }));
-  assert.equal(result.status, 'success');
+  await fixture.ctx.workspaceRegistry.archiveSession(SessionId('quiet'));
   assert.equal((await bin.list()).length, 1);
   const fiber = fixture.ctx.loader.resolve(id).fiber;
   fixture.ctx.loader.remove(id);
   await fiber?.await();
   assert.equal(fixture.ctx.get('sessionBin'), undefined);
   assert.equal(fixture.ctx.storageDomain.get('session_bin'), undefined);
+  assert.equal(fixture.ctx.storageDomain.get('session_bin_purge'), undefined);
+  assert.equal(fixture.ctx.storageDomain.get('session_archive'), undefined);
   const release = await acquireBinLease(join(scratch, 'coordination'));
   await release();
   // A second activation reopens the catalog; no duplicate service/listener remains.
@@ -88,7 +94,7 @@ try {
     config: { coordinationDirectory: join(scratch, 'coordination') } });
   await fixture.ctx.loader.await();
   assert.equal((await fixture.ctx.sessionBin.list()).length, 1);
-  assert.equal((await fixture.ctx.sessionBin.execute(await fixture.ctx.sessionBin.prepare({ action: 'restore', sessionId: 'quiet' }))).status, 'success');
+  assert.equal((await fixture.ctx.sessionBin.execute(await fixture.ctx.sessionBin.prepare({ action: 'unarchive', sessionId: 'quiet' }))).status, 'success');
   const againFiber = fixture.ctx.loader.resolve(again).fiber;
   fixture.ctx.loader.remove(again);
   await againFiber?.await();
@@ -96,7 +102,7 @@ try {
 const report = {
   status: 'passed', tarball, sha256: createHash('sha256').update(await readFile(tarball)).digest('hex'),
   files, sdk: manifest.peerDependencies,
-  scope: 'Packed public exports and bundle patch; real Cordis Loader activation, bin/restore, disposal and reactivation on temporary JSONL sessions.',
+  scope: 'Packed public exports and bundle patch; real Cordis Loader activation, native archive/unarchive, disposal and reactivation on temporary JSONL sessions.',
   limits: 'SDK dependencies supplied by the pinned repository install; not a clean profile/CLI install or a real GUI test.',
 };
 await writeFile(join(scratch, 'verification.json'), JSON.stringify(report, null, 2) + '\n');

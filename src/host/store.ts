@@ -1,5 +1,7 @@
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain';
 import type { Domain } from '@deepseek-ai/dsh-storage-domain';
+import { archiveEntrySchema, archiveOperationSchema } from '../operations/archive.js';
+import type { ArchiveEntry, ArchiveOperation } from '../operations/archive.js';
 import { entrySchema, operationSchema } from '../operations/schema.js';
 import type { BinEntry, BinOperation } from '../operations/schema.js';
 
@@ -66,4 +68,50 @@ export class DomainBinStore implements BinStore {
     return this.domain.table('operations').put(snapshot.plan.operationId, snapshot);
   }
   close(): Promise<void> { return this.domain.close(); }
+}
+
+/** Observation identities live apart from the immutable v1 ownership journal. */
+export const archiveDomainSpec = defineDomain({
+  name: 'session_archive', version: 1, layout: 'single',
+  tables: { entries: domainTable(archiveEntrySchema), operations: domainTable(archiveOperationSchema) },
+} as const);
+export interface ArchiveStore {
+  entries(): ArchiveEntry[];
+  entry(sessionId: string): ArchiveEntry | undefined;
+  operations(): ArchiveOperation[];
+  operation(operationId: string): ArchiveOperation | undefined;
+  putEntry(entry: ArchiveEntry): Promise<void>;
+  deleteEntry(sessionId: string): Promise<void>;
+  putOperation(operation: ArchiveOperation): Promise<void>;
+  close(): Promise<void>;
+}
+export class DomainArchiveStore implements ArchiveStore {
+  constructor(private readonly domain: Domain<typeof archiveDomainSpec>) {
+    for (const [key, entry] of domain.table('entries').entries()) {
+      if (key !== entry.sessionId) throw new Error('Archive entry key does not match its session.');
+    }
+    for (const [key, operation] of domain.table('operations').entries()) {
+      if (key !== operation.plan.operationId) throw new Error('Archive operation key does not match its identity.');
+    }
+  }
+  entries() { return [...this.domain.table('entries').entries()].map(([, value]) => archiveEntrySchema.parse(value)); }
+  entry(sessionId: string) {
+    const value = this.domain.table('entries').get(sessionId);
+    return value === undefined ? undefined : archiveEntrySchema.parse(value);
+  }
+  operations() { return [...this.domain.table('operations').entries()].map(([, value]) => archiveOperationSchema.parse(value)); }
+  operation(operationId: string) {
+    const value = this.domain.table('operations').get(operationId);
+    return value === undefined ? undefined : archiveOperationSchema.parse(value);
+  }
+  putEntry(value: ArchiveEntry) {
+    const snapshot = archiveEntrySchema.parse(value);
+    return this.domain.table('entries').put(snapshot.sessionId, snapshot);
+  }
+  async deleteEntry(sessionId: string) { await this.domain.table('entries').delete(sessionId); }
+  putOperation(value: ArchiveOperation) {
+    const snapshot = archiveOperationSchema.parse(value);
+    return this.domain.table('operations').put(snapshot.plan.operationId, snapshot);
+  }
+  close() { return this.domain.close(); }
 }

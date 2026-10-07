@@ -2,9 +2,36 @@
 
 本文说明归档型回收站的 Host 操作协议、持久化规则和并发边界。对应传输与界面见[客户端接口](client-interface.md)，运行证据见[Host 验证](verification/host-lifecycle.md)和[客户端验证](verification/client-interface.md)；实现状态集中在 [README](../README.md)。
 
-## 公共接口
+## 原生归档公共接口
 
-Host 消费者注入 `sessionBin`，通过 `ctx.sessionBin` 调用以下方法。所有对象都是独立快照；会话身份不会变成客户端提供的文件路径。
+生产 `ctx.sessionBin` 以原生 `archivedSessionIds` 为成员来源，包含插件安装前或其他原生界面建立的归档。读取公开 Workspace domain 已提交 global 快照并使用 `workspaceDomainState` 校验：锁定 SDK 的 `domain/changed` 先于 Registry 内存投影更新，不能在该帧处理中依赖仍可能过期的 getter。插件不写原生 domain，所有归档变更仍通过 Registry 的公开方法完成。插件不提供新的 `bin` 入口；Archive、活动检查、停止确认和 Undo 由宿主原生交互负责。选定架构见 [ADR 0005](decisions/0005-native-archive-collection.md)。
+
+| 方法 | 行为 |
+| --- | --- |
+| `prepare({ action: 'unarchive', sessionId, operationId? })` | 返回 v2 固定观察身份、当前归档状态和 blockers，不修改原生状态。 |
+| `execute(plan)` | 重新核对当前成员、观察身份、存在性与 pending deletion guard；新版成功始终调用原生取消归档。 |
+| `list()` | 返回原生归档集合的 v2 `ArchiveEntry` 快照，旧 Bin 条目不影响成员。 |
+| `getOperation(operationId)` | 返回新版回执或旧 v1 历史操作；同 operationId 不得跨协议复用。 |
+| `operations()` | 列出新版取消归档 journal；旧记录通过 `getOperation` 按身份查询。 |
+| `reconcile()` | 保守补齐已确认元数据，未确认意图结束为中断冲突；不补偿、重放归档或取消归档。 |
+
+独立 `session_archive` sidecar 保存观察记录和新版取消归档 journal；原 `session_bin` 及 `session_bin_purge` 保持原有 schema，兼容对账不改变原生状态。观察记录的 UUID 是插件看到的集合成员身份，不是 native archive generation、创建时间或 exact lifecycle。列表不显示推测的归档时间。每次写入先校验并快照，继续遵守 domain 无跨表事务和 pinned SDK 写入校验差异。
+
+取消归档顺序为复核 → 持久化 intent → 再复核固定对象与原生状态 → 调用公开 unarchive → 持久化 applied → 完成回执。旧条目的 `wasArchived` 不参与新动作。会话已缺失时明确拒绝；原生 unarchive 的幂等返回不被当成日志存在证明。工作区成员及位置、取消归档不恢复置顶的语义由原生接口保持。
+
+原生归档帧立即捕获成员退出，避免取消归档与再归档两帧在队列等待期间被最后一个集合覆盖；已观察的重新归档获得新的观察身份，旧计划冲突。原生集合没有持久化代际，无法可靠识别插件停用、进程死亡或观察尚未持久化期间的 ABA。固定选择和历史幂等不意味着弥补这个宿主缺口。
+
+旧 v1 execute 兼容路径只查询或完成已有日志的保守对账，不能开始新的旧归档/恢复。新严格 Remote 仅接受 v2 `unarchive`；浏览器旧 pending 缓存只查询历史回执，不重发未知旧请求。所有请求由 Host 排队并在卸载时 drain；新旧 journal 共用 operationId 和 pending deletion guard，不能通过新取消归档绕过已开始的 retirement。
+
+生产组合继续拒绝新原生永久删除。归档观察不会调用删除绑定 capture，也不会按当前 Session ID 给旧条目自动补 exact lifecycle。旧删除 journal 的查询、guard 和可信同操作恢复仍按下文协议保留；测试 legacy core 与参考 owner 的资格不扩大到生产原生集合。
+
+## 旧 v1 Bin 合约与日志兼容
+
+下列独立目录、`bin/restore` 及 `wasArchived` 描述的是保留的旧 core、日志格式和测试资源 owner 协议。生产入口已切换到上面的原生归档模型；这些旧规则不决定新面板成员，也不开放新的旧归档操作。
+
+### 旧公共接口
+
+旧切片的 `SessionBinModule` 暴露以下 v1 方法；生产 `ctx.sessionBin` 使用上面的原生归档接口。所有对象都是独立快照；会话身份不会变成客户端提供的文件路径。
 
 | 方法 | 行为 |
 | --- | --- |
@@ -34,7 +61,7 @@ Host 消费者注入 `sessionBin`，通过 `ctx.sessionBin` 调用以下方法�
 
 ## Host 单项删除协议消费者
 
-[删除合约](../src/operations/retirement.ts)与[协调器](../src/host/retirement.ts)提供 Host 专用切片。**默认 DSH `0.2.0-rc.2` 组合没有获准的资源 owner，不执行原生永久删除。** Config 没有启用开关；owner 自报能力也不会获得资格。当前严格 Remote、客户端菜单和确认界面不暴露这些方法，原 `bin/restore` 的 v1 DTO 不变。
+[删除合约](../src/operations/retirement.ts)与[协调器](../src/host/retirement.ts)提供 Host 专用切片。**默认 DSH `0.2.0-rc.2` 组合没有获准的资源 owner，不执行原生永久删除。** Config 没有启用开关；owner 自报能力也不会获得资格。当前严格 Remote 和客户端不暴露这些方法，保留的 legacy core 的 `bin/restore` v1 DTO 不变。生产归档观察不产生删除绑定，新的归档管理 v2 合约独立保存。
 
 | Host 方法 | 行为 |
 | --- | --- |
@@ -87,7 +114,7 @@ Module 串行处理一个 Host 的请求，包括多个窗口发出的重复操�
 
 支持范围是一个 Host 拥有原生 Workspace 存储，该 Host 可连接多个窗口。lease 拒绝第二个遵守相同目录约定的插件进程，但其他 Host 的原生 Registry 不持有这把锁；不支持多个 Host 同时写同一原生 Workspace 存储。当前运行证据限 macOS ARM64、Node 24.18.1、DSH 0.2.0-rc.2；Linux 的 API 存在不代表已执行验证，Windows 尚不支持此切片。
 
-原生归档只有 ID 集合，没有操作身份、actor 或每个会话的版本。运行时捕获的取消归档再归档会使所有权失效；**插件停用期间、进程死亡期间或观察尚未持久化时的取消归档再归档无法被可靠识别。** `applied` 只能证明某次调用已确认，不能证明当前归档仍属于它。此切片不承诺精确恢复这类未观察变化的归属，也不会用恢复日志自动补偿原生操作。操作日志暂无自动裁剪，规模与保留策略留给后续切片。
+原生归档只有 ID 集合，没有操作身份、actor 或每个会话的版本。新版运行时捕获的取消归档再归档会更换观察身份；旧 core 对相同变化使所有权失效；**插件停用期间、进程死亡期间或观察尚未持久化时的取消归档再归档无法被可靠识别。** `applied` 只能证明某次调用已确认，不能证明当前归档仍属于它。此切片不承诺精确恢复这类未观察变化的归属，也不会用恢复日志自动补偿原生操作。操作日志暂无自动裁剪，规模与保留策略留给后续切片。
 
 ## 开发与验证
 

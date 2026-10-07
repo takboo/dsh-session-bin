@@ -4,7 +4,7 @@
 
 ## 已选定的原生归档产品模型
 
-2026-10-07 根据已安装插件的实际体验反馈，确定以 Harness 原生 Archive 作为唯一归档入口和管理集合。插件直接展示原生已归档会话，提供元数据搜索、工作区筛选及单项/固定选择的取消归档；移除自建 `Move to Session Bin` 菜单、独立目录成员条件和重复 Undo。这个产品模型已经选定，重构尚未实现，当前代码仍是下文描述的旧 Bin 切片。
+2026-10-07 根据已安装插件的实际体验反馈，确定以 Harness 原生 Archive 作为唯一归档入口和管理集合。插件直接展示原生已归档会话，提供元数据搜索、工作区筛选及单项/固定选择的取消归档；移除自建 `Move to Session Bin` 菜单、独立目录成员条件和重复 Undo。这个产品模型已经选定；正式实现和兼容边界见[Host 生命周期](host-lifecycle.md)及[客户端接口](client-interface.md)。
 
 新模型不要求用户先经过本插件操作才能管理原生归档。原生归档集合是列表成员依据；插件元数据可用于观测身份和操作回执，不再决定归档是否属于管理范围。旧 v1 条目及历史回执须兼容处理，启动或迁移不得自动改变 native archive 状态；新的“取消归档”不沿用旧 `wasArchived` 恢复语义。
 
@@ -28,7 +28,7 @@
 
 新实现优先使用宿主接口和控件；`Seetraum/harness-session-delete` 采用 MIT 许可，其他参考实现按各自许可证处理，实际复用的部分保留相应版权与许可说明。原生归档行为的全局改写不作为实现基础。
 
-## 操作语义
+## 旧 Bin 切片背景：操作语义
 
 - **归档**：由 DSH 管理的可逆隐藏，保留会话日志及工作区位置。
 - **移入回收站**：通过原生归档隐藏会话，同时持久化本插件的回收站条目。只有有本插件条目的会话属于本插件回收站。
@@ -88,7 +88,7 @@ UI 只持有会话身份、操作计划和逐项结果，路径由 Host 解析�
 
 ## 永久删除资源生命周期候选协议
 
-本节为 **2026-10-07 的完整资源 owner 候选接口方案，尚未获得原生删除 provider 准入**。公开 npm DSH `0.2.0-rc.2` 上的 12 项[准入探针](../tests/deletion-admission.test.mjs)复现了资源寿命与身份缺口，不能据此启用删除；结果及精确基线见[Host 验证](verification/host-lifecycle.md#永久删除资源准入探针)。已实现严格的 Host 协议消费者、sidecar、授权 grant 与恢复 guard，并提炼可复用 owner 阶段协调器及逐参与者 journal。正式行为见[Host 生命周期](host-lifecycle.md#host-单项删除协议消费者)，选定架构见 [ADR 0003](decisions/0003-retirement-consumer.md)与 [ADR 0004](decisions/0004-retirement-owner-coordination.md)。完整 native 资源端口仍须由实际所有者提供和独立验收。本插件不新增私有文件删除 Adapter 来绕过缺口，也不把下列建议名称当成已存在的 SDK Service。
+本节为 **2026-10-07 的完整资源 owner 候选接口方案，尚未获得原生删除 provider 准入**。其中 Bin entry 绑定描述的是旧 core 的已实现消费者与测试 owner；原生归档管理的观察 entry 不自动继承这种授权，原生集合的新删除绑定仍须独立设计并验收。公开 npm DSH `0.2.0-rc.2` 上的 12 项[准入探针](../tests/deletion-admission.test.mjs)复现了资源寿命与身份缺口，不能据此启用删除；结果及精确基线见[Host 验证](verification/host-lifecycle.md#永久删除资源准入探针)。已实现严格的 Host 协议消费者、sidecar、授权 grant 与恢复 guard，并提炼可复用 owner 阶段协调器及逐参与者 journal。正式行为见[Host 生命周期](host-lifecycle.md#host-单项删除协议消费者)，选定架构见 [ADR 0003](decisions/0003-retirement-consumer.md)与 [ADR 0004](decisions/0004-retirement-owner-coordination.md)。完整 native 资源端口仍须由实际所有者提供和独立验收。本插件不新增私有文件删除 Adapter 来绕过缺口，也不把下列建议名称当成已存在的 SDK Service。
 
 ### 身份和范围
 
@@ -170,7 +170,7 @@ Workspace 所有者在其队列内清除该生命周期的成员、archive/pin �
 
 ### 可逆回收站
 
-临时会话可在面板中移入和恢复；既有原生归档不被计入回收站；失败和断线可查询、重试且不重复操作；并发与中断有明确结果；卸载无残留注册。原生浅深色、键盘与窄屏交互有实际验证证据。
+临时会话通过原生 Archive 进入管理集合；既有原生归档直接被计入，单项及固定选择的取消归档移除原生归档标记；失败和断线可查询、重试且不重复操作；并发与中断有明确结果；卸载无残留注册。原生浅深色、键盘与窄屏交互有实际验证证据。
 
 ### 永久删除准入
 

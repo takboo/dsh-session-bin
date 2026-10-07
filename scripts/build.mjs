@@ -2,7 +2,7 @@ import { build } from 'esbuild';
 import { writeFile } from 'node:fs/promises';
 
 await build({
-  entryPoints: { index: 'src/index.ts', operations: 'src/operations/schema.ts', remote: 'src/remote/contracts.ts' },
+  entryPoints: { index: 'src/index.ts', operations: 'src/operations/index.ts', remote: 'src/remote/contracts.ts' },
   outdir: 'dist', bundle: true, packages: 'external', platform: 'node', format: 'esm', target: 'node24', sourcemap: true,
 });
 const browser = await build({

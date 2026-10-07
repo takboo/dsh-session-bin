@@ -16,7 +16,6 @@
 .rowBody { flex: 1; min-width: 0; }
 .rowTitle { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meta { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px 12px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 1.5; }
-.archiveTag { color: var(--dsw-alias-label-secondary); }
 .empty { display: flex; align-items: center; justify-content: center; flex-direction: column; min-height: 220px; gap: 12px; text-align: center; padding: 28px; }
 .emptyIcon { color: var(--dsw-alias-label-secondary); opacity: .65; }
 .emptyTitle { margin: 0; font-size: 16px; font-weight: 500; }

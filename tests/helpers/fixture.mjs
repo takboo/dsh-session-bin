@@ -26,7 +26,7 @@ export async function createScratch(prefix = 'lifecycle-') {
   return root;
 }
 
-export async function openFixture(root, { seed = false, plugin = true, observe = true, compression = 'none' } = {}) {
+export async function openFixture(root, { seed = false, plugin = true, observe = true, compression = 'none', legacy = true } = {}) {
   root = await realpath(resolve(root));
   const rel = relative(await realpath(join(workspaceRoot, '.local', 'lifecycle')), root);
   assert(rel && rel !== '..' && !rel.startsWith(`..${sep}`), 'fixtures must use isolated workspace data');
@@ -80,11 +80,41 @@ export async function openFixture(root, { seed = false, plugin = true, observe =
     await mount(WorkspaceRegistry);
     assert(ctx.workspaceRegistry);
     let binFiber;
-    if (plugin) {
+    let bin;
+    if (plugin && legacy) {
+      // Old lifecycle/owner regressions explicitly exercise the compatibility
+      // core, never the production archive Service or its Remote entry points.
+      binFiber = await mount({ name: 'legacy-bin-regression-fixture', inject: binPlugin.inject, async apply(owner) {
+        const release = await binPlugin.acquireBinLease(join(root, 'coordination'));
+        let domain;
+        let retirementDomain;
+        let off = () => {};
+        owner.effect(() => async () => {
+          const errors = [];
+          try { await bin?.close(); } catch (error) { errors.push(error); }
+          off();
+          for (const handle of [retirementDomain, domain]) try { await handle?.close(); } catch (error) { errors.push(error); }
+          try { await release(); } catch (error) { errors.push(error); }
+          if (errors.length) throw new AggregateError(errors, 'legacy fixture teardown failed');
+        });
+        domain = await owner.storageDomain.open(binPlugin.binDomainSpec);
+        retirementDomain = await owner.storageDomain.open(binPlugin.retirementDomainSpec);
+        bin = new binPlugin.SessionBinModule(new binPlugin.DomainBinStore(domain), new binPlugin.DshBinPort(owner), {
+          retirement: { store: new binPlugin.DomainRetirementStore(retirementDomain) },
+        });
+        off = owner.root.on('domain/changed', change => {
+          if (observe && change.domain === 'workspace' && change.table === '' && change.operation === 'put') {
+            void bin.observeArchives(change.value.archivedSessionIds).catch(() => {});
+          }
+        });
+        await bin.reconcile();
+      } }, undefined);
+    } else if (plugin) {
       binFiber = await mount(binPlugin, { coordinationDirectory: join(root, 'coordination') });
-      assert(ctx.sessionBin);
+      bin = ctx.get('sessionBin');
+      assert(bin);
     }
-    return { root, ctx, state, binFiber, mount, close, bin: ctx.get('sessionBin'),
+    return { root, ctx, state, binFiber, mount, close, bin, archive: legacy ? undefined : bin,
       async openModule({ storeWrapper = value => value, nativeWrapper = value => value, retirement = {} } = {}) {
         const release = await binPlugin.acquireBinLease(join(root, 'coordination'));
         let domain;

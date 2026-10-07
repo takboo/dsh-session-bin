@@ -34,7 +34,7 @@ function untilAbort(signal) {
  * authentication and the live Web GUI are outside this isolated fixture.
  */
 export async function openRemoteFixture({ seed = true } = {}) {
-  const fixture = await openFixture(await createScratch('remote-'), { seed });
+  const fixture = await openFixture(await createScratch('remote-'), { seed, legacy: false });
   const client = new cordis.Context();
   let disposeEvents;
   try {

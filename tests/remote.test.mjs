@@ -16,16 +16,21 @@ test('public strict Typert descriptors perform real Client RPC and preserve oper
   try {
     const initial = success(await fixture.api.list());
     assert.deepEqual(initial, []);
-    const plan = success(await fixture.api.prepare({ action: 'bin', sessionId: 'quiet' }));
+    await fixture.ctx.workspaceRegistry.archiveSession(SessionId('quiet'));
+    const archived = success(await fixture.api.list());
+    assert.equal(archived[0].sessionId, 'quiet');
+    assert.equal(archived[0].schemaVersion, 2);
+    const plan = success(await fixture.api.prepare({ action: 'unarchive', sessionId: 'quiet' }));
     const moved = success(await fixture.api.execute(plan));
     assert.equal(moved.status, 'success');
-    assert.equal(success(await fixture.api.list())[0].sessionId, 'quiet');
+    assert.deepEqual(success(await fixture.api.list()), []);
     assert.deepEqual(success(await fixture.api.execute(plan)), moved);
     const recorded = success(await fixture.api.getOperation(plan.operationId));
     assert.equal(recorded.phase, 'done');
     assert.deepEqual(recorded.result, moved);
     assert.equal(success(await fixture.api.getOperation('unknown-operation')), null);
-    const restore = success(await fixture.api.prepare({ action: 'restore', sessionId: 'quiet' }));
+    await fixture.ctx.workspaceRegistry.archiveSession(SessionId('quiet'));
+    const restore = success(await fixture.api.prepare({ action: 'unarchive', sessionId: 'quiet' }));
     assert.equal(success(await fixture.api.execute(restore)).status, 'success');
     assert.deepEqual(success(await fixture.api.list()), []);
     assert.deepEqual(success(await fixture.api.execute(plan)), moved);
@@ -47,15 +52,24 @@ test('Host exact argument and strict codec boundaries reject malformed RPC witho
     const invalid = await fixture.api.prepare({ action: 'purge', sessionId: 'quiet' });
     assert.equal(invalid.ok, false);
     assert.equal(invalid.error.code, 'gateway/input-invalid');
+    for (const action of ['bin', 'restore']) {
+      const legacyRequest = await fixture.api.prepare({ action, sessionId: 'quiet' });
+      assert.equal(legacyRequest.ok, false);
+      assert.equal(legacyRequest.error.code, 'gateway/input-invalid');
+    }
+    const legacyExecute = await fixture.api.execute({ schemaVersion: 1, operationId: 'legacy-unsubmitted',
+      action: 'bin', sessionId: 'quiet', expected: { archived: false, entryId: null }, blockers: [] });
+    assert.equal(legacyExecute.ok, false);
+    assert.equal(legacyExecute.error.code, 'gateway/input-invalid');
     const extra = await fixture.client.connection.rpc.call('/api', 'sessionBin/prepare', {
-      args: { request: { action: 'bin', sessionId: 'quiet' }, arbitrary: 'field' },
+      args: { request: { action: 'unarchive', sessionId: 'quiet' }, arbitrary: 'field' },
     });
     assert.equal(extra.ok, false);
     assert.equal(extra.error.code, 'gateway/arguments-invalid');
     const missing = await fixture.client.connection.rpc.call('/api', 'sessionBin/prepare', { args: {} });
     assert.equal(missing.ok, false);
     assert.equal(missing.error.code, 'gateway/arguments-invalid');
-    const unknownPath = await fixture.api.prepare({ action: 'bin', sessionId: 'quiet', path: '/arbitrary' });
+    const unknownPath = await fixture.api.prepare({ action: 'unarchive', sessionId: 'quiet', path: '/arbitrary' });
     assert.equal(unknownPath.ok, false);
     assert.equal(unknownPath.error.code, 'gateway/input-invalid');
     const emptyIdentity = await fixture.api.getOperation('');
@@ -70,16 +84,17 @@ test('Host exact argument and strict codec boundaries reject malformed RPC witho
 test('Remote separates Host operation refusal from transport errors and preserves declared bin failure codes', { timeout: 15000 }, async () => {
   const fixture = await openRemoteFixture();
   try {
-    const plan = success(await fixture.api.prepare({ action: 'bin', sessionId: 'quiet' }));
+    await fixture.ctx.workspaceRegistry.archiveSession(SessionId('quiet'));
+    const plan = success(await fixture.api.prepare({ action: 'unarchive', sessionId: 'quiet' }));
     assert.equal(success(await fixture.api.execute(plan)).status, 'success');
     const reused = await fixture.api.execute({ ...plan, sessionId: 'sibling' });
     assert.equal(reused.ok, false);
     assert.equal(reused.error.code, 'bin/operation-id-reused');
     fixture.state.activity.set('active', ['turn', 'job']);
-    const active = success(await fixture.api.prepare({ action: 'bin', sessionId: 'active' }));
+    const active = success(await fixture.api.prepare({ action: 'unarchive', sessionId: 'active' }));
     const refused = success(await fixture.api.execute(active));
     assert.equal(refused.status, 'rejected');
-    assert.equal(refused.reason, 'session-active');
+    assert.equal(refused.reason, 'not-archived');
     assert(!fixture.ctx.workspaceRegistry.archivedSessionIds.includes('active'));
     assert.deepEqual(fixture.state.stops, []);
   } finally { await fixture.close(); }
@@ -96,8 +111,7 @@ test('follow publishes a baseline then coalesced metadata replacements, and obse
     assert.equal(baseline.done, false);
     assert.deepEqual(snapshotSchema.parse(baseline.value).entries, []);
     const next = iterator.next();
-    const plan = success(await fixture.api.prepare({ action: 'bin', sessionId: 'quiet' }));
-    assert.equal(success(await fixture.api.execute(plan)).status, 'success');
+    await fixture.ctx.workspaceRegistry.archiveSession(SessionId('quiet'));
     const changed = await within(next, t.signal);
     assert.equal(changed.done, false);
     assert.deepEqual(snapshotSchema.parse(changed.value).entries.map(entry => entry.sessionId), ['quiet']);
@@ -124,7 +138,7 @@ test('Client contribution withdrawal removes methods and fences retained handles
     const retained = fixture.api.prepare;
     await fixture.unmount();
     assert.equal(fixture.client.remote.sessionBin, undefined);
-    const withdrawn = await retained({ action: 'bin', sessionId: 'quiet' });
+    const withdrawn = await retained({ action: 'unarchive', sessionId: 'quiet' });
     assert.equal(withdrawn.ok, false);
     assert.equal(withdrawn.error.code, 'gateway/internal');
     assert.deepEqual(await fixture.bin.list(), []);
@@ -138,8 +152,7 @@ test('Host unload closes paused follow iterators and withdraws strict definition
   const fixture = await openRemoteFixture();
   let stream;
   try {
-    const plan = success(await fixture.api.prepare({ action: 'bin', sessionId: 'quiet' }));
-    assert.equal(success(await fixture.api.execute(plan)).status, 'success');
+    await fixture.ctx.workspaceRegistry.archiveSession(SessionId('quiet'));
     stream = fixture.api.follow();
     const iterator = stream[Symbol.asyncIterator]();
     assert.equal((await within(iterator.next(), t.signal)).value.entries.length, 1);
@@ -152,7 +165,7 @@ test('Host unload closes paused follow iterators and withdraws strict definition
     assert.equal(unavailable.error.code, 'gateway/definition-unavailable');
     await fixture.mount(product, { coordinationDirectory: join(fixture.root, 'coordination') });
     assert.equal(success(await fixture.api.list()).length, 1);
-    const restored = success(await fixture.api.prepare({ action: 'restore', sessionId: 'quiet' }));
+    const restored = success(await fixture.api.prepare({ action: 'unarchive', sessionId: 'quiet' }));
     assert.equal(success(await fixture.api.execute(restored)).status, 'success');
     assert.deepEqual(success(await fixture.api.list()), []);
   } finally { stream?.dispose(); await fixture.close(); }
@@ -163,7 +176,7 @@ test('return wakes a pending Host follow read and removes its listener without a
   const signal = new AbortController();
   let iterator;
   const count = () => fixture.ctx.events.dispatch('emit', ['domain/changed', {
-    domain: 'session_bin', table: 'entries', key: 'fixture', operation: 'deleted',
+    domain: 'session_archive', table: 'entries', key: 'fixture', operation: 'deleted',
   }]).length;
   try {
     const baselineCount = count();
@@ -227,14 +240,15 @@ test('a real Client plugin consumes its mounted namespace through an injected ch
 test('an already aborted Remote execute cannot enter the Host mutation queue', { timeout: 15000 }, async () => {
   const fixture = await openRemoteFixture();
   try {
-    const plan = success(await fixture.api.prepare({ action: 'bin', sessionId: 'quiet' }));
+    await fixture.ctx.workspaceRegistry.archiveSession(SessionId('quiet'));
+    const plan = success(await fixture.api.prepare({ action: 'unarchive', sessionId: 'quiet' }));
     const cancelled = new AbortController();
     cancelled.abort();
     const result = await fixture.api.execute(plan, cancelled.signal);
     assert.equal(result.ok, false);
     assert.equal(result.error.code, 'gateway/cancelled');
-    assert.deepEqual(await fixture.bin.list(), []);
-    assert(!fixture.ctx.workspaceRegistry.archivedSessionIds.includes('quiet'));
+    assert.equal((await fixture.bin.list()).length, 1);
+    assert(fixture.ctx.workspaceRegistry.archivedSessionIds.includes('quiet'));
     assert.equal(await fixture.bin.getOperation(plan.operationId), undefined);
   } finally { await fixture.close(); }
 });
