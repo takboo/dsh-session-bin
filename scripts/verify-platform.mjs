@@ -34,14 +34,15 @@ async function capture(file, args, env = process.env) {
 
 async function filesystemEvidence(path) {
   const stats = await statfs(path, { bigint: true });
+  const type = `0x${stats.type.toString(16)}`;
   const name = process.platform === 'win32'
     ? await capture('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
       '[System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($env:DSH_SESSION_BIN_EVIDENCE_PATH)).DriveFormat'],
     { ...process.env, DSH_SESSION_BIN_EVIDENCE_PATH: path })
     : process.platform === 'darwin'
-      ? await capture('stat', ['-f', '%T', path])
-      : await capture('stat', ['-f', '-c', '%T', path]);
-  return { name, type: `0x${stats.type.toString(16)}`, blockSize: stats.bsize.toString() };
+      ? stats.type === 0x1an ? 'apfs' : `unknown-${type}`
+      : stats.type === 0xef53n ? 'ext2/ext3/ext4' : await capture('stat', ['-f', '-c', '%T', path]);
+  return { name, type, blockSize: stats.bsize.toString() };
 }
 
 async function sources() {
