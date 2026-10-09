@@ -1,4 +1,4 @@
 - insert:
     - id: session-bin
-      name: dsh-session-bin
+      name: '@takboo/dsh-session-bin'
       config: {}

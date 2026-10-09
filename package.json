@@ -1,7 +1,6 @@
 {
-  "name": "dsh-session-bin",
-  "version": "0.1.0-dev.2",
-  "private": true,
+  "name": "@takboo/dsh-session-bin",
+  "version": "0.1.0",
   "type": "module",
   "description": "Manage native archives with search, filters, unarchive, and explicit permanent deletion.",
   "license": "MIT",
@@ -142,5 +141,25 @@
     "typescript": "5.9.3",
     "yaml": "2.8.1",
     "zustand": "4.4.7"
+  },
+  "author": "takboo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/takboo/dsh-session-bin.git"
+  },
+  "homepage": "https://github.com/takboo/dsh-session-bin#readme",
+  "bugs": {
+    "url": "https://github.com/takboo/dsh-session-bin/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "session",
+    "archive"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   }
 }

@@ -23,7 +23,7 @@ const MODULES = '@deepseek-ai/dsh-client-modules';
 const RENDERER = '@deepseek-ai/dsh-client-ui-renderer';
 const LOCALE = '@deepseek-ai/dsh-client-locale';
 const PRIMITIVES = '@deepseek-ai/dsh-client-ui-primitives';
-const PRODUCT = 'dsh-session-bin';
+const PRODUCT = '@takboo/dsh-session-bin';
 const panelId = 'dsh-session-bin.panel';
 const seats = ['main', 'sidebar.panellist', 'shell.overlay'];
 const menuSeat = 'sidebar.workspaces.session.menu.item';
@@ -147,7 +147,7 @@ test('the built lazy Client factory registers real components and cleans up ever
       feature = fixture.client.plugin(product);
       await feature;
       assert(fixture.client.remote.sessionBin, 'the real guarded plugin must mount its namespace');
-      const styles = () => dom.window.document.head.querySelectorAll('style[data-plugin="dsh-session-bin"]');
+      const styles = () => dom.window.document.head.querySelectorAll('style[data-plugin="@takboo/dsh-session-bin"]');
       assert.equal(styles().length, 1);
       assert(styles()[0].textContent.length > 0);
       for (const seat of seats) assert.equal(fixture.client.slots.entries(seat).length, 0,

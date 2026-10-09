@@ -828,7 +828,7 @@ async function runGui(page, paths, report, beforePhysical) {
   observeDeletionRpc(page, report);
   const [quiet, sibling, nativeOnly, prearchived] = fixtures;
   await page.waitForFunction(() => Array.isArray(window.__DSH_BOOT__?.entries));
-  assert(await page.evaluate(() => window.__DSH_BOOT__.entries.some(entry => entry.id === 'dsh-session-bin')));
+  assert(await page.evaluate(() => window.__DSH_BOOT__.entries.some(entry => entry.id === '@takboo/dsh-session-bin')));
   await button(page, ui.panel).waitFor({ state: 'visible' });
   await assertDocumentLanguage(page);
   const preview = page.getByRole('dialog', { name: ui.preview, exact: true });
@@ -1225,7 +1225,7 @@ async function runGui(page, paths, report, beforePhysical) {
     if (language !== target) await switchLanguage(page, target, report);
     await button(page, ui.plugins).click();
     await button(page, ui.openDetail(ui.panel)).click();
-    const detail = page.locator('[data-plugin-detail="dsh-session-bin"]');
+    const detail = page.locator('[data-plugin-detail="@takboo/dsh-session-bin"]');
     await detail.getByRole('heading', { name: ui.panel, level: 3, exact: true }).waitFor({ state: 'visible' });
     const description = detail.getByRole('paragraph').filter({ hasText: ui.packageDescription });
     await description.waitFor({ state: 'visible' });
@@ -1325,7 +1325,7 @@ async function main() {
     }, 'Installing the tarball through dsh plugin');
     const profilePath = join(paths.home, 'profiles', 'web', 'package.json');
     const profile = JSON.parse(await readFile(profilePath, 'utf8'));
-    assert(profile.dsh.profile.bundles.includes('dsh-session-bin'), 'CLI installation must register the Bin bundle');
+    assert(profile.dsh.profile.bundles.includes('@takboo/dsh-session-bin'), 'CLI installation must register the Bin bundle');
     report.checks.push('Public dsh plugin installs and activates the packed bundle in a new Web profile');
     const host = await startHost(cli, environment, paths.primary, 'host.log');
     report.hostLaunches.push({ stage: 'installed-host', cli, shutdownDelivery: host.shutdownDelivery });
@@ -1379,10 +1379,10 @@ async function main() {
       const archived = after.ctx.workspaceRegistry.archivedSessionIds;
       assert.deepEqual(archived, [], 'Explicit unarchives and any qualified selected deletion remain durable after restart');
     } finally { await after.close(); }
-    await runCommand(process.execPath, [cli, 'plugin', '--profile', 'web', 'remove', 'dsh-session-bin',
+    await runCommand(process.execPath, [cli, 'plugin', '--profile', 'web', 'remove', '@takboo/dsh-session-bin',
       `--store-dir=${store}`, `--cache-dir=${cache}`], { cwd: paths.primary, env: environment }, 'Uninstalling the test bundle');
     const removed = JSON.parse(await readFile(profilePath, 'utf8'));
-    assert(!removed.dsh.profile.bundles.includes('dsh-session-bin'));
+    assert(!removed.dsh.profile.bundles.includes('@takboo/dsh-session-bin'));
     const withoutBin = await startHost(cli, environment, paths.primary, 'host-after-uninstall.log');
     report.hostLaunches.push({ stage: 'post-uninstall-host', cli, shutdownDelivery: withoutBin.shutdownDelivery });
     browserContext = await chromium.launchPersistentContext(paths.browserAfterUninstall, {
@@ -1394,7 +1394,7 @@ async function main() {
     observePage(reloaded, report, 'after-uninstall');
     await reloaded.goto(withoutBin.authenticatedUrl, { waitUntil: 'domcontentloaded' });
     await reloaded.waitForFunction(() => Array.isArray(window.__DSH_BOOT__?.entries));
-    assert(!await reloaded.evaluate(() => window.__DSH_BOOT__.entries.some(entry => entry.id === 'dsh-session-bin')));
+    assert(!await reloaded.evaluate(() => window.__DSH_BOOT__.entries.some(entry => entry.id === '@takboo/dsh-session-bin')));
     await assertDocumentLanguage(reloaded);
     await skipModelSetup(reloaded);
     await button(reloaded, ui.viewOptions).waitFor({ state: 'visible' });

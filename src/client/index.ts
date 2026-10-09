@@ -19,7 +19,7 @@ async function initialize(ctx: Context): Promise<void> {
   ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'session-bin.locale');
   ctx.effect(() => {
     const style = document.createElement('style');
-    style.setAttribute('data-plugin', 'dsh-session-bin');
+    style.setAttribute('data-plugin', '@takboo/dsh-session-bin');
     style.setAttribute('data-plugin-css', 'session-bin-panel');
     style.textContent = __SESSION_BIN_CSS__;
     document.head.append(style);

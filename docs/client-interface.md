@@ -2,6 +2,8 @@
 
 本文说明客户端交互、严格 Remote 合约和插件生命周期。实际验证结果见[客户端验证](verification/client-interface.md)，实现状态见 [README](../README.md)。
 
+`0.1.0` 的 bundle、客户端 Module Loader、样式归属及 Typert contribution 使用 npm 身份 `@takboo/dsh-session-bin`。面板、存储域和 pending 缓存保持原有稳定身份；scoped 包安装前先卸载未加 scope 的开发包。
+
 ## 原生归档管理
 
 Harness 原生 Archive 是唯一归档入口。插件不注册会话菜单中的“移入回收站”，也不提供第二个归档 Undo；归档活动保护、停止确认及撤销由宿主原生交互负责。
