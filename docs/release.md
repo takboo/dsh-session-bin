@@ -38,6 +38,23 @@ npm `repository` 指回 [takboo/dsh-session-bin](https://github.com/takboo/dsh-s
 
 从通过检查的同一提交生成一次 tarball。npm 发布该 tarball；GitHub Release 附相同产物及校验摘要，并说明 DSH 支持范围、变化和已知限制。发布渠道的版本与 git tag 一致。
 
+### 自动 tarball Release
+
+[生命周期 workflow](../.github/workflows/host-lifecycle.yml)复用五个平台的完整验收。Linux x64 runner 在真实 Loader 和双语 CLI/GUI 通过后执行 `mise run release:prepare`：要求本轮平台、Loader、中文及英文报告均通过且 tarball 的 SHA-256 相同，再复制已经测试过的 tarball，不在发布前重新构建。普通分支和 PR 上传 `release-payload` artifact 供审阅，不创建公开 Release。
+
+发布步骤：
+
+1. 更新 `package.json.version`、用户说明及支持范围，合并对应 PR 到 `main`。
+2. 在需要发布的提交创建并推送 `v<version>` tag，例如版本为 `0.1.0` 时使用 `v0.1.0`。推送版本 tag 会触发公开发布；普通提交不会。
+3. workflow 检查 tag 与 manifest 版本完全一致、tag 提交属于 `origin/main` 历史，再执行五个平台验收。
+4. 全部通过后，独立 Release job 下载本次 `release-payload`，再次检查 SHA-256、包名、版本、tag 和提交身份，然后创建 GitHub Release。只有该 job 获得 `contents: write`，使用 GitHub 自动提供的 `GITHUB_TOKEN`，无需额外 PAT 或 npm 凭据。
+
+Release 附件为固定名称 `dsh-session-bin.tgz`、`SHA256SUMS` 和 `release.json`；metadata 记录包名、版本、提交、运行时、文件系统与 payload 验收来源。下载三个文件后运行 `sha256sum --check SHA256SUMS`。macOS 可使用 `shasum -a 256 -c SHA256SUMS`；Windows 可用 `Get-FileHash -Algorithm SHA256` 与校验文件逐项比对。
+
+稳定版本供 `latest/download/dsh-session-bin.tgz` 使用；含 prerelease 标识的版本自动标记为 prerelease，不设为 latest。Release 正文包含该版本的兼容范围链接和自动生成的变更记录。workflow 不覆盖已有 Release；重跑遇到已存在的版本时停止，已发布产物不静默替换。
+
+`release:prepare` 仅在干净 CI 工作区运行，拒绝多个历史报告；`release:check` 和 `release:verify` 使用 GitHub tag/commit 环境。相关逻辑见 [release.mjs](../scripts/release.mjs)。当前流程只发布 GitHub tarball；npm 首发仍按下节进行，必须下载并发布同一份 tarball，后续接入 trusted publishing 时也复用该 artifact。
+
 优先选择 [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/)；具体启用条件与账户配置在包身份确定后核对。发布前准备可审阅的版本、产物及 release 内容，使用项目授权身份并遵守仓库发布规则。
 
 ### 首发账户与认证准备
