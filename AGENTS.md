@@ -1,25 +1,24 @@
 # Agent 工作入口
 
-实现状态以 [README](README.md) 为准。[Host 生命周期](docs/host-lifecycle.md)与[客户端接口](docs/client-interface.md)记录正式行为和边界；[设计提案](docs/design-proposal.md)记录候选方案，不代表已完成能力。按任务加载下列文档。
+[README](README.md) 是项目入口；正式行为以专题契约为准，支持资格以对应版本的运行证据为准。候选设计不代表已实现能力。
 
-## 按任务加载
+## 按任务阅读
 
-- **实现或修改会话操作**：先读[设计提案](docs/design-proposal.md)、[当前 DSH 接口调研](docs/research/current-dsh-interfaces.md)、[兼容性验证](docs/verification/dsh-0.2-compatibility.md)、[Host 生命周期](docs/host-lifecycle.md)及[实现验证](docs/verification/host-lifecycle.md)，核对 archive、bin、purge 的语义及已复现的存储差异。
-- **界面或插件挂载**：读[接口调研](docs/research/current-dsh-interfaces.md)的槽位与样式结论、[客户端接口](docs/client-interface.md)及[客户端验证](docs/verification/client-interface.md)，再核对对应版本 SDK；使用原生控件和语义 token。
-- **打包、发布或市场提交**：读[分发与发布](docs/release.md)和[分发调研](docs/research/reference-and-distribution.md)，核对当前外部规则。
-- **Issue、分支或 PR**：读[贡献流程](CONTRIBUTING.md)。
+- 会话与存储：[Host 契约](docs/host-lifecycle.md)、[验证](docs/verification/host-lifecycle.md)、[原生归档决策](docs/design-proposal.md#已选定的原生归档产品模型)。
+- 界面与 Remote：[客户端契约](docs/client-interface.md)、[验证](docs/verification/client-interface.md)。
+- SDK 行为：[接口调研](docs/research/current-dsh-interfaces.md)、[兼容性验证](docs/verification/dsh-0.2-compatibility.md)，再核对目标版本的一手源码。
+- 发布：[发布流程](docs/release.md)、[分发调研](docs/research/reference-and-distribution.md)，重新核对外部规则。Issue/PR 见[贡献流程](CONTRIBUTING.md)。
 
-## 工作循环
+## 工作要求
 
-1. 读取本轮任务相关文档，明确操作行为与可检查的完成条件。对不确定的宿主行为先查对应版本的一手源码。
-2. 按 [mise.toml](mise.toml) 的版本在本地与 CI 使用相同工具。新增脚本时让配置成为命令的唯一来源，文档说明使用时机与原因。
-3. 完成一个可验证的功能切片。会话操作从小的公共 Interface 验证；破坏性及故障注入测试使用临时 DSH_HOME 和测试会话。
-4. 记录实际检查结果与限制。调整功能时同步对应专题文档，保持 README 中的实现状态和兼容性声明准确。
+- 使用 [mise.toml](mise.toml) 的固定工具和任务，按变更影响验证；记录基线、结果与限制，同步契约及 README。界面使用原生控件和语义 token。
+- 会话/存储检查使用临时 `DSH_HOME` 和独立 fixture；破坏性操作涉及真实会话时，必须有当前会话的明确授权。
+- 正式构建使用声明的 SDK 和依赖；`.local/` 排除于 Git 与发布物。复用上游代码保留版权和许可。
+- 事实归研究，候选归设计，已选定决策归 ADR，运行结果归验证报告；临时进度和交接留在会话或 Issue/PR。
 
-## 必须保持的约束
+## 必须保持的产品约束
 
-产品模型以[设计提案中的原生归档决策](docs/design-proposal.md#已选定的原生归档产品模型)为准：原生 Archive 是唯一入口，插件管理原生已归档集合。生产接口使用原生归档模型；保留的旧 Bin core 用于日志兼容与独立资源 owner 验证，不是新的归档入口。旧条目/回执兼容和迁移不得自动改变 native archive 状态。原生归档活动检查保持有效；观察归档不是删除授权，准备/执行须复核固定对象和 exact lifecycle，存储提供方与宿主能力经过独立验证后才启用永久删除。真实用户会话仅在当前会话有明确授权时用于破坏性操作。
-
-本地 `.local/` 为研究快照，排除于 Git 和发布产物。正式构建使用声明的 SDK 与依赖。复用上游代码时保留版权和许可。
-
-新增架构决定时只记录已经选定且影响后续工作的决定，连同依据；研究事实归研究文档，候选设计归设计提案，实现状态集中在 README。临时进度、会话交接和下一轮安排留在会话、issue/PR 或提交说明中，不另建长期交接或进度文档。
+- 原生 Archive 是唯一入口，插件管理原生已归档集合。旧 Bin core 仅用于历史日志/回执兼容及独立 owner 验证；启动、迁移和旧数据处理不得自动改变原生归档状态。
+- 保留宿主原生归档活动检查。观察归档不构成删除授权；准备和执行复核固定对象、生命周期及资源清单。
+- 永久删除只为独立验证通过的宿主、运行时、平台/架构、文件系统和存储提供方组合启用；candidate 验收不能自动扩大生产资格。
+- 批量与清空保持固定对象范围、逐项结果和未知状态保护；重载或重连不得自动重发删除。
