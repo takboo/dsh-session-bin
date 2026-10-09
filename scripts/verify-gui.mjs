@@ -17,6 +17,7 @@ import { nativePlatformVerified, windowsSemaphoreName } from '../dist/index.js';
 import { discoverBrowserExecutable } from './browser-executable.mjs';
 import { shutdownMessage } from './gui-host-worker.mjs';
 import { configuredPackageManager } from './package-manager.mjs';
+import { workflowError } from './ci-diagnostics.mjs';
 
 const require = createRequire(import.meta.url);
 const workspace = fileURLToPath(new URL('../', import.meta.url));
@@ -1410,6 +1411,8 @@ async function main() {
     report.error = redact(error.stack ?? error);
     try { report.pluginDiagnostics = await pluginDiagnostics(paths.home); }
     catch (diagnosticError) { report.pluginDiagnosticError = redact(diagnosticError.message); }
+    workflowError('GUI verification failed', [report.error,
+      ...(report.pluginDiagnostics ?? []).map(log => `${log.operation}:\n${log.output}`)].join('\n'));
     if (browserContext) {
       try {
         const page = browserContext.pages()[0];
