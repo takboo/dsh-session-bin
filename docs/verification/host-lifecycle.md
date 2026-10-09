@@ -2,6 +2,12 @@
 
 本文分节记录 Host 生命周期的运行证据，各节有独立代码基线与限制；当前 dev.2 真实冷 JSONL 删除、固定批量及清空的证据见下一节，后续章节保留较早的消费者与 owner 验收。目标 SDK：DSH `0.2.0-rc.2`。完整客户端与双语 GUI 验收另见[客户端验证](client-interface.md)。
 
+## 0.1.1 打开后归档的阻塞修复
+
+2026-10-09，Linux x64、Node 24.18.1 / libuv 1.52.1、DSH 0.2.0-rc.2。真实 public CLI/GUI 新增先打开会话历史、再原生 Archive 的流程：修复前两次准备均返回 `native/persistence-retained`，与界面报告一致；修复后可以取消一次准备，再确认实际删除，无需重启。中文 0.1.1 [隔离报告](../../.local/gui/client-zh-2Tj0hR/verification.json)通过，英文 0.1.1 的[补验](../../.local/gui/client-en-2LpmZl/verification.json)进一步通过取消删除、取消归档、重新打开历史、再次归档及删除；桌面原生外壳没有在本地运行，未把 Web GUI 写成桌面实机证据。
+
+[metadata 回归](../../tests/native-retirement-metadata.test.mjs)的 33 项检查通过；新增使用受控 Agent phases/capabilities 与真实 SessionStore/JSONL 的拒绝与释放验证，以及真实 SDK history stream 的排空验证。本地全量类型、构建、365 项行为检查（另 6 项因平台条件跳过）与真实 Loader tarball 验证通过。目标取消删除后仍有日志与归档；其他 SID 的 writer/stream、running/maintenance/queued work、原生活动提供方、外国 Agent owner 和独立 reader 都保留。真实 Agent factory/controller 的正向路径由 CLI/GUI 验证，而非受控 fixture 自报资格。
+
 ## 跨平台生产删除资格晋级验证
 
 日期：2026-10-09。实现基线为 `978a6d016fdedf185f9105d17331ebc4bcc04886`；[PR CI run 37909476064](https://github.com/takboo/dsh-session-bin/actions/runs/37909476064) 与同提交的 [push CI run 37909471038](https://github.com/takboo/dsh-session-bin/actions/runs/37909471038) 各自完成五个平台任务，合计 **10/10 通过**。每项均使用 Node `24.18.1`、libuv `1.52.1`、SDK `0.2.0-rc.2`，并在对应实际操作系统内核、架构和文件系统上执行。此节记录当前生产资格；下方较早章节的 macOS-only、candidate 或 unsupported 结论只属于各自历史基线。

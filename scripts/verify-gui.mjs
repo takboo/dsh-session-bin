@@ -609,6 +609,13 @@ async function archiveSession(page, id) {
   await eventually(async () => assert(await page.locator(`[data-row-key="session:${id}"]`).getAttribute('aria-description')),
     'Native Archive updates the native row');
 }
+async function skipOptionalModelSetup(page) {
+  const later = button(page, ui.configureLater);
+  if (await later.waitFor({ state: 'visible', timeout: 3000 }).then(() => true, error => {
+    if (error.name === 'TimeoutError') return false;
+    throw error;
+  })) await later.click();
+}
 async function panel(page) {
   const search = textbox(page, ui.search);
   await button(page, ui.panel).waitFor({ state: 'visible' });
@@ -948,7 +955,12 @@ async function runGui(page, paths, report, beforePhysical) {
   report.checks.push('Preexisting archives unarchive normally and the empty collection shows native Archive guidance');
   report.coverage.push('single/batch unarchive', 'singular/plural/empty collection', 'native row convergence');
 
+  await page.locator(`[data-row-key="session:${nativeOnly.id}"]`).getByText(nativeOnly.title, { exact: true }).click();
+  await page.getByRole('tab').first().waitFor({ state: 'visible' });
+  await page.locator('[contenteditable="true"],textarea').first().waitFor({ state: 'visible' });
+  report.coverage.push('open native history before archive and permanent deletion');
   await archiveSession(page, nativeOnly.id);
+  await skipOptionalModelSetup(page);
   root = await assertPanelCopy(page, 1);
   report.membershipBeforeDeletion = await readWorkspaceMembership(paths);
   await button(panelEntry(root, nativeOnly.title), ui.deleteAction(nativeOnly.title)).click();
@@ -960,6 +972,14 @@ async function runGui(page, paths, report, beforePhysical) {
   await button(deletion, ui.deleteCancel).click();
   await deletion.waitFor({ state: 'hidden' }); await panelCount(root, 1);
   assert.equal(report.deletionExecutions.length, 0, 'Cancel must never submit the destructive request');
+  await button(panelEntry(root, nativeOnly.title), ui.restore).click();
+  await assertPanelCopy(page, 0);
+  await page.locator(`[data-row-key="session:${nativeOnly.id}"]`).getByText(nativeOnly.title, { exact: true }).click();
+  await page.locator('[contenteditable="true"],textarea').first().waitFor({ state: 'visible' });
+  await archiveSession(page, nativeOnly.id);
+  await skipOptionalModelSetup(page);
+  root = await assertPanelCopy(page, 1);
+  report.coverage.push('cancel deletion, unarchive, reopen, and archive the released lifecycle again');
   await button(panelEntry(root, nativeOnly.title), ui.deleteAction(nativeOnly.title)).click();
   deletion = page.getByRole('dialog', { name: ui.deleteTitle(nativeOnly.title), exact: true });
   await deletion.waitFor({ state: 'visible' });

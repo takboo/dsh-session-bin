@@ -17,6 +17,7 @@ const load = async name => import(pathToFileURL(sdkRequire.resolve(name)).href);
 const Projection = (await load('@deepseek-ai/dsh-session-projection')).default;
 const Cache = (await load('@deepseek-ai/dsh-session-projection-cache')).default;
 const Query = (await load('@deepseek-ai/dsh-session-query-sqlite')).default;
+const { SessionHistoryController } = await import(pathToFileURL(join(dirname(sdkRequire.resolve('@deepseek-ai/dsh-api-session-controller/package.json')), 'lib/types/history.js')).href);
 const artifactRoot = await createScratch('native-metadata-module-');
 const compiled = await build({ entryPoints: [join(workspaceRoot, 'src/host/native-retirement-metadata.ts')], bundle: true,
   packages: 'external', platform: 'node', format: 'esm', write: false });
@@ -58,20 +59,21 @@ function admission() {
   };
   return port;
 }
-async function fixture({ cache = false, query = false, realAdmission = false, queryOpenAt = 'startup', queryPath } = {}) {
+async function fixture({ cache = false, query = false, realAdmission = false, queryOpenAt = 'startup', queryPath, controller = false } = {}) {
   const root = await createScratch('native-metadata-');
   const f = await openFixture(root, { seed: true, plugin: false });
   try {
     if (cache) { await f.mount(Projection); await f.mount(Cache, { writeEveryEvents: 16, writeIntervalMs: 1000 }); }
     if (query) await f.mount(Query, { path: queryPath ?? join(root, 'query.sqlite'), openAt: queryOpenAt });
     await f.ctx.workspaceRegistry.archiveSession(SessionId('quiet'));
+    const runtime = controller ? installControlledApi(f.ctx) : undefined;
     const a = realAdmission ? new NativeAdmission() : admission(); if (realAdmission) a.activate();
     const adapter = await NativeMetadataAdapter.open(f.ctx, a); assert(adapter);
     const persistence = realAdmission ? new NativePersistenceAdapter(f.ctx.sessionPersistence, a) : undefined;
     const offPersistence = persistence?.install();
     const off = await adapter.install();
     let closed;
-    return { ...f, a, adapter, close: () => closed ??= (async () => {
+    return { ...f, a, adapter, runtime, close: () => closed ??= (async () => {
       try { await off(); await offPersistence?.(); } finally { await f.close(); }
     })() };
   } catch (error) { await f.close(); throw error; }
@@ -442,4 +444,116 @@ test('metadata close restores ordinary instance methods but leaves durable retir
   const snapshot = await f.adapter.capture('quiet'); const sessions = f.ctx.sessions; retire(f);
   await f.adapter.converge(snapshot, expected, request); await f.close();
   assert.throws(() => sessions.prepare(SessionId('quiet')), /retired/);
+});
+
+
+// Controlled Agent phases/capabilities over real SessionStore and JSONL handles.
+// The public CLI/GUI separately exercises the real Agent factory and controller.
+function installControlledApi(ctx) {
+  const handles = new Map(); const disposed = []; const summaries = [];
+  class ReactLoopAgent {
+    constructor(session) { this.id = session.id; this.session = session; }
+    phase = { kind: 'idle' }; status = 'idle'; inbox = { nextTurn: [], nextStep: [] };
+  }
+  const registry = {
+    get: id => handles.get(id)?.agent,
+    async resume({ resumeSessionId: id }) {
+      const raw = await ctx.sessionPersistence.open(SessionId(id), 'write');
+      const session = ctx.sessions.prepare(SessionId(id), { meta: structuredClone(raw.header) });
+      const detach = ctx.sessions.enter(session);
+      const handle = { agent: new ReactLoopAgent(session), async dispose() {
+        disposed.push(id); await raw.close(); detach(); handles.delete(id);
+      } };
+      handles.set(id, handle); return handle;
+    },
+    create(options) { return this.resume({ resumeSessionId: options.sessionId }); },
+  };
+  class ApiSessionAgentController {
+    resumeObserved(id) { return ctx.agents.resume({ resumeSessionId: id }); }
+    createOrAdopt(id) { return ctx.agents.create({ sessionId: id }); }
+  }
+  class SessionController {
+    agents = new ApiSessionAgentController();
+    history = new SessionHistoryController(ctx, observation => observation[Symbol.dispose]());
+    listState = { summarizeCold(header) { summaries.push(header.id); return { sessionId: header.id, agentAvailable: false }; } };
+  }
+  ctx.provide('agents', registry); ctx.provide('sessionController', new SessionController());
+  return { handles, disposed, summaries };
+}
+
+test('explicit idle release closes only the API-owned archived target and keeps the durable log', async () => {
+  const f = await fixture({ controller: true, realAdmission: true });
+  try {
+    const api = f.ctx.get('sessionController').agents;
+    await api.resumeObserved('quiet'); await api.createOrAdopt('sibling');
+    const before = await f.ctx.sessionPersistence.stat(SessionId('quiet'));
+    const release = await f.a.acquire('quiet');
+    try { await f.adapter.releaseIdle('quiet'); await f.a.drain('quiet'); }
+    finally { release(); }
+    assert.deepEqual(f.runtime.disposed, ['quiet']);
+    assert.deepEqual(f.runtime.summaries, ['quiet']);
+    assert.equal(f.ctx.sessions.get(SessionId('quiet')), undefined);
+    assert(f.ctx.sessions.get(SessionId('sibling')));
+    assert.deepEqual(await f.ctx.sessionPersistence.stat(SessionId('quiet')), before);
+    assert((await f.adapter.capture('quiet')).global.archived);
+    await f.runtime.handles.get('sibling').dispose();
+  } finally { await f.close(); }
+});
+
+for (const condition of ['running', 'maintenance', 'queued', 'provider-activity', 'unarchived']) {
+  test(`idle release preserves a target with ${condition}`, async () => {
+    const f = await fixture({ controller: true, realAdmission: true });
+    try {
+      await f.ctx.get('sessionController').agents.resumeObserved('quiet');
+      const handle = f.runtime.handles.get('quiet');
+      if (condition === 'running') { handle.agent.status = 'running'; handle.agent.phase.kind = 'running'; }
+      if (condition === 'maintenance') handle.agent.phase.kind = 'maintenance';
+      if (condition === 'queued') handle.agent.inbox.nextTurn.push({ fixture: true });
+      if (condition === 'provider-activity') f.state.activity.set('quiet', ['job']);
+      if (condition === 'unarchived') await f.ctx.workspaceRegistry.unarchiveSession(SessionId('quiet'));
+      const release = await f.a.acquire('quiet');
+      try { await assert.rejects(f.adapter.releaseIdle('quiet'), error => error.code === (condition === 'unarchived' ? 'native/not-archived' : 'native/session-active')); }
+      finally { release(); }
+      assert.deepEqual(f.runtime.disposed, []); assert.equal(f.ctx.agents.get('quiet'), handle.agent);
+      await handle.dispose();
+    } finally { await f.close(); }
+  });
+}
+
+test('idle release never takes an unowned Agent or an independent persistence reader', async () => {
+  const f = await fixture({ controller: true, realAdmission: true });
+  let reader;
+  try {
+    const foreign = await f.ctx.agents.resume({ resumeSessionId: 'sibling' });
+    await f.adapter.releaseIdle('sibling');
+    assert.equal(f.ctx.agents.get('sibling'), foreign.agent); assert.deepEqual(f.runtime.disposed, []);
+    await f.ctx.get('sessionController').agents.resumeObserved('quiet');
+    reader = await f.ctx.sessionPersistence.open(SessionId('quiet'), 'read');
+    await f.adapter.releaseIdle('quiet');
+    assert((await reader.read()).events.length);
+    assert.deepEqual(f.runtime.disposed, ['quiet']);
+    await reader.close(); reader = undefined; await foreign.dispose();
+  } finally { await reader?.close(); await f.close(); }
+});
+
+
+test('idle release drains the real target history stream without ending a sibling stream', async () => {
+  const f = await fixture({ controller: true, realAdmission: true, query: true, cache: true });
+  const cancellation = new AbortController(); const history = f.ctx.get('sessionController').history;
+  let target; let sibling;
+  try {
+    target = history.follow({ address: { kind: 'session', sessionId: 'quiet' } }, cancellation.signal);
+    sibling = history.follow({ address: { kind: 'session', sessionId: 'sibling' } }, cancellation.signal);
+    assert.equal((await target.next()).value.type, 'snapshot');
+    assert.equal((await sibling.next()).value.type, 'snapshot');
+    const waiting = target.next();
+    await f.ctx.get('sessionController').agents.resumeObserved('quiet');
+    const release = await f.a.acquire('quiet');
+    try { await f.adapter.releaseIdle('quiet'); await f.a.drain('quiet'); }
+    finally { release(); }
+    assert.equal((await waiting).done, true); assert.equal(history.closeFollowers.size, 1);
+    assert((await f.adapter.capture('quiet')).global.archived);
+    await assert.rejects(f.adapter.capture('sibling'), error => error.code === 'native/query-retained');
+    assert.deepEqual(f.runtime.disposed, ['quiet']);
+  } finally { cancellation.abort(); await target?.return(); await sibling?.return(); await f.close(); }
 });

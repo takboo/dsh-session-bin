@@ -66,6 +66,9 @@ export class NativeMetadataAdapter {
   private readonly targets = new Set<string>();
   private readonly retained = new Map<string, number>();
   private readonly followers = new Map<string, number>();
+  private readonly followerStops = new Map<string, Set<() => Promise<void>>>();
+  private readonly activationTarget = new AsyncLocalStorage<string>();
+  private readonly apiHandles = new Map<string, ObjectPort>();
   private readonly operations = new Map<string, number>();
   private readonly queueTarget = new AsyncLocalStorage<string>();
   private readonly receivers = new AsyncLocalStorage<ObjectPort>();
@@ -80,6 +83,7 @@ export class NativeMetadataAdapter {
   private readonly queryProvider: NativeMetadataSnapshot['queryProvider'];
   private readonly cacheTable: ObjectPort | undefined;
   private readonly cacheDirectory: string | undefined;
+  private readonly agents: ObjectPort | undefined;
   private moveCacheDocument = renameWindowsWriteThrough;
   private clearCacheStage = async (handle: FileHandle): Promise<void> => { await handle.truncate(0); await handle.sync(); };
   private removeCacheStage = unlink;
@@ -92,6 +96,7 @@ export class NativeMetadataAdapter {
     this.queryProvider = !query ? 'none' : query.config.openAt === 'never' ? 'sqlite-memory-disabled-0.2.0-rc.2' : 'sqlite-0.2.0-rc.2';
     this.cacheTable = cache?.requireTable();
     this.cacheDirectory = this.cacheTable?.host.unit.dir;
+    this.agents = controller ? NativeMetadataAdapter.get(ctx, 'agents') : undefined;
   }
 
   private static get(ctx: Context, name: string): ObjectPort | undefined {
@@ -129,7 +134,11 @@ export class NativeMetadataAdapter {
         || !methods(query._observations, ['read', 'store'])) return undefined;
     }
     if (controller && (controller.constructor.name !== 'SessionController' || !(controller.history?.closeFollowers instanceof Set)
-      || !methods(controller.history, ['page', 'follow', 'sourceFor']))) return undefined;
+      || !methods(controller.history, ['page', 'follow', 'sourceFor'])
+      || controller.agents?.constructor.name !== 'ApiSessionAgentController'
+      || !methods(controller.agents, ['resumeObserved', 'createOrAdopt'])
+      || !methods(controller.listState ?? {}, ['summarizeCold'])
+      || !methods(this.get(ctx, 'agents') ?? {}, ['create', 'resume', 'get']))) return undefined;
     return new NativeMetadataAdapter(ctx, admission, workspace, sessions, cache, query, controller);
   }
   private assert(id: string): void {
@@ -164,6 +173,7 @@ export class NativeMetadataAdapter {
       || NativeMetadataAdapter.get(this.ctx, 'sessionProjectionCache') !== this.cache
       || NativeMetadataAdapter.get(this.ctx, 'sessionQuery') !== this.query
       || NativeMetadataAdapter.get(this.ctx, 'sessionController') !== this.controller
+      || (this.controller && NativeMetadataAdapter.get(this.ctx, 'agents') !== this.agents)
       || (this.cache && (this.cache.requireTable() !== this.cacheTable || this.cacheTable!.host.unit.dir !== this.cacheDirectory))
       || (this.query && (this.query.config.path !== this.queryConfiguration!.path
         || this.query.config.openAt !== this.queryConfiguration!.openAt))
@@ -183,6 +193,37 @@ export class NativeMetadataAdapter {
     const knownFollowers = [...this.followers.values()].reduce((sum, count) => sum + count, 0);
     if ((this.controller?.history.closeFollowers.size ?? 0) > knownFollowers) this.refuse('native/unknown-follow', 'A history follower predates native admission tracking.');
     if (this.cache && [...this.cache.dirty.keys()].some(session => session.id === id)) this.refuse('native/cache-dirty', 'Target cache write-behind is not quiescent.');
+  }
+  /** Explicit deletion preparation may unload an idle API-owned lifecycle.
+   * No bare registry Agent, foreign handle, or unknown reader is disposed. */
+  async releaseIdle(id: string): Promise<void> {
+    this.assertInstances();
+    const handle = this.apiHandles.get(id);
+    if (!handle) return;
+    const agent = handle.agent;
+    const registry = this.agents!;
+    if (registry.get(id) !== agent || this.sessions.get(id) !== agent.session) return;
+    const activity = await this.admission.withoutBypass(() => this.ctx.waterfall('workspace/session-activity',
+      { sessionId: id as never }, async () => []));
+    // Inspect after the asynchronous activity query; dispose starts in this
+    // same synchronous turn, before another activation can be admitted.
+    if (activity.length || agent.constructor.name !== 'ReactLoopAgent' || agent.phase?.kind !== 'idle'
+      || agent.status !== 'idle' || !Array.isArray(agent.inbox?.nextTurn)
+      || !Array.isArray(agent.inbox?.nextStep) || agent.inbox.nextTurn.length || agent.inbox.nextStep.length) {
+      this.refuse('native/session-active', 'Native deletion refuses active or queued work.');
+    }
+    if (!this.workspace.archivedSessionIds.includes(id)) this.refuse('native/not-archived', 'Only an archived target may be unloaded.');
+    if (registry.get(id) !== agent || this.sessions.get(id) !== agent.session) this.refuse('native/session-live', 'The API lifecycle changed.');
+    await this.admission.bypass(id, async () => {
+      await handle.dispose();
+      for (const stop of [...(this.followerStops.get(id) ?? [])]) await stop();
+      // Disposal checkpoints projections asynchronously. Join its actual put
+      // operations and the durable table queue before taking the cold snapshot.
+      if (this.cache) await this.cache.requireTable().host.enqueue(async () => undefined);
+      const summary = this.controller!.listState.summarizeCold(agent.session.header);
+      this.admission.withoutBypass(() => (this.ctx.emit as Method)('api-session/added', summary));
+    });
+    this.apiHandles.delete(id);
   }
   private async cacheView(table: ObjectPort, id: string, acceptedStage?: string): Promise<NativeMetadataSnapshot['cache']> {
     table.host.assertReadable();
@@ -471,13 +512,48 @@ export class NativeMetadataAdapter {
       }
       if (this.controller) {
         const adapter = this;
+        // API Session drops the returned AgentHandle after activation. Retain
+        // that exact disposal capability only inside its matching target call.
+        for (const name of ['resumeObserved', 'createOrAdopt']) {
+          this.wrap(this.controller.agents, name, original => (id: string, ...args: unknown[]) =>
+            this.tracked(id, () => this.activationTarget.run(id, async () => original(id, ...args))));
+        }
+        const agents = this.agents!;
+        for (const name of ['create', 'resume']) {
+          this.wrap(agents, name, original => (options: ObjectPort, ...args: unknown[]) => {
+            const id = String(name === 'create' ? options.sessionId : options.resumeSessionId);
+            return this.tracked(id, async () => {
+              const handle = await original(options, ...args);
+              if (this.activationTarget.getStore() === id && options.parentAgent === undefined
+                && handle.agent.id === id && handle.agent.session.header.origin !== 'subagent'
+                && typeof handle.dispose === 'function') this.apiHandles.set(id, handle);
+              return handle;
+            });
+          });
+        }
+        this.restores.push((this.ctx.on as Method)('agent/disposed', ({ agent }: { agent: ObjectPort }) => {
+          if (this.apiHandles.get(agent.id)?.agent === agent) this.apiHandles.delete(agent.id);
+        }, { global: true }));
         this.wrap(this.controller.history, 'follow', original => function (request: ObjectPort, signal: AbortSignal) {
           const id = String(request.address.sessionId);
           adapter.assert(id);
           return (async function* () {
             adapter.assert(id); adapter.increment(adapter.followers, id, 1);
-            try { for await (const frame of original(request, signal)) { adapter.assert(id); yield frame; } }
-            finally { adapter.increment(adapter.followers, id, -1); }
+            const cancellation = new AbortController();
+            const iterator = original(request, AbortSignal.any([signal, cancellation.signal]));
+            const stops = adapter.followerStops.get(id) ?? new Set<() => Promise<void>>();
+            adapter.followerStops.set(id, stops);
+            let finished = false;
+            const finish = () => {
+              if (finished) return;
+              finished = true;
+              adapter.increment(adapter.followers, id, -1);
+              stops.delete(stop); if (!stops.size) adapter.followerStops.delete(id);
+            };
+            const stop = async () => { cancellation.abort(); await iterator.return(); finish(); };
+            stops.add(stop);
+            try { for await (const frame of iterator) { adapter.assert(id); yield frame; } }
+            finally { finish(); }
           })();
         });
       }
@@ -489,6 +565,7 @@ export class NativeMetadataAdapter {
     return () => closing ??= (async () => {
       this.fallbackRetired = new Set([...this.targets].filter(id => this.admission.isRetired(id)));
       this.disposed = true;
+      this.apiHandles.clear();
       if (this.fallbackRetired.size === 0) {
         for (const restore of [...this.restores].reverse()) restore();
         this.restores.length = 0;
@@ -503,7 +580,7 @@ export class NativeMetadataAdapter {
     }
     this.detached = true; this.disposed = true;
     for (const restore of [...this.restores].reverse()) restore();
-    this.restores.length = 0; this.guardedMethods.length = 0; this.fallbackRetired.clear();
+    this.restores.length = 0; this.guardedMethods.length = 0; this.fallbackRetired.clear(); this.apiHandles.clear();
   }
   async converge(input: NativeMetadataSnapshot, expected: LifecycleKey, request: RetirementRequest): Promise<boolean> {
     const snapshot = nativeMetadataSnapshotSchema.parse(input);

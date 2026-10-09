@@ -159,3 +159,12 @@ Recommended coordination policy: serialize plugin operations; persist intent/pha
 For active work, default to plain archive; show structured refusal; pass `stopActivity: true` only for an explicit stop-and-move action. Undo restores visibility without restarting stopped work. Use `uiWorkspace` current-selection policy. Workspace filtering changes presentation only; the archive action remains Host-global. Restoring prior pins can be a separate plugin policy using native pin APIs, but is not part of unarchive and must consider subsequent user changes.
 
 **Permanent deletion boundary:** do not claim public-API-only Delete forever, timed purge, secure erasure, or linked-resource cleanup on this release. A future provider adapter remains possible research work requiring exact-version/provider gating and tests proving live writer/current/missing safeguards, lineage ownership, retained generations, shared-resource rules, indexes/events, and crash recovery. An upstream deletion/retention seam owning those relationships would provide a more stable implementation interface.
+
+
+## 0.2.0-rc.2 打开后归档的生命周期
+
+`@deepseek-ai/dsh-api-session-controller` 的 history `follow` 在交付冷快照后调用 `promote`，由 `ApiSessionAgentController.resumeObserved` 激活 Agent；`createOrAdopt` 同样激活普通 API 会话。它们取 `AgentRegistry.create/resume` 返回值的 `.agent`，没有保留对外释放入口。`@deepseek-ai/dsh-agent-loop` 的生命周期拥有 JSONL write handle，原生 Workspace Archive 与 archived-session gate 不卸载这个生命周期。因此视图退出并不等同于日志写句柄关闭；重启会关闭它们。
+
+SDK `AgentHandle.dispose()` 是精确生命周期能力：停止并排空 driver、关闭 persistence handle、detach Agent/Session、释放 scope。裸 `agents.get(id)` 不提供此能力。driver 的公开 `status === idle` 还包含 maintenance；只有已核对源码的 `phase.kind === idle` 且空 inbox 才能视为可释放。插件仅在匹配 API 激活调用中保存原始返回 handle，在显式删除准备中复核归档和原生活动，再使用该能力；不能按 ID 强制关闭其他所有者。
+
+新增运行时源码核对：`dsh-agent/lib/index.js` SHA-256 `7b9aa39474de83115cf890dd7f8904cf0d59df0811cb335ab85565a04f1aac93`；`dsh-agent-loop/lib/index.js` SHA-256 `00c4814d63f3d1e2754eb09144832d19b30499d6ea444730473f740b587948c2`。这些是附加运行时资格检查，原有 durable resource fingerprint 与 journal 格式保留，避免已有删除回执失效。
