@@ -49,7 +49,12 @@ const exitCode = await new Promise((resolve, reject) => {
   child.once('error', reject);
   child.once('close', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
 });
-if (exitCode !== 0) workflowError('Platform verification failed', output);
+if (exitCode !== 0) {
+  const failures = output.split('✖ failing tests:').at(-1).split(/\r?\n(?=test at )/).slice(1);
+  for (const details of failures.length ? failures : [output.slice(-3500)]) {
+    workflowError('Platform verification failed', details);
+  }
+}
 const final = await sources();
 const stable = baseline.sha256 === final.sha256;
 const report = { status: exitCode === 0 && stable ? 'passed' : 'failed', platform: process.platform, arch: process.arch,
