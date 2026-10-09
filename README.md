@@ -12,7 +12,7 @@
 - 删除前展示确认和阻止原因，删除后显示逐项结果；中断或断线后可查询结果并明确继续。
 - 中英文界面，使用宿主控件、浅色和深色主题。
 
-首发版本为 `0.1.0`，包名为 `@takboo/dsh-session-bin`。GitHub Release 提供预编译 tarball；npm 发布由维护者完成，dsh-market 收录另行提交。核心功能已完成跨平台验收；运行证据见 [Host 验证](docs/verification/host-lifecycle.md#跨平台生产删除资格晋级验证)和[客户端验证](docs/verification/client-interface.md#跨平台生产删除客户端验证)。
+当前版本为 `0.1.1`，包名为 `@takboo/dsh-session-bin`。GitHub Release 提供预编译 tarball；npm 通过 trusted publishing 自动发布同一份产物，dsh-market 收录另行提交。核心功能已完成跨平台验收；运行证据见 [Host 验证](docs/verification/host-lifecycle.md#跨平台生产删除资格晋级验证)和[客户端验证](docs/verification/client-interface.md#跨平台生产删除客户端验证)。
 
 ## 界面预览
 
@@ -38,7 +38,7 @@
 
 ```sh
 mise exec -- pnpm exec npm pack --ignore-scripts
-dsh plugin --profile web add ./takboo-dsh-session-bin-0.1.0.tgz
+dsh plugin --profile web add ./takboo-dsh-session-bin-0.1.1.tgz
 ```
 
 以上命令使用已安装的 DSH `0.2.0-rc.2`，将完整插件 bundle 安装到 `web` profile；该路径已通过真实 CLI/GUI 验证。启动或重新启动该 profile 后，从侧栏打开“会话回收站”（Session Bin）。tarball 包含预编译 Host 和 Client，使用者安装时无需编译 TypeScript。
@@ -49,7 +49,7 @@ dsh plugin --profile web add ./takboo-dsh-session-bin-0.1.0.tgz
 dsh plugin --profile web remove @takboo/dsh-session-bin
 ```
 
-也可下载 [v0.1.0 Release](https://github.com/takboo/dsh-session-bin/releases/tag/v0.1.0) 中的 `dsh-session-bin.tgz`，通过同一个 `dsh plugin --profile web add` 命令安装。npm 发布后可使用 `dsh plugin --profile web add @takboo/dsh-session-bin@0.1.0`。
+也可下载 [v0.1.1 Release](https://github.com/takboo/dsh-session-bin/releases/tag/v0.1.1) 中的 `dsh-session-bin.tgz`，通过同一个 `dsh plugin --profile web add` 命令安装。也可从 npm 安装：`dsh plugin --profile web add @takboo/dsh-session-bin@0.1.1`。
 
 如安装过早期未加 scope 的开发包，先从同一 profile 卸载 `dsh-session-bin`，再安装 scoped 包，避免重复注册；原生归档和已有操作记录保留。分发契约见[发布文档](docs/release.md)。
 
@@ -68,7 +68,7 @@ dsh plugin --profile web remove @takboo/dsh-session-bin
 
 **“清空全部归档”包含点击时的全部归档，搜索和工作区筛选不会缩小其范围。** 批量删除固定开始时的对象，后来新增的归档不会加入。
 
-永久删除不可撤销，仅允许已归档、无活动且无未释放读写引用的冷会话；宿主仍加载的会话会被阻止。清除范围是目标会话日志及已声明的会话元数据、索引；共享附件、外部副本和独立 fork 会保留。插件不提供共享附件垃圾回收或安全擦除保证，也不支持自动定期清空、跨设备同步或多 Host 协调。可通过 Host 配置 `permanentDeletion: false` 关闭永久删除，配置说明见 [Host 生命周期](docs/host-lifecycle.md)。
+永久删除不可撤销，仅允许已归档、无活动且无未释放读写引用的冷会话；删除准备会释放由 API Session 激活且确认空闲的目标 Agent，再复核冷会话条件；活动任务、其他所有者的 Agent 和未释放的读写引用仍会阻止删除。清除范围是目标会话日志及已声明的会话元数据、索引；共享附件、外部副本和独立 fork 会保留。插件不提供共享附件垃圾回收或安全擦除保证，也不支持自动定期清空、跨设备同步或多 Host 协调。可通过 Host 配置 `permanentDeletion: false` 关闭永久删除，配置说明见 [Host 生命周期](docs/host-lifecycle.md)。
 
 ## 开发入门
 
