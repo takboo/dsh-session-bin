@@ -1,6 +1,8 @@
 import { build } from 'esbuild';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
+
+const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 
 await build({
   entryPoints: { index: 'src/index.ts', operations: 'src/operations/index.ts', remote: 'src/remote/contracts.ts' },
@@ -16,7 +18,7 @@ const browser = await build({
 const script = browser.outputFiles.find(file => basename(file.path) === 'client.js');
 const css = browser.outputFiles.find(file => basename(file.path) === 'client.css');
 if (!script || !css) throw new Error('Client build did not produce its script and CSS Modules stylesheet.');
-const prefix = `window.__ModuleLoader__.load({ id: "dsh-session-bin", factory(require) {\nvar module = { exports: {} }; var exports = module.exports;\nconst __SESSION_BIN_CSS__ = ${JSON.stringify(css.text)};\n`;
+const prefix = `window.__ModuleLoader__.load({ id: ${JSON.stringify(manifest.name)}, factory(require) {\nvar module = { exports: {} }; var exports = module.exports;\nconst __SESSION_BIN_CSS__ = ${JSON.stringify(css.text)};\n`;
 await writeFile('dist/client.js', prefix + script.text + '\nreturn module.exports;\n} });\n');
 const map = browser.outputFiles.find(file => basename(file.path) === 'client.js.map');
 if (map) {

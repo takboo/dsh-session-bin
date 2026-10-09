@@ -32,35 +32,38 @@ assert(files.includes('locale/en.json') && files.includes('locale/zh.json'));
 assert(files.every(file => ['package.json', 'README.md', 'LICENSE', 'cordis.patch.yml', 'docs/host-lifecycle.md', 'docs/client-interface.md', 'locale/en.json', 'locale/zh.json'].includes(file)
   || file.startsWith('dist/')));
 const tarball = join(scratch, pack.filename);
-const installed = join(scratch, 'installed', 'node_modules', 'dsh-session-bin');
+const installed = join(scratch, 'installed', 'node_modules', '@takboo/dsh-session-bin');
 await mkdir(installed, { recursive: true });
 await exec('tar', ['-xzf', tarball, '--strip-components=1', '-C', installed]);
 const require = createRequire(join(installed, 'anchor.cjs'));
-const manifest = JSON.parse(await readFile(require.resolve('dsh-session-bin/package.json'), 'utf8'));
+const manifest = JSON.parse(await readFile(require.resolve('@takboo/dsh-session-bin/package.json'), 'utf8'));
 const sourceManifest = JSON.parse(await readFile(join(workspaceRoot, 'package.json'), 'utf8'));
 assert.equal(manifest.version, sourceManifest.version);
-assert.equal(manifest.private, true);
+assert.notEqual(manifest.private, true, 'The verified package must be publishable.');
+assert.equal(manifest.name, '@takboo/dsh-session-bin');
+assert.deepEqual(manifest.publishConfig, { access: 'public', registry: 'https://registry.npmjs.org' });
+assert.equal(manifest.repository.url, 'git+https://github.com/takboo/dsh-session-bin.git');
 assert.deepEqual(manifest.dsh.client, { platform: 'web' });
-assert.equal(require.resolve('dsh-session-bin/client'), join(installed, 'dist/client.js'));
-assert.equal(require.resolve('dsh-session-bin/remote'), join(installed, 'dist/remote.js'));
+assert.equal(require.resolve('@takboo/dsh-session-bin/client'), join(installed, 'dist/client.js'));
+assert.equal(require.resolve('@takboo/dsh-session-bin/remote'), join(installed, 'dist/remote.js'));
 assert(files.includes('dist/client.js') && files.includes('dist/remote.js'));
 for (const locale of ['en', 'zh']) {
-  assert.equal(require.resolve(`dsh-session-bin/locale/${locale}.json`), join(installed, 'locale', `${locale}.json`));
+  assert.equal(require.resolve(`@takboo/dsh-session-bin/locale/${locale}.json`), join(installed, 'locale', `${locale}.json`));
 }
 const sdkRequire = createRequire(import.meta.url);
 const cliRequire = createRequire(sdkRequire.resolve('@deepseek-ai/dsh/package.json'));
 const { readPluginMeta } = await import(pathToFileURL(cliRequire.resolve('@deepseek-ai/dsh-app-boot')).href);
-const localizedMeta = readPluginMeta('dsh-session-bin', pathToFileURL(join(installed, 'anchor.mjs')).href);
+const localizedMeta = readPluginMeta('@takboo/dsh-session-bin', pathToFileURL(join(installed, 'anchor.mjs')).href);
 assert.deepEqual(localizedMeta?.title, { en: 'Session Bin', zh: '会话回收站' });
 assert.deepEqual(localizedMeta?.description, {
   en: 'Manage native archives with search, filters, unarchive, and explicit permanent deletion.',
   zh: '管理原生归档，支持搜索、筛选、取消归档与明确确认的永久删除。',
 });
-const entryPath = require.resolve('dsh-session-bin');
+const entryPath = require.resolve('@takboo/dsh-session-bin');
 assert.equal(entryPath, join(installed, 'dist/index.js'));
-assert.equal(require.resolve('dsh-session-bin/operations'), join(installed, 'dist/operations.js'));
+assert.equal(require.resolve('@takboo/dsh-session-bin/operations'), join(installed, 'dist/operations.js'));
 assert(files.includes('dist/operations/index.d.ts') && files.includes('dist/operations/archive.d.ts'));
-const operationContracts = await import(pathToFileURL(require.resolve('dsh-session-bin/operations')).href);
+const operationContracts = await import(pathToFileURL(require.resolve('@takboo/dsh-session-bin/operations')).href);
 assert(operationContracts.archivePlanSchema && operationContracts.planSchema, 'Packed operations export both v2 and legacy schemas');
 const packedRequire = createRequire(entryPath);
 for (const [name, version] of Object.entries(manifest.peerDependencies)) {

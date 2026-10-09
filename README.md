@@ -12,7 +12,13 @@
 - 删除前展示确认和阻止原因，删除后显示逐项结果；中断或断线后可查询结果并明确继续。
 - 中英文界面，使用宿主控件、浅色和深色主题。
 
-当前版本为 `0.1.0-dev.2`，尚未公开发布到 npm 或 dsh-market。核心功能已完成跨平台验收；运行证据见 [Host 验证](docs/verification/host-lifecycle.md#跨平台生产删除资格晋级验证)和[客户端验证](docs/verification/client-interface.md#跨平台生产删除客户端验证)。
+首发版本为 `0.1.0`，包名为 `@takboo/dsh-session-bin`。GitHub Release 提供预编译 tarball；npm 发布由维护者完成，dsh-market 收录另行提交。核心功能已完成跨平台验收；运行证据见 [Host 验证](docs/verification/host-lifecycle.md#跨平台生产删除资格晋级验证)和[客户端验证](docs/verification/client-interface.md#跨平台生产删除客户端验证)。
+
+## 界面预览
+
+![原生归档管理与批量选择](https://raw.githubusercontent.com/takboo/dsh-session-bin/v0.1.0/docs/images/archives-light.png)
+
+[深色界面](docs/images/archives-dark.png) · [批量永久删除确认](docs/images/batch-deletion.png)。截图来自 `0.1.0` 的真实安装验收，使用隔离测试会话。
 
 ## 兼容性
 
@@ -32,7 +38,7 @@
 
 ```sh
 mise exec -- pnpm exec npm pack --ignore-scripts
-dsh plugin --profile web add ./dsh-session-bin-0.1.0-dev.2.tgz
+dsh plugin --profile web add ./takboo-dsh-session-bin-0.1.0.tgz
 ```
 
 以上命令使用已安装的 DSH `0.2.0-rc.2`，将完整插件 bundle 安装到 `web` profile；该路径已通过真实 CLI/GUI 验证。启动或重新启动该 profile 后，从侧栏打开“会话回收站”（Session Bin）。tarball 包含预编译 Host 和 Client，使用者安装时无需编译 TypeScript。
@@ -40,10 +46,12 @@ dsh plugin --profile web add ./dsh-session-bin-0.1.0-dev.2.tgz
 卸载同一 profile 中的插件：
 
 ```sh
-dsh plugin --profile web remove dsh-session-bin
+dsh plugin --profile web remove @takboo/dsh-session-bin
 ```
 
-首发目标包名为 `@takboo/dsh-session-bin`；当前开发包仍名为 `dsh-session-bin`，以上命令对应当前源码。npm 和 GitHub Release 的公开安装方式会在首发后补充。分发契约见[发布文档](docs/release.md)。
+也可下载 [v0.1.0 Release](https://github.com/takboo/dsh-session-bin/releases/tag/v0.1.0) 中的 `dsh-session-bin.tgz`，通过同一个 `dsh plugin --profile web add` 命令安装。npm 发布后可使用 `dsh plugin --profile web add @takboo/dsh-session-bin@0.1.0`。
+
+如安装过早期未加 scope 的开发包，先从同一 profile 卸载 `dsh-session-bin`，再安装 scoped 包，避免重复注册；原生归档和已有操作记录保留。分发契约见[发布文档](docs/release.md)。
 
 ### 自动构建与 Release
 

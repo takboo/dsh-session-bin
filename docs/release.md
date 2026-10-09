@@ -12,7 +12,7 @@ Host 与 Client 放在一个预编译 npm 包中；Host 使用 ESM，Client 使�
 
 原生插件管理页面的名称和描述通过导出的 `locale/en.json` 及语言资源中的 `meta.title`、`meta.description` 提供，同时导出 `./package.json` 并打包顶层 `icon` 指向的图标。当前版本该读取路径不使用参考项目的 `dsh.displayName` 等自定义字段；本项目使用已核对的原生元数据契约。
 
-npm `repository` 指回 [takboo/dsh-session-bin](https://github.com/takboo/dsh-session-bin)，`homepage`、`bugs`、`keywords` 和 DSH 元数据保持一致。首发目标名称为 `@takboo/dsh-session-bin`，由 npm 用户 `takboo` 发布。当前开发包仍名为 `dsh-session-bin`；切换 scope 时须同步 package 元数据、bundle patch、Host/Client 模块身份及相关安装测试，再验收完整 tarball，不能只修改 `package.json.name`。发布前核对名称占用及账号权限。源码或构建产物复用参考项目时保留适用版权和许可。
+npm `repository` 指回 [takboo/dsh-session-bin](https://github.com/takboo/dsh-session-bin)，`homepage`、`bugs`、`keywords` 和 DSH 元数据保持一致。首发目标名称为 `@takboo/dsh-session-bin`，由 npm 用户 `takboo` 发布。`0.1.0` 起使用该 scoped 名称；package 元数据、bundle patch、Host/Client 模块身份及相关安装测试保持一致。早期未加 scope 的开发包须先卸载，再安装 scoped 包，避免重复注册；存储域、操作记录和 pending 缓存身份保持兼容。发布前核对名称占用及账号权限。源码或构建产物复用参考项目时保留适用版权和许可。
 
 ## 环境与 CI
 
@@ -65,11 +65,28 @@ Release 附件为固定名称 `dsh-session-bin.tgz`、`SHA256SUMS` 和 `release.
 
 1. 可登录的 npm 账户，已验证邮箱，具有 `@takboo` scope 的发布权限；本地交互首发使用已启用的 2FA。
 2. 首次发布的认证方式。当前目标包尚未建立，官方 trusted publisher 配置入口位于已有包的 Settings；按本地 `npm login`、发布已验收 tarball、建立包后配置 trusted publisher 的路径准备。首发认证由账号所有者完成，不将密码、验证码或 Token 写入聊天、Git 或文档。
-3. 后续 trusted publisher 配置：GitHub owner `takboo`、repository `dsh-session-bin`、实际发布 workflow 文件名，以及 workflow 使用的 environment 名（若有）。发布 workflow 尚待实现，文件名和 environment 必须与最终配置精确一致。
+3. 后续 trusted publisher 配置：GitHub owner `takboo`、repository `dsh-session-bin`、实际发布 workflow 文件名，以及 workflow 使用的 environment 名（若有）。npm OIDC 发布 workflow 尚待接入；现有 `host-lifecycle.yml` 负责 GitHub tarball Release。npm publisher 的文件名和 environment 必须与最终发布 job 精确一致。
 
 核对日期：2026-10-09。官方文档要求 trusted publishing 使用 npm CLI `11.5.1` 以上及 Node `22.14.0` 以上，GitHub-hosted runner 和 `id-token: write` 权限。新建 publisher 配置需允许实际采用的发布动作；使用 `npm publish` 时须启用相应权限。当前规则还要求新配置在两天内完成首次成功发布以验证绑定，因此在产物和 workflow 就绪后再配置。后续发布通过 OIDC，无需持久化 npm 发布 Token。
 
 账户准备依据：[公开 scoped 包](https://docs.npmjs.com/creating-and-publishing-scoped-public-packages)、[npm 2FA](https://docs.npmjs.com/about-two-factor-authentication)、[trusted publishing](https://docs.npmjs.com/trusted-publishers/)。实际发布前再次核对规则。
+
+### 首次 npm 发布：复用 Release tarball
+
+账号所有者在本机下载 `v0.1.0` 的三个附件并核对校验摘要：
+
+```sh
+gh release download v0.1.0 --repo takboo/dsh-session-bin \
+  --pattern dsh-session-bin.tgz --pattern SHA256SUMS --pattern release.json
+shasum -a 256 -c SHA256SUMS
+npm login --registry=https://registry.npmjs.org
+npm whoami --registry=https://registry.npmjs.org
+npm publish ./dsh-session-bin.tgz --access public --registry=https://registry.npmjs.org
+```
+
+`npm whoami` 应返回 `takboo`；发布时按 npm 提示在本机完成 2FA。Linux 可改用 `sha256sum --check SHA256SUMS`。直接发布已验收 tarball，不解包修改、不重新 `npm pack`，保持 GitHub 和 npm 产物相同。
+
+发布后用 `npm view @takboo/dsh-session-bin@0.1.0 version dist.integrity --registry=https://registry.npmjs.org` 确认公开版本；再在包 Settings 配置 trusted publisher。GitHub Release 与 npm Registry 各自的发布状态分别记录，不能将 Release 成功写成 npm 已发布。
 
 ## dsh-market
 

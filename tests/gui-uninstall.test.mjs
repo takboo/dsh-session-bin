@@ -100,13 +100,13 @@ test('public CLI add/remove fully exits in an isolated Web profile', {
     assertCommandClosed(add, 'public plugin add');
     const profilePath = join(home, 'profiles', 'web', 'package.json');
     const installed = JSON.parse(await readFile(profilePath, 'utf8'));
-    assert(installed.dsh.profile.bundles.includes('dsh-session-bin'));
+    assert(installed.dsh.profile.bundles.includes('@takboo/dsh-session-bin'));
 
-    const remove = await runObservedCli(process.execPath, [cli, 'plugin', '--profile', 'web', 'remove', 'dsh-session-bin',
+    const remove = await runObservedCli(process.execPath, [cli, 'plugin', '--profile', 'web', 'remove', '@takboo/dsh-session-bin',
       `--store-dir=${store}`, `--cache-dir=${cache}`], { cwd, env });
     assertCommandClosed(remove, 'public plugin remove');
     const removed = JSON.parse(await readFile(profilePath, 'utf8'));
-    assert(!removed.dsh.profile.bundles.includes('dsh-session-bin'));
+    assert(!removed.dsh.profile.bundles.includes('@takboo/dsh-session-bin'));
   } finally {
     await rm(root, { recursive: true, force: true });
   }

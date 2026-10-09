@@ -43,7 +43,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   }
 }
 function strictCodec<Output>(name: string, schema: z.ZodType<Output>): TypertCodec {
-  return { mode: 'strict', typeSymbol: `dsh-session-bin#${name}`, create: () => schema,
+  return { mode: 'strict', typeSymbol: `@takboo/dsh-session-bin#${name}`, create: () => schema,
     encode: value => schema.parse(value), decode: value => schema.parse(value) };
 }
 const codecs = {
@@ -62,7 +62,7 @@ const codecs = {
 };
 function descriptor(method: string, parameters: InvocationDescriptor['parameters'], result: TypertCodec,
   mode?: 'stream'): InvocationDescriptor {
-  return { id: `dsh-session-bin#sessionBin/${method}`, service: sessionBinRemoteServiceKey,
+  return { id: `@takboo/dsh-session-bin#sessionBin/${method}`, service: sessionBinRemoteServiceKey,
     namespace: sessionBinRemoteNamespace, method, invocation: { kind: 'direct' }, parameters, result,
     cancellation: { parameter: 'signal' }, ...(mode === undefined ? {} : { mode }) };
 }
@@ -77,9 +77,9 @@ const descriptors: readonly InvocationDescriptor[] = [
   descriptor('purgeOperations', [], codecs.purgeOperations),
   descriptor('follow', [], codecs.snapshot, 'stream'),
 ];
-export const sessionBinRemoteContribution: TypertRemoteContribution = { package: 'dsh-session-bin', descriptors };
+export const sessionBinRemoteContribution: TypertRemoteContribution = { package: '@takboo/dsh-session-bin', descriptors };
 export const sessionBinHostContribution: TypertContribution = {
-  package: 'dsh-session-bin', face: 'host',
+  package: '@takboo/dsh-session-bin', face: 'host',
   schemas: [
     { name: 'ArchivePrepareRequest', create: () => archivePrepareRequestSchema },
     { name: 'ArchiveEntry', create: () => archiveEntrySchema },

@@ -26,4 +26,4 @@
 
 README 保持简洁的项目说明、功能、安装和兼容范围；实现细节写入专题契约。研究文档保存带版本与出处的事实，设计提案保存候选方案，ADR 保存已落实且影响后续工作的决定，验证报告保存明确基线的检查结果与限制。临时会话交接、代理分工和下一轮安排留在会话、issue/PR 或提交说明中，不写入长期文档。用户安装说明和兼容性表依据实际安装证据，复用代码附来源并保留上游版权。
 
-发布与市场提交遵循[分发与发布](docs/release.md)。仓库为 [takboo/dsh-session-bin](https://github.com/takboo/dsh-session-bin)；npm 目标包名为 `@takboo/dsh-session-bin`，对应构建身份切换和验收完成后更新 package 元数据。
+发布与市场提交遵循[分发与发布](docs/release.md)。仓库为 [takboo/dsh-session-bin](https://github.com/takboo/dsh-session-bin)；npm 包名为 `@takboo/dsh-session-bin`；版本、构建身份和 Release tarball 一起验收。
