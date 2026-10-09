@@ -10,10 +10,10 @@ test('implemented OS candidates remain independent from production platform qual
   for (const platform of ['darwin', 'linux', 'win32']) for (const arch of ['arm64', 'x64']) assert(nativePlatformCandidate(platform, arch));
   assert.equal(nativePlatformCandidate('freebsd', 'x64'), false);
   assert.equal(nativePlatformCandidate('win32', 'ia32'), false);
-  assert.equal(nativePlatformVerified('darwin', 'arm64', '24.18.1'), true);
-  for (const [platform, arch] of [['darwin', 'x64'], ['linux', 'arm64'], ['linux', 'x64'], ['win32', 'x64']]) {
-    assert.equal(nativePlatformVerified(platform, arch, '24.18.1'), false, 'An implemented candidate is not erasure evidence.');
+  for (const [platform, arch] of [['darwin', 'arm64'], ['darwin', 'x64'], ['linux', 'arm64'], ['linux', 'x64'], ['win32', 'x64']]) {
+    assert.equal(nativePlatformVerified(platform, arch, '24.18.1'), true, 'Every promoted combination has independent erasure evidence.');
   }
+  assert.equal(nativePlatformVerified('win32', 'arm64', '24.18.1'), false, 'An implemented candidate without a matching runner remains unverified.');
   assert.equal(nativePlatformVerified('darwin', 'arm64', '26.0.0'), false);
   assert.equal(nativePlatformVerified('darwin', 'arm64', '24.18.1', '1.49.0'), false);
 });

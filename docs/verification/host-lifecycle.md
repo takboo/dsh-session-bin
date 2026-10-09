@@ -2,6 +2,24 @@
 
 本文分节记录 Host 生命周期的运行证据，各节有独立代码基线与限制；当前 dev.2 真实冷 JSONL 删除、固定批量及清空的证据见下一节，后续章节保留较早的消费者与 owner 验收。目标 SDK：DSH `0.2.0-rc.2`。完整客户端与双语 GUI 验收另见[客户端验证](client-interface.md)。
 
+## 跨平台生产删除资格晋级验证
+
+日期：2026-10-09。实现基线为 `978a6d016fdedf185f9105d17331ebc4bcc04886`；[PR CI run 37909476064](https://github.com/takboo/dsh-session-bin/actions/runs/37909476064) 与同提交的 [push CI run 37909471038](https://github.com/takboo/dsh-session-bin/actions/runs/37909471038) 各自完成五个平台任务，合计 **10/10 通过**。每项均使用 Node `24.18.1`、libuv `1.52.1`、SDK `0.2.0-rc.2`，并在对应实际操作系统内核、架构和文件系统上执行。此节记录当前生产资格；下方较早章节的 macOS-only、candidate 或 unsupported 结论只属于各自历史基线。
+
+| 生产组合 | 实际文件系统证据 | 验证源码 SHA-256 | 结果 |
+| --- | --- | --- | --- |
+| Windows Server 2025 x64 | NTFS，Node type `0x0`，block size 4096 | `fc17b9c474f1726ffc3e3fa0f965165d18115fdb561cf0ed5d181e65be5053ad` | 两轮通过 |
+| macOS 15 ARM64 | APFS，type `0x1a`，block size 4096 | `1bd1b83942b9335f2eeb130aa3292669f31d89bff8daa5bb5d773b8e1b2f9048` | 两轮通过 |
+| macOS 15 Intel x64 | APFS，type `0x1a`，block size 4096 | `1bd1b83942b9335f2eeb130aa3292669f31d89bff8daa5bb5d773b8e1b2f9048` | 两轮通过 |
+| Ubuntu 24.04 ARM64 | ext2/ext3/ext4 family，type `0xef53`，block size 4096 | `1bd1b83942b9335f2eeb130aa3292669f31d89bff8daa5bb5d773b8e1b2f9048` | 两轮通过 |
+| Ubuntu 24.04 x64 | ext2/ext3/ext4 family，type `0xef53`，block size 4096 | `1bd1b83942b9335f2eeb130aa3292669f31d89bff8daa5bb5d773b8e1b2f9048` | 两轮通过 |
+
+Windows 的源码摘要与 POSIX 平台不同源于 checkout 行尾表示；每个任务在运行前后校验自己的源码清单稳定。PR run 保存了五份未过期的平台产物，GitHub artifact SHA-256 分别为 Windows x64 `363fdc97fe4fa0ae92e2197f0015f19067841d171721b7d9795797a2317997fd`、macOS ARM64 `043370712bb4707761666b0e37b5d4ef2019f68d8e11f0bd1654731057c60fbb`、macOS x64 `042c9598249507d986f94f8f6caa06da79c8c5e313f70fb910bc567d9e6f5d55`、Linux ARM64 `38b8713dde49215af4c5340771d2876ab27dbf30354283d9951c0040296aaa2c`、Linux x64 `285e381740f64e19f2ce123ba9d73d0f9f5af33a527965c0a0022dbc388fde05`。
+
+每个平台完整运行严格类型检查、构建、全量测试与真实打包 Loader。删除验收覆盖 raw/zstd 冻结 JSONL、owner/cache/SQLite 资源对账、真实进程死亡及重开恢复、单项永久删除、固定选择批量删除和清空全部原生归档；生产 Loader 在晋级后的组合上实际删除，而不是只验证 candidate 或 unsupported 分支。完整双语 CLI/GUI 结果见[同轮客户端验证](client-interface.md#跨平台生产删除客户端验证)。
+
+资格严格限于表中精确版本、操作系统、架构和文件系统组合以及单 Host 模型。Windows ARM64、其他文件系统、多 Host、共享附件垃圾回收、安全擦除和掉电持久性保证均不在本轮范围；共享附件继续按引用保留，不把未实现的 GC 写成删除缺口。
+
 ## 跨平台 CI 与 pnpm 退出修复验证
 
 日期：2026-10-09。基线为 `3360f8c461fa9dfab9582f8c38660880776e9e2a` 加 pnpm 工具版本修复。Node `24.18.1`、libuv `1.52.1` 和 SDK `0.2.0-rc.2` 保持不变；mise 与 manifest 同步固定 pnpm `11.23.0`，frozen lockfile 未改变。

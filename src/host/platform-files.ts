@@ -10,7 +10,8 @@ export function nativePlatformCandidate(platform = process.platform, arch = proc
 }
 /** Actual erasure evidence is promoted separately from an implemented Adapter. */
 export function nativePlatformVerified(platform = process.platform, arch = process.arch, node = process.versions.node, uv = process.versions.uv): boolean {
-  return node === '24.18.1' && uv === '1.52.1' && platform === 'darwin' && arch === 'arm64';
+  if (node !== '24.18.1' || uv !== '1.52.1') return false;
+  return new Set(['darwin/arm64', 'darwin/x64', 'linux/arm64', 'linux/x64', 'win32/x64']).has(`${platform}/${arch}`);
 }
 
 interface WindowsKernel {

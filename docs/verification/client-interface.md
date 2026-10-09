@@ -2,6 +2,14 @@
 
 本文按代码基线记录客户端与真实 CLI/GUI 的运行证据。当前 dev.2 单项删除、固定批量、清空及恢复边界见下一节；较早 dev.0/dev.1 章节保留其原有范围。实现状态见 [README](../../README.md)。
 
+## 跨平台生产删除客户端验证
+
+日期：2026-10-09。实现基线 `978a6d016fdedf185f9105d17331ebc4bcc04886` 的 [PR CI run 37909476064](https://github.com/takboo/dsh-session-bin/actions/runs/37909476064) 和同提交 [push CI run 37909471038](https://github.com/takboo/dsh-session-bin/actions/runs/37909471038) 均在 Windows x64、macOS ARM64、macOS Intel x64、Linux ARM64 与 Linux x64 上通过，共 **10/10 平台任务成功**。固定环境为 Node `24.18.1`、libuv `1.52.1`、SDK `0.2.0-rc.2`；文件系统及源码摘要见[同轮 Host 证据](host-lifecycle.md#跨平台生产删除资格晋级验证)。本节是当前客户端发布矩阵；后续历史章节中 macOS-only 或其他平台 unsupported 的描述不适用于此基线。
+
+每个平台都运行中文与 English 的完整 `verify:gui`。由于该组合已通过生产资格门，浏览器流程实际执行严格不可逆确认后的单项删除、固定选择批量删除及不受搜索筛选影响的清空全部归档，并在真正 Host 关闭、SDK 重开后确认目标日志和派生记录仍缺失；取消、未勾选及陈旧 baseline 路径保持零执行。公共 CLI 的全新 profile 安装、卸载和卸载后 Web 重启也在同一任务内通过。测试不以 unsupported 分支、历史 tarball、模拟删除或强制终止进程代替生产路径。
+
+客户端恢复与一致性回归同时覆盖逐项结果、部分失败、断线、查询恢复、通知重入和 missing 项重新准备/重新确认；批量仍是固定集合的串行单项操作，不宣称跨会话事务。支持边界与 Host 相同：不含 Windows ARM64、其他文件系统、多 Host、共享附件 GC、安全擦除或真实物理 OS 输入法保证。下方各节保留其原代码基线与限制，作为历史证据而非当前支持状态。
+
 ## Linux 云环境 CLI 与双语 GUI 复验
 
 日期：2026-10-09。基线及工具修复见[Host 同轮验证](host-lifecycle.md#跨平台-ci-与-pnpm-退出修复验证)。Linux x64、Node `24.18.1`、pnpm `11.23.0`、DSH `0.2.0-rc.2`；`mise run verify:gui` 完整退出 **0**。[中文报告](../../.local/gui/client-zh-F4JozK/verification.json)和[English 报告](../../.local/gui/client-en-EmERFo/verification.json)各 **17 检查通过**，browser console/pageErrors 为空；四次 Host 关闭均 code 0、signal null、未强制终止。

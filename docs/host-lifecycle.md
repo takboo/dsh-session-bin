@@ -43,7 +43,7 @@
 
 ## 真实冷 JSONL 单项删除 Adapter
 
-`NativeRetirementOwner` 自行拥有被明确 adoption 的会话记录删除生命周期。当前默认生产资格仍限已实际验收的 DSH `0.2.0-rc.2`、Node `24.18.1` / libuv `1.52.1`、macOS ARM64、单 Host，以及独立验证通过的 JSONL raw/zstd、已知 Workspace/JSON domain、已启用 SQLite 查询与投影 cache 组合；确认没有相应 optional provider 的最小组合也可使用。Windows、macOS Intel 和 Linux 的平台 Adapter 按 [ADR 0008](decisions/0008-cross-platform-retirement.md) 接入独立候选验收，不因实现存在或 Host 配置 true 自动获得生产资格。正在初始化的 provider 会先等待，unknown/disabled/path 或实例漂移不伪称不存在。SDK 所有参与包版本与源码 SHA-256 固定于 `native-retirement-sdk`；变更组合需独立验收。支持的是会话日志和声明的会话元数据/派生索引，共享附件、外部工具副本和独立 fork 保留，不做全局 GC 或安全擦除。
+`NativeRetirementOwner` 自行拥有被明确 adoption 的会话记录删除生命周期。当前默认生产资格限已实际验收的 DSH `0.2.0-rc.2`、Node `24.18.1` / libuv `1.52.1`、Windows x64、macOS ARM64/Intel、Linux ARM64/x64、单 Host，以及独立验证通过的 JSONL raw/zstd、已知 Workspace/JSON domain、已启用 SQLite 查询与投影 cache 组合；确认没有相应 optional provider 的最小组合也可使用。未验收的平台/架构（包括 Windows ARM64）不因 Adapter 存在或 Host 配置 true 自动获得生产资格。正在初始化的 provider 会先等待，unknown/disabled/path 或实例漂移不伪称不存在。SDK 所有参与包版本与源码 SHA-256 固定于 `native-retirement-sdk`；变更组合需独立验收。支持的是会话日志和声明的会话元数据/派生索引，共享附件、外部工具副本和独立 fork 保留，不做全局 GC 或安全擦除。
 
 准入只接受原生归档的冷目标，拒绝 live Session/Agent、turn/job/subagent/schedule、尚未释放的 SessionHandle、query lease、history follower、cache dirty 和迁移准备。不能识别目标的安装前 follower 保守拒绝；不隐式停止其他会话。实例 guard 保留 Cordis caller shadow context，覆盖原生 Workspace 队列执行与写入前复核、SessionStore 准入、JSONL create/open/低层读写、cache 实际 put、完整 query/SQLite queue。全局 header/historical-corpus 读帧在执行前排空，新普通扫描等待 scope 释放，防止跨 SID 历史读取与删除相互等待；其他 SID 的既有 current writer 不被本次删除停止。
 
@@ -142,7 +142,7 @@ Module 串行处理一个 Host 的请求，包括多个窗口发出的重复操�
 
 `coordinationDirectory` 是 Host 配置中的绝对目录，默认使用公开 `resolveDshHome()` 下的 `session-bin`。**共享同一 Bin backend 的组合必须使用同一规范化协调目录。** SDK 没有公开实际 backend root 的查询能力，不能自动证明该约定；不同 DSH_HOME 共享自定义 backend 时必须显式配置同一目录。平台或 native addon 不支持 flock 时加载失败。
 
-支持部署模型是一个 Host 拥有原生 Workspace 存储，该 Host 可连接多个窗口。lease 拒绝第二个遵守相同目录约定的插件进程，但其他 Host 的原生 Registry 不持有这把锁；不支持多个 Host 同时写同一原生 Workspace 存储。默认删除资格按已实际验收组合开放；Windows、macOS Intel 与 Linux 的 candidate 与生产支持状态分别记录，不从底层 API 或代码存在推导已支持。Windows 信号量限定同登录会话，与 WSL/Cygwin、不同登录会话或其他提供方的协调不在声明范围。正式发布要求三类主要 OS 全部通过对应验收，见[分发与发布](release.md)。
+支持部署模型是一个 Host 拥有原生 Workspace 存储，该 Host 可连接多个窗口。lease 拒绝第二个遵守相同目录约定的插件进程，但其他 Host 的原生 Registry 不持有这把锁；不支持多个 Host 同时写同一原生 Workspace 存储。默认删除资格按已实际验收组合开放；candidate 与生产支持状态分别记录，不从底层 API 或代码存在推导已支持。Windows 信号量限定同登录会话，与 WSL/Cygwin、不同登录会话或其他提供方的协调不在声明范围。正式发布要求三类主要 OS 全部通过对应验收，见[分发与发布](release.md)。
 
 原生归档只有 ID 集合，没有操作身份、actor 或每个会话的版本。新版运行时捕获的取消归档再归档会更换观察身份；旧 core 对相同变化使所有权失效；**插件停用期间、进程死亡期间或观察尚未持久化时的取消归档再归档无法被可靠识别。** `applied` 只能证明某次调用已确认，不能证明当前归档仍属于它。此切片不承诺精确恢复这类未观察变化的归属，也不会用恢复日志自动补偿原生操作。操作日志暂无自动裁剪，规模与保留策略留给后续切片。
 
