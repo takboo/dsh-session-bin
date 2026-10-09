@@ -45,6 +45,8 @@
 
 `NativeRetirementOwner` 自行拥有被明确 adoption 的会话记录删除生命周期。当前默认生产资格限已实际验收的 DSH `0.2.0-rc.2`、Node `24.18.1` / libuv `1.52.1`、Windows x64、macOS ARM64/Intel、Linux ARM64/x64、单 Host，以及独立验证通过的 JSONL raw/zstd、已知 Workspace/JSON domain、已启用 SQLite 查询与投影 cache 组合；确认没有相应 optional provider 的最小组合也可使用。未验收的平台/架构（包括 Windows ARM64）不因 Adapter 存在或 Host 配置 true 自动获得生产资格。正在初始化的 provider 会先等待，unknown/disabled/path 或实例漂移不伪称不存在。SDK 所有参与包版本与源码 SHA-256 固定于 `native-retirement-sdk`；变更组合需独立验收。支持的是会话日志和声明的会话元数据/派生索引，共享附件、外部工具副本和独立 fork 保留，不做全局 GC 或安全擦除。
 
+显式删除准备先在目标准入围栏内释放 API Session 自己激活的空闲 Agent：仅使用在匹配 `resumeObserved/createOrAdopt` 调用内取得的原始 `AgentHandle.dispose`，复核原生归档、活动提供方、真实 idle phase（不包含 maintenance）和空 inbox；不通过裸 Agent 或未识别的生命周期强行卸载。等待日志句柄关闭、目标已跟踪 history follower 结束和 cache 写入排空后，重新发布持久化冷摘要，取消删除仍保留标题、归档和日志。没有明确 disposal capability 的安装前/其他所有者生命周期继续拒绝。该释放只发生于显式准备及执行复核，不在启动、列举或归档观察时自动发生。
+
 准入只接受原生归档的冷目标，拒绝 live Session/Agent、turn/job/subagent/schedule、尚未释放的 SessionHandle、query lease、history follower、cache dirty 和迁移准备。不能识别目标的安装前 follower 保守拒绝；不隐式停止其他会话。实例 guard 保留 Cordis caller shadow context，覆盖原生 Workspace 队列执行与写入前复核、SessionStore 准入、JSONL create/open/低层读写、cache 实际 put、完整 query/SQLite queue。全局 header/historical-corpus 读帧在执行前排空，新普通扫描等待 scope 释放，防止跨 SID 历史读取与删除相互等待；其他 SID 的既有 current writer 不被本次删除停止。
 
 `session_bin_jsonl_resources` 保存 durable store/root/fingerprint 和 exact lifecycle nonce、最低既存 canonical anchor、完整文件 identity/digest、metadata medium/memory/location 快照。这个 nonce 是本插件 Adapter 提供的逻辑生命周期，不能描述为原生格式字段。显式准备固定这些证据；已退役 SID namespace 不重用，历史请求只处理原 token。`session_bin_jsonl_retirement_owner` 保存协调器 journal，恢复不从当前 SID 重建新目标。

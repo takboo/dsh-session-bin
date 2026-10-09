@@ -166,16 +166,19 @@ export class NativeRetirementOwner implements SessionRetirementOwnerV1 {
   private async eligibilityInner(id: string): Promise<string | null> {
     if (nativeServiceInstance(this.ctx.sessionPersistence) !== this.originalProvider) return 'native/composition-changed';
     if (this.admission.isRetired(id)) return 'native/session-retired';
-    if (this.provider.busy(id)) return 'native/persistence-retained';
     try {
       const scope = this.scopes.get(id);
       if (scope) {
+        if (this.provider.busy(id)) return 'native/persistence-retained';
         if (scope.blocked) return scope.blocked;
         await this.metadata.capture(id);
         return null;
       }
       const release = await this.admission.acquire(id);
       try {
+        await this.metadata.releaseIdle(id);
+        await this.admission.drain(id);
+        if (this.provider.busy(id)) return 'native/persistence-retained';
         await this.metadata.capture(id);
         const snapshot = await this.provider.stat(id);
         if (!snapshot) return 'session-not-found';

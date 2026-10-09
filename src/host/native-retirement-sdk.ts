@@ -36,5 +36,19 @@ export async function nativeRetirementSdkFingerprint(): Promise<string | null> {
       if (createHash('sha256').update(await readFile(join(dirname(path), file))).digest('hex') !== digest) return null;
     }
   }
+  // Idle API lifecycle release additionally uses the returned AgentHandle and
+  // the driver's phase (maintenance is publicly reported as idle). These extra
+  // runtime checks do not change the existing durable resource/journal identity.
+  const runtime = createRequire(base.resolve('@deepseek-ai/dsh-base/package.json'));
+  for (const [name, expected] of Object.entries({
+    'dsh-agent': '7b9aa39474de83115cf890dd7f8904cf0d59df0811cb335ab85565a04f1aac93',
+    'dsh-agent-loop': '00c4814d63f3d1e2754eb09144832d19b30499d6ea444730473f740b587948c2',
+  })) {
+    let path: string;
+    try { path = runtime.resolve(`@deepseek-ai/${name}/package.json`); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === 'MODULE_NOT_FOUND') return null; throw error; }
+    if ((JSON.parse(await readFile(path, 'utf8')) as { version: string }).version !== '0.2.0-rc.2'
+      || createHash('sha256').update(await readFile(join(dirname(path), 'lib/index.js'))).digest('hex') !== expected) return null;
+  }
   return createHash('sha256').update(JSON.stringify(nativeRetirementSdkSources)).digest('hex');
 }

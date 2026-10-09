@@ -53,7 +53,9 @@ Release 附件为固定名称 `dsh-session-bin.tgz`、`SHA256SUMS` 和 `release.
 
 稳定版本供 `latest/download/dsh-session-bin.tgz` 使用；含 prerelease 标识的版本自动标记为 prerelease，不设为 latest。Release 正文包含该版本的兼容范围链接和自动生成的变更记录。workflow 不覆盖已有 Release；重跑遇到已存在的版本时停止，已发布产物不静默替换。
 
-`release:prepare` 仅在干净 CI 工作区运行，拒绝多个历史报告；`release:check` 和 `release:verify` 使用 GitHub tag/commit 环境。相关逻辑见 [release.mjs](../scripts/release.mjs)。当前流程只发布 GitHub tarball；npm 首发仍按下节进行，必须下载并发布同一份 tarball，后续接入 trusted publishing 时也复用该 artifact。
+`release:prepare` 仅在干净 CI 工作区运行，拒绝多个历史报告；`release:check` 和 `release:verify` 使用 GitHub tag/commit 环境。相关逻辑见 [release.mjs](../scripts/release.mjs)。GitHub Release 完成后，独立 npm job 下载同一轮 artifact 并复核校验摘要和 tag/commit/package 身份，再通过 OIDC 发布相同 tarball。只有该 job 获得 `id-token: write`；不配置长期 npm Token。稳定版使用 `latest`，预发布版使用 `next`；npm provenance 随发布生成。
+
+npm trusted publisher 的公开配置为：GitHub owner `takboo`、repository `dsh-session-bin`、workflow filename `host-lifecycle.yml`，Environment 留空；允许 `npm publish`。运行于 GitHub 托管 runner，固定 Node 的 npm CLI 版本须至少 `11.5.1`。包首发仍由维护者执行，后续版本由版本 tag 自动发布。
 
 优先选择 [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/)；具体启用条件与账户配置在包身份确定后核对。发布前准备可审阅的版本、产物及 release 内容，使用项目授权身份并遵守仓库发布规则。
 

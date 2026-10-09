@@ -114,3 +114,43 @@ jobs:
             .local/release/dsh-session-bin.tgz \
             .local/release/SHA256SUMS \
             .local/release/release.json
+
+  npm:
+    name: Publish verified npm package
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: npm-release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v3
+      - name: Check release version and main ancestry
+        run: mise run release:check
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-payload
+          path: .local/release/
+      - name: Check payload integrity and identity
+        id: payload
+        run: |
+          cd .local/release
+          sha256sum --check SHA256SUMS
+          cd ../..
+          mise run release:verify
+      - name: Publish the identical tarball with npm trusted publishing
+        env:
+          PRERELEASE: ${{ steps.payload.outputs.prerelease }}
+        run: |
+          npm --version
+          tag=latest
+          if [ "$PRERELEASE" = true ]; then tag=next; fi
+          npm publish .local/release/dsh-session-bin.tgz \
+            --access public --provenance --tag "$tag" \
+            --registry https://registry.npmjs.org
