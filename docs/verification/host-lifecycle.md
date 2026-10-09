@@ -2,6 +2,16 @@
 
 本文分节记录 Host 生命周期的运行证据，各节有独立代码基线与限制；当前 dev.2 真实冷 JSONL 删除、固定批量及清空的证据见下一节，后续章节保留较早的消费者与 owner 验收。目标 SDK：DSH `0.2.0-rc.2`。完整客户端与双语 GUI 验收另见[客户端验证](client-interface.md)。
 
+## 跨平台 CI 与 pnpm 退出修复验证
+
+日期：2026-10-09。基线为 `3360f8c461fa9dfab9582f8c38660880776e9e2a` 加 pnpm 工具版本修复。Node `24.18.1`、libuv `1.52.1` 和 SDK `0.2.0-rc.2` 保持不变；mise 与 manifest 同步固定 pnpm `11.23.0`，frozen lockfile 未改变。
+
+pnpm [上游修复 #13226](https://github.com/pnpm/pnpm/pull/13226)说明：`finishWorkers()` 清空 worker pool 引用后，迟到的可选依赖获取会重新创建无法关闭的 pool；工作线程和 MessagePort 使打印 `Done` 的进程继续存活。[11.23.0 发布记录](https://github.com/pnpm/pnpm/releases/tag/v11.23.0)包含这一修复。此前 Linux 的公共 CLI remove 失败与该现象吻合；采用已发布版本，不按输出推定完成或强制结束进程。
+
+Linux x64 云环境的[实际平台报告](../../.local/platform/linux-x64-Q2luT5/verification.json)为 `passed`，退出码 **0**、`sourcesStable: true`，源码清单摘要 `d95d8b217fcf90ab1b01adc50c0d7a322bd1907b7e835581b645a88acc6d8f11`。`mise run verify:platform` 完成两端类型检查、构建、**343 通过 / 6 项 Windows 专属跳过 / 0 失败**（共 349 项）以及真实 Loader/tarball 检查。公共 CLI 回归从当前构建打包到全新 Web profile，add/remove 均满足原有 **8 秒自然退出**及退出码 0 断言；不再依赖历史 GUI tarball 或跳过该检查。
+
+随后 `mise run verify:gui` 的[中文](../../.local/gui/client-zh-F4JozK/verification.json)和[English](../../.local/gui/client-en-EmERFo/verification.json)各 **17 项通过**，包括公共安装、卸载与全新 Web 启动。完整范围见[客户端同轮验证](client-interface.md#linux-云环境-cli-与双语-gui-复验)。这次本地通过不替代远程其他架构的实际 CI；生产删除资格未扩大。
+
 ## dev.2 真实冷 JSONL 删除与固定批次验证
 
 日期：2026-10-09。基线为 `e26e0dbeea2caf7cd6db3021cfbcd85b15c968ec` 加真实 Adapter、跨平台候选、严格 Remote、单项/批量/清空及客户端恢复修复的工作区变更。正式行为见[Host 契约](../host-lifecycle.md)和[客户端契约](../client-interface.md)，采用的决定见 [ADR 0007](../decisions/0007-native-jsonl-deletion-adapter.md)、[ADR 0008](../decisions/0008-cross-platform-retirement.md)和 [ADR 0009](../decisions/0009-fixed-purge-batches.md)。

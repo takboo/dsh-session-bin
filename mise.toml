@@ -12,7 +12,8 @@ pnpm = "npm:pnpm"
 
 [tools]
 node = "24.18.1"
-pnpm = "11.7.0"
+# Includes the worker shutdown fix for installs that print Done but never exit.
+pnpm = "11.23.0"
 gh = "2.102.0"
 
 [tasks.env]

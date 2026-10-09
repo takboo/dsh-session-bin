@@ -2,6 +2,12 @@
 
 本文按代码基线记录客户端与真实 CLI/GUI 的运行证据。当前 dev.2 单项删除、固定批量、清空及恢复边界见下一节；较早 dev.0/dev.1 章节保留其原有范围。实现状态见 [README](../../README.md)。
 
+## Linux 云环境 CLI 与双语 GUI 复验
+
+日期：2026-10-09。基线及工具修复见[Host 同轮验证](host-lifecycle.md#跨平台-ci-与-pnpm-退出修复验证)。Linux x64、Node `24.18.1`、pnpm `11.23.0`、DSH `0.2.0-rc.2`；`mise run verify:gui` 完整退出 **0**。[中文报告](../../.local/gui/client-zh-F4JozK/verification.json)和[English 报告](../../.local/gui/client-en-EmERFo/verification.json)各 **17 检查通过**，browser console/pageErrors 为空；四次 Host 关闭均 code 0、signal null、未强制终止。
+
+全新 profile 使用缓存优先的在线安装补齐独立解析的依赖；公开 CLI 安装、卸载及卸载后的新浏览器数据目录/真正 Web 启动均成功。验证覆盖原生 Archive/Undo、已有归档、单项及批量取消归档、筛选、语言与偏好重载、浅深色和窄屏。Linux 生产删除资格仍为 unsupported：单项、批量、清空确认拒绝并执行零次，SDK 重开后原始 transcript 字节保留。此结果解决此前 Linux CLI/GUI 安装与退出失败，不代表 Linux 删除已获生产资格，也不替代物理操作系统输入法验收。较早 macOS 删除验收与失败诊断保留各自基线。
+
 ## dev.2 单项、固定批量、清空与恢复验证
 
 日期：2026-10-09。基线为 `e26e0dbeea2caf7cd6db3021cfbcd85b15c968ec` 加真实删除、跨平台候选、严格 Remote、批次编排及客户端边界修复的工作区变更。两端相同 90 文件清单和摘要 `fe69a7490825cd975f56a8002c47d2812eede583a3dc8f643b345d5cba47ba64` 见[Host 当前验收](host-lifecycle.md#dev2-真实冷-jsonl-删除与固定批次验证)。正式交互见[客户端接口](../client-interface.md)，选定编排见 [ADR 0009](../decisions/0009-fixed-purge-batches.md)。
