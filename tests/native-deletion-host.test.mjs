@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { open as openFile, readdir } from 'node:fs/promises';
+import { open as openFile, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import * as product from '../dist/index.js';
@@ -86,6 +86,7 @@ test('official default Web never-memory query mode deletes real logs and cache w
 if (process.platform === 'win32') test('Windows missing JSONL header cannot be admitted or prepared for deletion', { timeout: 20000 }, async () => {
   const fixture = await openNativeDeletionFixture(await createScratch('native-delete-missing-header-'), { seed: true });
   try {
+    const sibling = await transcript(fixture, 'sibling');
     const files = await product.NativeJsonlFiles.open(fixture.ctx.sessionPersistence); assert(files);
     const header = (await fixture.ctx.sessionPersistence.stat(SessionId('quiet'))).header;
     const inventory = await files.inspect('quiet', header);
@@ -93,9 +94,13 @@ if (process.platform === 'win32') test('Windows missing JSONL header cannot be a
     const handle = await openFile(path, 'r+');
     try { await handle.truncate(0); await handle.sync(); } finally { await handle.close(); }
     await assert.rejects(files.inspect('quiet', header), error => error.code === 'jsonl/header-invalid');
+    assert.equal(await fixture.ctx.sessionPersistence.stat(SessionId('quiet')), undefined);
     const plan = await fixture.module.preparePurge({ sessionId: 'quiet' });
     assert.equal(plan.binding, null); assert.equal(plan.manifest, null);
-    assert(plan.blockers.some(blocker => blocker.code === 'jsonl/header-invalid'));
+    assert.deepEqual(plan.blockers, [{ code: 'session-not-found' }]);
+    assert.equal((await fixture.module.executePurge(plan)).status, 'rejected');
+    assert.equal((await readFile(path)).length, 0);
+    assert.deepEqual(await transcript(fixture, 'sibling'), sibling);
   } finally { await fixture.close(); }
 });
 

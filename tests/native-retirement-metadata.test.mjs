@@ -285,10 +285,16 @@ test('lost cache delete acknowledgement reuses the frozen medium scope and clear
   try {
     const cache = f.ctx.get('sessionProjectionCache'); const table = cache.requireTable(); const unit = table.host.unit;
     const row = { identity: { formatVersion: 4, createdAt: 10000, cwd: join(f.root, 'workspace'), isSeeded: false, inheritedEventCount: 0 }, rows: {} };
-    await table.put('quiet', row); const snapshot = await f.adapter.capture('quiet'); const remove = unit.deleteRecord;
-    unit.deleteRecord = async function (...args) { await remove.apply(this, args); throw new Error('cache delete acknowledgement lost'); };
-    retire(f); await assert.rejects(f.adapter.converge(snapshot, expected, request), /acknowledgement lost/);
-    unit.deleteRecord = remove; assert(table.get('quiet')); assert.equal((await unit.loadAll()).tables.sessions.quiet, undefined);
+    await table.put('quiet', row); const snapshot = await f.adapter.capture('quiet');
+    const port = process.platform === 'win32' ? f.adapter : unit;
+    const method = process.platform === 'win32' ? 'removeCacheStage' : 'deleteRecord';
+    const remove = port[method]; let injected = false;
+    port[method] = async function (...args) {
+      await remove.apply(this, args); injected = true; throw new Error('cache delete acknowledgement lost');
+    };
+    try { retire(f); await assert.rejects(f.adapter.converge(snapshot, expected, request), /acknowledgement lost/); }
+    finally { port[method] = remove; }
+    assert.equal(injected, true); assert(table.get('quiet')); assert.equal((await unit.loadAll()).tables.sessions.quiet, undefined);
     assert.equal(await f.adapter.converge(snapshot, expected, request), true); assert.equal(table.get('quiet'), undefined);
   } finally { await f.close(); }
 });

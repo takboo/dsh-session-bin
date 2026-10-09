@@ -127,6 +127,21 @@ function observePage(page, report, stage) {
 }
 async function drainDiagnostics() { while (diagnosticTasks.size) await Promise.allSettled([...diagnosticTasks]); }
 
+async function pluginDiagnostics(home) {
+  const directory = join(home, 'profiles', 'web', '.plugin-manager', 'logs');
+  let operations;
+  try { operations = await readdir(directory, { withFileTypes: true }); }
+  catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+  const logs = [];
+  for (const operation of operations) {
+    if (!operation.isDirectory() || !operation.name.startsWith('operation-')) continue;
+    const path = join(directory, operation.name, 'pnpm.log');
+    try { logs.push({ operation: operation.name, output: redact((await readFile(path, 'utf8')).slice(-1024 * 1024)) }); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+  return logs;
+}
+
 // Readiness URLs are consumed privately. Diagnostics and saved reports must not
 // expose the process token, browser cookies, or credentials.
 function redact(value) {
@@ -295,11 +310,11 @@ async function runCommand(command, args, options, label, timeout = 180000) {
     clearTimeout(timer);
     if (status === null) {
       await stopChild(child);
-      throw new Error(`${label} failed (timeout):\n${redact(errors || output)}`);
+      throw new Error(`${label} failed (timeout):\n${redact([output, errors].filter(Boolean).join('\n'))}`);
     }
     await drainChildOutput(child);
     if (status.code !== 0) {
-      throw new Error(`${label} failed (exit ${status.code}, signal ${status.signal}):\n${redact(errors || output)}`);
+      throw new Error(`${label} failed (exit ${status.code}, signal ${status.signal}):\n${redact([output, errors].filter(Boolean).join('\n'))}`);
     }
     return { stdout: output, stderr: errors };
   } finally { clearTimeout(timer); await stopChild(child); }
@@ -1234,7 +1249,8 @@ async function main() {
   const paths = {
     home: join(scratch, 'dsh-home'), primary: join(scratch, 'workspace'), secondary: join(scratch, 'second-workspace'),
     sessions: join(scratch, 'dsh-home', 'sessions'), storages: join(scratch, 'dsh-home', 'storages'),
-    browser: join(scratch, 'browser-profile'), artifacts: join(scratch, 'artifacts'), tmp: join(scratch, 'tmp'),
+    browser: join(scratch, 'browser-profile'), browserAfterUninstall: join(scratch, 'browser-after-uninstall'),
+    artifacts: join(scratch, 'artifacts'), tmp: join(scratch, 'tmp'),
     userconfig: join(scratch, 'empty-user.npmrc'), globalconfig: join(scratch, 'empty-global.npmrc'),
   };
   await Promise.all([paths.home, paths.primary, paths.secondary, paths.artifacts, paths.tmp].map(path => mkdir(path, { recursive: true, mode: 0o700 })));
@@ -1299,7 +1315,7 @@ async function main() {
     const store = join(workspace, '.local', 'pnpm-store');
     const cache = join(workspace, '.local', 'pnpm-cache');
     await runCommand(process.execPath, [cli, 'plugin', '--profile', 'web', 'add', tarball,
-      '--ignore-scripts', '--offline', `--store-dir=${store}`, `--cache-dir=${cache}`], {
+      '--ignore-scripts', '--prefer-offline', `--store-dir=${store}`, `--cache-dir=${cache}`], {
       cwd: paths.primary, env: environment,
     }, 'Installing the tarball through dsh plugin');
     const profilePath = join(paths.home, 'profiles', 'web', 'package.json');
@@ -1364,7 +1380,7 @@ async function main() {
     assert(!removed.dsh.profile.bundles.includes('dsh-session-bin'));
     const withoutBin = await startHost(cli, environment, paths.primary, 'host-after-uninstall.log');
     report.hostLaunches.push({ stage: 'post-uninstall-host', cli, shutdownDelivery: withoutBin.shutdownDelivery });
-    browserContext = await chromium.launchPersistentContext(paths.browser, {
+    browserContext = await chromium.launchPersistentContext(paths.browserAfterUninstall, {
       executablePath: executable, headless: true, locale: browserLocale, viewport: { width: 1440, height: 900 }, env: environment,
       args: ['--no-proxy-server', '--disable-breakpad', '--disable-crash-reporter'],
     });
@@ -1392,6 +1408,8 @@ async function main() {
   } catch (error) {
     report.status = 'failed';
     report.error = redact(error.stack ?? error);
+    try { report.pluginDiagnostics = await pluginDiagnostics(paths.home); }
+    catch (diagnosticError) { report.pluginDiagnosticError = redact(diagnosticError.message); }
     if (browserContext) {
       try {
         const page = browserContext.pages()[0];

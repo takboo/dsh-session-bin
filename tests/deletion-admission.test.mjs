@@ -5,6 +5,7 @@ import { mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/pro
 import { createRequire } from 'node:module';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import { test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import { zstdCompressSync } from 'node:zlib';
 import { Context } from '@deepseek-ai/cordis';
 import { SessionId, SessionStore, SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session';
@@ -271,7 +272,7 @@ test('deletion admission: equal file bytes under different names share one attac
   const root = await createScratch('deletion-shared-file-');
   t.diagnostic(root);
   const fixture = await openFixture(root, { plugin: false });
-  const { default: Attachments } = await import(sdkRequire.resolve('@deepseek-ai/dsh-attachment-local'));
+  const { default: Attachments } = await import(pathToFileURL(sdkRequire.resolve('@deepseek-ai/dsh-attachment-local')).href);
   try {
     await fixture.mount(Attachments, { dshHome: join(root, 'dsh-home') });
     const bytes = Buffer.from('isolated shared attachment\n');

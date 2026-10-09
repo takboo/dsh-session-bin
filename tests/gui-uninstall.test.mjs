@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -7,11 +6,11 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runCommand } from '../scripts/verify-gui.mjs';
 import { runObservedCli } from './helpers/gui-cli-worker.mjs';
+import { configuredPackageManager } from '../scripts/package-manager.mjs';
 
 const require = createRequire(import.meta.url);
 const workspace = fileURLToPath(new URL('../', import.meta.url));
 const cliWorker = fileURLToPath(new URL('./helpers/gui-cli-worker.mjs', import.meta.url));
-const tarball = join(workspace, '.local', 'gui', 'client-zh-P8rDOo', 'dsh-session-bin-0.1.0-dev.2.tgz');
 const store = join(workspace, '.local', 'pnpm-store');
 const cache = join(workspace, '.local', 'pnpm-cache');
 const cli = require.resolve('@deepseek-ai/dsh/lib/bin.js');
@@ -29,9 +28,9 @@ test('command completion follows CLI exit while draining inherited output', { ti
   const result = await runCommand(process.execPath, [cliWorker, 'hold-inherited-stdio', '4000'], {
     cwd: workspace,
     env: process.env,
-  }, 'Inherited stdio fixture', 500);
+  }, 'Inherited stdio fixture', 1000);
   assert(result.stdout.startsWith('cli-finished\n'));
-  assert(result.stdout.includes('.'), 'Output accepted during the post-exit drain must be retained');
+  assert(result.stdout.includes('.'), 'The descendant must confirm accepted inherited output before the CLI exits');
   assert(Date.now() - started < 3000, 'The command must not wait for a retired descendant to close inherited stdio');
 });
 
@@ -43,11 +42,17 @@ test('successful-looking output is not success before the CLI exits', { timeout:
     && error.message.includes('Done in 179ms using pnpm v11.7.0'));
 });
 
+test('failed commands retain diagnostics from both stdout and stderr with tokens redacted', async () => {
+  await assert.rejects(runCommand(process.execPath, ['-e',
+    "process.stdout.write('ERR_PNPM_NO_OFFLINE_TARBALL https://example.invalid/?token=fixture-secret\\n'); process.stderr.write('dsh: plugin command failed\\n'); process.exitCode = 1;"],
+  { cwd: workspace, env: process.env }, 'Dual-stream failure', 2000), error =>
+    error.message.includes('ERR_PNPM_NO_OFFLINE_TARBALL') && error.message.includes('dsh: plugin command failed')
+    && !error.message.includes('fixture-secret'));
+});
+
 test('public CLI add/remove fully exits in an isolated Web profile', {
   timeout: 30000,
-  skip: !existsSync(tarball) && `cached GUI tarball is absent: ${tarball}`,
 }, async () => {
-  await readFile(tarball);
   const lifecycle = join(workspace, '.local', 'lifecycle');
   await mkdir(lifecycle, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(join(lifecycle, 'gui-uninstall-'));
@@ -85,8 +90,13 @@ test('public CLI add/remove fully exits in an isolated Web profile', {
     'DSH_SNAPSHOT', 'DSH_WEB_URL', 'DSH_PROFILE', 'NODE_OPTIONS']) delete env[key];
 
   try {
+    const pack = await configuredPackageManager(['exec', 'npm', 'pack', '--json', '--ignore-scripts', '--offline',
+      '--userconfig', userconfig, '--globalconfig', globalconfig, '--cache', join(root, 'npm-cache'), '--pack-destination', root]);
+    const packed = await runCommand(pack.file, pack.args, { cwd: workspace, env }, 'Packing the current CLI fixture');
+    const [metadata] = JSON.parse(packed.stdout);
+    const tarball = join(root, metadata.filename);
     const add = await runObservedCli(process.execPath, [cli, 'plugin', '--profile', 'web', 'add', tarball,
-      '--ignore-scripts', '--offline', `--store-dir=${store}`, `--cache-dir=${cache}`], { cwd, env });
+      '--ignore-scripts', '--prefer-offline', `--store-dir=${store}`, `--cache-dir=${cache}`], { cwd, env });
     assertCommandClosed(add, 'public plugin add');
     const profilePath = join(home, 'profiles', 'web', 'package.json');
     const installed = JSON.parse(await readFile(profilePath, 'utf8'));

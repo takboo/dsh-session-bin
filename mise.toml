@@ -1,5 +1,14 @@
 [env]
 PLAYWRIGHT_BROWSERS_PATH = "{{config_root}}/.local/browsers"
+pnpm_config_store_dir = "{{config_root}}/.local/pnpm-store"
+pnpm_config_cache_dir = "{{config_root}}/.local/pnpm-cache"
+pnpm_config_enable_global_virtual_store = "false"
+# Fail on dependency drift; only the explicit frozen install task may refresh it.
+pnpm_config_verify_deps_before_run = "error"
+
+[tool_alias]
+# The npm distribution also supports macOS Intel, unlike pnpm's standalone assets.
+pnpm = "npm:pnpm"
 
 [tools]
 node = "24.18.1"
@@ -11,8 +20,8 @@ description = "Show the pinned development tool versions"
 run = ["node --version", "pnpm --version", "gh --version"]
 
 [tasks.install]
-description = "Install locked dependencies and populate the isolated GUI cache"
-run = "pnpm install --frozen-lockfile --ignore-scripts --store-dir .local/pnpm-store --cache-dir .local/pnpm-cache"
+description = "Install locked project dependencies without lifecycle scripts"
+run = "pnpm install --frozen-lockfile --ignore-scripts"
 
 [tasks.check]
 description = "Check Host and Client types against the pinned SDK"

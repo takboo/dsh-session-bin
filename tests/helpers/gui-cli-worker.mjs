@@ -76,14 +76,18 @@ export async function runObservedCli(command, args, options = {}) {
 
 if (import.meta.main && process.argv[2] === 'hold-inherited-stdio') {
   const holdMs = Number(process.argv[3] ?? 4000);
-  spawn(process.execPath, ['-e', `
-    process.stdout.on('error', () => process.exit(0));
-    const writer = setInterval(() => process.stdout.write('.'), 50);
-    setTimeout(() => { clearInterval(writer); process.exit(0); }, ${holdMs});
-  `], {
-    stdio: ['ignore', 'inherit', 'inherit'],
-  }).unref();
-  process.stdout.write('cli-finished\n', () => process.exit(0));
+  process.stdout.write('cli-finished\n', () => {
+    const descendant = spawn(process.execPath, ['-e', `
+      process.stdout.on('error', () => process.exit(0));
+      process.stdout.write('.', () => process.send('inherited-output-ready'));
+      const writer = setInterval(() => process.stdout.write('.'), 50);
+      setTimeout(() => { clearInterval(writer); process.exit(0); }, ${holdMs});
+    `], { stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+    descendant.once('message', message => {
+      if (message !== 'inherited-output-ready') throw new Error('Unexpected descendant readiness message.');
+      descendant.disconnect(); descendant.unref(); process.exit(0);
+    });
+  });
 }
 
 if (import.meta.main && process.argv[2] === 'print-done-then-stall') {
