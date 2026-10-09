@@ -1,6 +1,6 @@
 # 贡献流程
 
-实现状态以 [README](README.md) 为准。正式行为在[Host 生命周期](docs/host-lifecycle.md)与[客户端接口](docs/client-interface.md)，候选方案在[设计提案](docs/design-proposal.md)，版本兼容性证据在[验证文档](docs/verification/client-interface.md)。
+项目功能、兼容范围与开发入门见 [README](README.md)。正式行为在[Host 生命周期](docs/host-lifecycle.md)与[客户端接口](docs/client-interface.md)，候选方案在[设计提案](docs/design-proposal.md)，版本兼容性证据在[验证文档](docs/verification/client-interface.md)。
 
 ## Issue 与分支
 
@@ -24,6 +24,6 @@
 
 ## 文档与许可
 
-实现状态集中在 README；研究文档保存带版本与出处的事实，设计提案保存候选方案，ADR 保存已落实且影响后续工作的决定，验证报告保存明确基线的检查结果与限制。临时会话交接、代理分工和下一轮安排留在会话、issue/PR 或提交说明中，不写入长期文档。用户安装说明和兼容性表依据实际安装证据，复用代码附来源并保留上游版权。
+README 保持简洁的项目说明、功能、安装和兼容范围；实现细节写入专题契约。研究文档保存带版本与出处的事实，设计提案保存候选方案，ADR 保存已落实且影响后续工作的决定，验证报告保存明确基线的检查结果与限制。临时会话交接、代理分工和下一轮安排留在会话、issue/PR 或提交说明中，不写入长期文档。用户安装说明和兼容性表依据实际安装证据，复用代码附来源并保留上游版权。
 
-发布与市场提交遵循[分发与发布](docs/release.md)。远程仓库和 npm 发布身份建立后再填入具体地址，不把占位地址写成可用链接。
+发布与市场提交遵循[分发与发布](docs/release.md)。仓库为 [takboo/dsh-session-bin](https://github.com/takboo/dsh-session-bin)；npm 目标包名为 `@takboo/dsh-session-bin`，对应构建身份切换和验收完成后更新 package 元数据。

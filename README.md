@@ -1,48 +1,109 @@
 # DSH Session Bin
 
-为 DeepSeek Harness 设计的原生归档管理插件，提供元数据搜索、工作区筛选、单项及固定选择的批量取消归档，并为已验证组合提供单项、固定批量永久删除与明确范围清空。
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的原生归档管理插件。在一个面板中搜索、筛选和管理已归档会话，支持取消归档、单项永久删除、批量永久删除和清空归档。
 
-**当前状态：已切换到原生 Archive 为唯一入口，插件直接管理原生已归档集合，支持搜索、工作区筛选和单项/批量取消归档；已移除独立 Move to Session Bin 菜单与重复 Undo。旧 v1 条目和历史回执兼容处理，启动及迁移不改变原生归档状态。支持经源码指纹与资源准入检查的冷会话单项、固定选择批量永久删除及点击时全部原生归档的清空，提供原生确认界面、逐项结果与断线查询恢复。当前默认删除资格限 DSH `0.2.0-rc.2`、Node `24.18.1` / libuv `1.52.1`、单 Host，以及已验收的 Windows x64、macOS ARM64/Intel、Linux ARM64/x64 与 JSONL raw/zstd、已知 Workspace/JSON domain、已启用或明确禁用内存 SQLite 查询组合；未验收的平台/架构、运行时或资源组合明确拒绝。共享附件 GC 未实现；开发包保留 `private: true`，未发布 npm 包或市场条目。** 接口与部署边界见[Host 生命周期](docs/host-lifecycle.md)和[客户端接口](docs/client-interface.md)，实际检查分别见[Host 验证](docs/verification/host-lifecycle.md)及[客户端验证](docs/verification/client-interface.md)。早期 SDK 探针的基线和复现方式见[兼容性验证](docs/verification/dsh-0.2-compatibility.md)。
+插件直接管理 Harness 的原生 Archive 集合，已有归档也会显示。归档仍使用宿主的原生操作。
 
-## 首次公开发布目标
+## 功能
 
-**原生归档管理重构已实现；当前仓库的构建产物使用这一模型。** 原生归档集合决定成员，插件观察元数据只绑定明确操作，不代表归档时间、原生代际或永久删除授权。 已选定语义及旧数据边界见[设计提案](docs/design-proposal.md#已选定的原生归档产品模型)。
+- 按会话名称及工作区元数据搜索，按工作区筛选。
+- 单项或批量取消归档，让会话回到原生会话列表。
+- 单项永久删除、固定选择的批量永久删除，以及清空点击时的全部归档。
+- 删除前展示确认和阻止原因，删除后显示逐项结果；中断或断线后可查询结果并明确继续。
+- 中英文界面，使用宿主控件、浅色和深色主题。
 
-首次公开发布以完成“原生归档 → 管理、取消归档或永久删除”的手动核心闭环为准入条件，包括单项永久删除、固定选择的批量永久删除及明确对象范围的清空回收站，并须支持 Windows、macOS、Linux 三类主要平台。永久删除只为独立验证通过的宿主版本、平台/架构、文件系统与存储提供方组合启用；三个平台均通过资源生命周期与故障验收后，再准备公开分发。日志预览、自动定期清空与跨设备同步不作为这一核心闭环的首发条件。功能范围与准入见[设计提案](docs/design-proposal.md)，跨平台分发条件见[分发与发布](docs/release.md)。
+当前版本为 `0.1.0-dev.2`，尚未公开发布到 npm 或 dsh-market。核心功能已完成跨平台验收；运行证据见 [Host 验证](docs/verification/host-lifecycle.md#跨平台生产删除资格晋级验证)和[客户端验证](docs/verification/client-interface.md#跨平台生产删除客户端验证)。
 
-已实现严格 owner/lifecycle/资源清单合约、独立 sidecar、一次性 grant、逐资源回执与中断 guard，并接入本插件自行实现的版本绑定 `NativeRetirementOwner`。它使用完整已确认 JSONL 代际和 staging 清单，在稳定 `session.lock` inode 的排他租约内逐文件清除，收敛 Workspace、投影 cache 与 SQLite 自身索引；不递归删除目录、替换锁或直接写 SQLite 私有索引。原生 SDK 仍没有公共 delete 接口，插件的明确版本 Adapter 负责这些能力与准入，选定接入见 [ADR 0007](docs/decisions/0007-native-jsonl-deletion-adapter.md)。
+## 兼容性
 
-删除仅接受已归档、无活动且无未排空读取/写入/迁移引用的冷会话；宿主仍加载的会话、子代理目标、未知/不可读文件、额外 hard link、无法证明原生 writer 排他租约或未审计组合都拒绝。删除对象只包含所选会话的日志及已声明会话元数据/索引；共享附件、工具中的外部副本和独立 fork 保留，不能当作全局附件清理或安全擦除。默认按已验证组合自动启用，可用 Host 配置 `permanentDeletion: false` 明确关闭。
+永久删除绑定 DSH `0.2.0-rc.2`、Node `24.18.1` / libuv `1.52.1`，使用单 Host 和已验证的 JSONL raw/zstd 存储组合。
 
-版本绑定的平台 Adapter 已接入 POSIX flock、Windows 原生 writer 信号量、实际 FD 身份核验和同操作维护恢复；Windows cache 使用独占非 JSON stage，避免中断后生成 SDK 无法加载的空记录。生产资格与隔离 candidate 分开，决定见 [ADR 0008](docs/decisions/0008-cross-platform-retirement.md)，一手依据见[跨平台调研](docs/research/cross-platform-deletion.md)。浏览器将固定计划、授权见证与观察尝试保存在同一版本化记录，重载后继续核对已观察授权，缓存部分故障则保守保留未知结果。
+| 已验收环境 | CPU 架构 | 文件系统 |
+| --- | --- | --- |
+| Windows Server 2025 | x64 | NTFS |
+| macOS 15 | Apple Silicon ARM64、Intel x64 | APFS |
+| Ubuntu 24.04 | ARM64、x64 | ext2/ext3/ext4 family（type `0xef53`） |
 
-显式准备仍绑定固定观察、Adapter 自有持久化 lifecycle nonce 与冻结清单，执行及 owner admission 再复核；观察、启动和迁移不补删除授权。新 v2 与旧 Bin v1 严格区分，旧 owner 资格不能自动用于新目标。新的确认、严格 Remote 和独立 pending 查询已接通；只查询不自动重发未知删除。原有 test-only owner 继续用于协议回归，其历史结果不代替本轮真实 erasure 验证。接口、支持限制与实际结果分别见[Host 生命周期](docs/host-lifecycle.md)和[Host 验证](docs/verification/host-lifecycle.md)。
+表格记录实际验收环境，不代表所有 Windows、macOS 或 Linux 版本均已验证。Windows ARM64、其他运行时及未验证的存储组合不在支持范围内。永久删除还会检查宿主源码、资源身份和当前状态；不满足条件时明确拒绝。完整准入与限制见 [Host 生命周期](docs/host-lifecycle.md)。
 
-## 阅读入口
+## 安装
 
-- [客户端接口](docs/client-interface.md)：原生面板、严格 Remote、连接恢复、槽位和构建生命周期。
-- [客户端验证](docs/verification/client-interface.md)：真实插件与实际 CLI/浏览器的分层证据。
-- [设计提案](docs/design-proposal.md)：交互、Module 与 Interface、回收站所有权、兼容性限制和实施顺序。
-- [当前 DSH 接口调研](docs/research/current-dsh-interfaces.md)：安装版本、活动保护、槽位和永久删除能力限制。
-- [永久删除调研](docs/research/permanent-deletion.md)：锁定 SDK 的资源生命周期、已发布参考实现及尚缺的验证证据。
-- [参考及分发调研](docs/research/reference-and-distribution.md)：参考项目代码、许可、npm 与 dsh-market 规则。
-- [分发与发布](docs/release.md)：打包及验收流程。
-- [贡献流程](CONTRIBUTING.md)：issue、分支、PR 和验证约定。
-- [Agent 工作入口](AGENTS.md)：按任务加载上下文。
+当前可从源码构建预编译 tarball。先完成下方[开发入门](#开发入门)，再在仓库根目录运行：
 
-## 开发环境
+```sh
+mise exec -- pnpm exec npm pack --ignore-scripts
+dsh plugin --profile web add ./dsh-session-bin-0.1.0-dev.2.tgz
+```
 
-工具版本集中在 [mise.toml](mise.toml)。Node 对齐已安装 DSH 的发布元数据；pnpm 固定到同一主版本的 `11.23.0`，包含安装打印 `Done` 后工作线程仍阻止退出的[上游修复](https://github.com/pnpm/pnpm/pull/13226)。GitHub CLI 固定到调研时可用版本。
+以上命令使用已安装的 DSH `0.2.0-rc.2`，将完整插件 bundle 安装到 `web` profile；该路径已通过真实 CLI/GUI 验证。启动或重新启动该 profile 后，从侧栏打开“会话回收站”（Session Bin）。tarball 包含预编译 Host 和 Client，使用者安装时无需编译 TypeScript。
 
-在本地信任并安装该配置后，用 `mise run env` 查看工具版本。pnpm 使用 npm 分发后端，兼容缺少 standalone 安装包的 macOS Intel；mise 统一设置工作区缓存，脚本发现依赖漂移时明确报错，由 `mise run install` 使用 frozen lockfile、禁用安装脚本完成更新。`mise run verify` 执行两端类型检查、预编译构建、隔离行为与文案回归及 tarball 检查。`mise run verify:gui` 用系统 Chromium 顺序验收中文与 English 两个独立 Web profile，包含原生语言切换和安装/卸载；新 profile 使用缓存优先的在线安装补齐传递依赖，前提与范围见[客户端接口](docs/client-interface.md)。`mise run verify:platform` 在实际 OS 上通过隔离 composition 验收实现候选并保存源码、文件系统与运行时基线；`mise run verify:linux` 用同版本 Node 容器在独立 Linux 文件系统运行该流程，需要 Docker。candidate 通过不自动扩大生产支持；当前生产矩阵与历史晋级证据见对应验证报告，发布门槛见[分发与发布](docs/release.md)。
+卸载同一 profile 中的插件：
 
-仓库使用 `main` 作为默认本地分支。本地 `.local/` 包含调研时提取的安装包快照，并已从 Git 排除；事实和出处记录在研究文档，快照不作为发布依赖。
+```sh
+dsh plugin --profile web remove dsh-session-bin
+```
 
-## 参考
+首发目标包名为 `@takboo/dsh-session-bin`；当前开发包仍名为 `dsh-session-bin`，以上命令对应当前源码。npm 和 GitHub Release 的公开安装方式会在首发后补充。分发契约见[发布文档](docs/release.md)。
 
-- [Seetraum/harness-session-delete](https://github.com/Seetraum/harness-session-delete)：参考项目，调研时 npm 包名称为 `dsh-session-recycle-bin`。
-- [MichengAI/dsh-archive-manager](https://github.com/MichengAI/dsh-archive-manager)：永久删除研究参考，包名称为 `@michengai/dsh-archive-manager`，采用 Apache-2.0；版本与证据见[永久删除调研](docs/research/permanent-deletion.md)。
-- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)：宿主及官方插件接口。
-- [dsh-market](https://github.com/dsh-market/dsh-market) 与 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)：市场与目录。
+## 使用
 
-本实现采用 [MIT License](LICENSE)。参考项目提供了设计背景，本切片未复制其实现代码；今后复用上游代码仍需保留对应版权与许可。
+1. 使用 Harness 原生“归档会话”操作归档目标会话。
+2. 打开“会话回收站”，搜索或筛选已有归档；选择单项或多项取消归档。
+3. 永久删除时，先核对确认窗口中的对象、范围和阻止原因，再明确确认执行。
+4. 如出现部分失败或连接中断，查看逐项结果，检查操作状态后再决定是否继续。
+
+**“清空全部归档”包含点击时的全部归档，搜索和工作区筛选不会缩小其范围。** 批量删除固定开始时的对象，后来新增的归档不会加入。
+
+永久删除不可撤销，仅允许已归档、无活动且无未释放读写引用的冷会话；宿主仍加载的会话会被阻止。清除范围是目标会话日志及已声明的会话元数据、索引；共享附件、外部副本和独立 fork 会保留。插件不提供共享附件垃圾回收或安全擦除保证，也不支持自动定期清空、跨设备同步或多 Host 协调。可通过 Host 配置 `permanentDeletion: false` 关闭永久删除，配置说明见 [Host 生命周期](docs/host-lifecycle.md)。
+
+## 开发入门
+
+使用 [mise](https://mise.jdx.dev/) 管理工具版本，固定配置在 [mise.toml](mise.toml)。
+
+```sh
+git clone https://github.com/takboo/dsh-session-bin.git
+cd dsh-session-bin
+mise trust
+mise install
+mise run install
+mise run verify
+```
+
+`mise run install` 按 frozen lockfile 安装依赖并禁用安装脚本。`mise run verify` 完成类型检查、构建、隔离行为测试和真实 tarball 加载检查；测试使用临时 `DSH_HOME` 与测试会话。
+
+| 命令 | 用途 |
+| --- | --- |
+| `mise run env` | 查看固定工具版本 |
+| `mise run check` | 检查 Host 与 Client 类型 |
+| `mise run build` | 生成预编译产物和类型声明 |
+| `mise run verify` | 完整本地行为与打包验证 |
+| `mise run verify:gui` | 隔离 Web profile 中的双语 CLI/GUI 验证 |
+| `mise run verify:platform` | 记录实际操作系统的候选组合验收证据 |
+| `mise run verify:linux` | 在固定 Node 的 Linux 容器内验证，需要 Docker |
+
+GUI 验证需要可用 Chromium 和 npm registry 网络访问，准备方式见[客户端接口](docs/client-interface.md#构建和检查)。候选验收通过不会自动扩大生产支持矩阵。本地 `.local/` 存放研究快照及测试证据，不进入 Git 或发布包。
+
+## 文档与贡献
+
+欢迎通过 [Issues](https://github.com/takboo/dsh-session-bin/issues) 报告问题或提出功能建议。兼容性问题请提供 DSH/Node 版本、操作系统、架构、文件系统和存储提供方；样本使用测试数据。开发和 PR 约定见 [CONTRIBUTING.md](CONTRIBUTING.md)，代理工作入口见 [AGENTS.md](AGENTS.md)。
+
+- [Host 生命周期](docs/host-lifecycle.md)、[客户端接口](docs/client-interface.md)：正式行为、配置及部署边界。
+- [Host 验证](docs/verification/host-lifecycle.md)、[客户端验证](docs/verification/client-interface.md)：分版本的实际检查结果。
+- [设计提案](docs/design-proposal.md)、[架构决定](docs/decisions/)：产品模型、候选设计与已选定决策。
+- [当前 DSH 接口调研](docs/research/current-dsh-interfaces.md)、[兼容性验证](docs/verification/dsh-0.2-compatibility.md)：SDK 依据与早期探针。
+- [分发与发布](docs/release.md)：npm、GitHub Release 和市场提交流程。
+
+## 许可与参考
+
+本项目采用 [MIT License](LICENSE)，版权归 DSH Session Bin contributors。
+
+以下项目为接口、产品设计和兼容性研究提供了参考；本项目未复制这些参考插件的实现代码，也不代表其维护者或 DeepSeek 官方背书。
+
+| 项目 | 参考内容 | 上游许可 |
+| --- | --- | --- |
+| [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) | 宿主及官方插件接口 | 以上游仓库和各依赖包声明为准 |
+| [Seetraum/harness-session-delete](https://github.com/Seetraum/harness-session-delete)（`dsh-session-recycle-bin`） | 归档管理交互及分发方式 | MIT，Copyright 2026 Seetraum |
+| [MichengAI/dsh-archive-manager](https://github.com/MichengAI/dsh-archive-manager) | 永久删除与兼容性研究 | Apache-2.0 |
+| [dsh-market](https://github.com/dsh-market/dsh-market)、[awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) | 插件市场与目录规则 | 以上游仓库声明为准 |
+
+版本、源码出处与研究结论见[参考及分发调研](docs/research/reference-and-distribution.md)和[永久删除调研](docs/research/permanent-deletion.md)。项目的 MIT 许可不替代第三方依赖的许可；复用上游代码时须保留适用版权、许可及通知。
