@@ -32,9 +32,9 @@
 
 ## 开发环境
 
-工具版本集中在 [mise.toml](mise.toml)。Node 与 pnpm 对齐已安装 DSH 的发布元数据；GitHub CLI 固定到调研时可用版本。
+工具版本集中在 [mise.toml](mise.toml)。Node 对齐已安装 DSH 的发布元数据；pnpm 固定到同一主版本的 `11.23.0`，包含安装打印 `Done` 后工作线程仍阻止退出的[上游修复](https://github.com/pnpm/pnpm/pull/13226)。GitHub CLI 固定到调研时可用版本。
 
-在本地信任并安装该配置后，用 `mise run env` 查看工具版本。`mise run install` 使用 frozen lockfile、禁用安装脚本并填充项目离线缓存；`mise run verify` 执行两端类型检查、预编译构建、隔离行为与文案回归及 tarball 检查。`mise run verify:gui` 用系统 Chromium 顺序验收中文与 English 两个独立 Web profile，包含原生语言切换和安装/卸载，前提与范围见[客户端接口](docs/client-interface.md)。`mise run verify:platform` 在实际 OS 上通过隔离 composition 验收实现候选并保存源码基线；`mise run verify:linux` 用同版本 Node 容器在独立 Linux 文件系统运行该流程，需要 Docker。candidate 通过不自动扩大生产支持，Windows、macOS Intel 与 Linux 的实际验收矩阵和发布门槛见[分发与发布](docs/release.md)。实际结果和历史探针的复现方式见对应验证报告。
+在本地信任并安装该配置后，用 `mise run env` 查看工具版本。pnpm 使用 npm 分发后端，兼容缺少 standalone 安装包的 macOS Intel；mise 统一设置工作区缓存，脚本发现依赖漂移时明确报错，由 `mise run install` 使用 frozen lockfile、禁用安装脚本完成更新。`mise run verify` 执行两端类型检查、预编译构建、隔离行为与文案回归及 tarball 检查。`mise run verify:gui` 用系统 Chromium 顺序验收中文与 English 两个独立 Web profile，包含原生语言切换和安装/卸载；新 profile 使用缓存优先的在线安装补齐传递依赖，前提与范围见[客户端接口](docs/client-interface.md)。`mise run verify:platform` 在实际 OS 上通过隔离 composition 验收实现候选并保存源码基线；`mise run verify:linux` 用同版本 Node 容器在独立 Linux 文件系统运行该流程，需要 Docker。candidate 通过不自动扩大生产支持，Windows、macOS Intel 与 Linux 的实际验收矩阵和发布门槛见[分发与发布](docs/release.md)。实际结果和历史探针的复现方式见对应验证报告。
 
 仓库使用 `main` 作为默认本地分支。本地 `.local/` 包含调研时提取的安装包快照，并已从 Git 排除；事实和出处记录在研究文档，快照不作为发布依赖。
 

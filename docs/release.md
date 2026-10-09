@@ -32,7 +32,7 @@ npm `repository` 指回最终 GitHub 仓库，`homepage`、`bugs`、`keywords` �
 
 [CI 矩阵](../.github/workflows/host-lifecycle.yml)声明 Windows x64、macOS ARM64/Intel、Linux ARM64/x64 runners，启动时核对实际平台与架构。干净 runner 先显式运行 `mise run verify:gui:browser` 准备锁定 Playwright Chromium 和系统依赖，浏览器缓存位于工作区；再运行双语真实 CLI/GUI 并保留报告与截图。未获生产资格的平台的 GUI 拒绝检查须标记 unsupported，不能写成成功删除，更不能满足发布所要求的实际删除验收。Windows GUI 测试通过隔离 Node IPC 投递给 SDK 原有关闭处理器，单独记录这一关闭方式，不把它写作 POSIX OS 信号。
 
-项目 frozen lockfile 安装只填充该依赖图的缓存，新 profile 独立解析的传递版本可能不同；不能据此承诺干净 profile 已具备全部离线依赖。dev.2 的 Linux 补验需要另行预热 profile 缓存，之后安装成功，但卸载尚未自然退出，结果见[实际补验](verification/host-lifecycle.md#linux-cli-补验与未通过边界)。发布验收须消除这一失败或独立证明实际支持组合能够安装、卸载并正常退出；`Done` 输出、强制终止和源码平台候选矩阵都不能代替通过。
+项目 frozen lockfile 安装只填充该依赖图的缓存，新 profile 独立解析的传递版本可能不同；不能据此承诺干净 profile 已具备全部离线依赖。新 profile 验证使用 `--prefer-offline` 并允许补齐依赖。较早 dev.2 Linux 卸载未自然退出的[失败补验](verification/host-lifecycle.md#linux-cli-补验与未通过边界)保留原有基线；pnpm `11.23.0` 修复工作线程退出问题后的 Linux x64 全量及双语 CLI/GUI 已通过，见[复验](verification/host-lifecycle.md#跨平台-ci-与-pnpm-退出修复验证)。每个支持组合仍须独立证明安装、卸载并正常退出；`Done` 输出、强制终止和源码平台候选矩阵都不能代替通过，CLI/GUI 通过也不自动扩大生产删除资格。
 
 ## npm 与 GitHub Release
 

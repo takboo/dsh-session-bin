@@ -1,4 +1,5 @@
 import { configuredPackageManager } from './package-manager.mjs';
+import { workflowError } from './ci-diagnostics.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -35,12 +36,25 @@ async function sources() {
 }
 const baseline = await sources();
 const command = await configuredPackageManager(['run', 'verify']);
+let output = '';
 const exitCode = await new Promise((resolve, reject) => {
-  const child = spawn(command.file, command.args, { cwd: root, stdio: 'inherit',
+  const child = spawn(command.file, command.args, { cwd: root, stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, DSH_SESSION_BIN_PLATFORM_VERIFY: '1' } });
+  for (const [stream, destination] of [[child.stdout, process.stdout], [child.stderr, process.stderr]]) {
+    stream.setEncoding('utf8').on('data', chunk => {
+      output = (output + chunk).slice(-64 * 1024);
+      destination.write(chunk);
+    });
+  }
   child.once('error', reject);
-  child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
+  child.once('close', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
 });
+if (exitCode !== 0) {
+  const failures = output.split('✖ failing tests:').at(-1).split(/\r?\n(?=test at )/).slice(1);
+  for (const details of failures.length ? failures : [output.slice(-3500)]) {
+    workflowError('Platform verification failed', details);
+  }
+}
 const final = await sources();
 const stable = baseline.sha256 === final.sha256;
 const report = { status: exitCode === 0 && stable ? 'passed' : 'failed', platform: process.platform, arch: process.arch,
