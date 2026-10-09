@@ -1,9 +1,9 @@
 import { configuredPackageManager } from './package-manager.mjs';
-import { workflowError } from './ci-diagnostics.mjs';
+import { workflowError, workflowNotice } from './ci-diagnostics.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, statfs, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,6 +17,31 @@ if (process.env.DSH_VERIFY_ARCH) assert.equal(process.arch, process.env.DSH_VERI
 const parent = join(root, '.local', 'platform');
 await mkdir(parent, { recursive: true });
 const scratch = await mkdtemp(join(parent, `${process.platform}-${process.arch}-`));
+
+async function capture(file, args) {
+  let stdout = ''; let stderr = '';
+  const code = await new Promise((resolve, reject) => {
+    const child = spawn(file, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk; });
+    child.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
+    child.once('error', reject);
+    child.once('close', resolve);
+  });
+  assert.equal(code, 0, `${file} failed while identifying the verification filesystem: ${stderr.trim()}`);
+  assert(stdout.trim(), `${file} returned no filesystem identity.`);
+  return stdout.trim();
+}
+
+async function filesystemEvidence(path) {
+  const stats = await statfs(path, { bigint: true });
+  const name = process.platform === 'win32'
+    ? await capture('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
+      '[System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($args[0])).DriveFormat', path])
+    : process.platform === 'darwin'
+      ? await capture('stat', ['-f', '%T', path])
+      : await capture('stat', ['-f', '-c', '%T', path]);
+  return { name, type: `0x${stats.type.toString(16)}`, blockSize: stats.bsize.toString() };
+}
 
 async function sources() {
   const files = [];
@@ -57,12 +82,16 @@ if (exitCode !== 0) {
 }
 const final = await sources();
 const stable = baseline.sha256 === final.sha256;
+const filesystem = await filesystemEvidence(scratch);
 const report = { status: exitCode === 0 && stable ? 'passed' : 'failed', platform: process.platform, arch: process.arch,
   node: process.versions.node, libuv: process.versions.uv, sdk: manifest.engines.dsh, packageVersion: manifest.version,
-  command: 'mise run verify:platform', exitCode, sourcesStable: stable, sourceSha256: baseline.sha256,
+  filesystem, command: 'mise run verify:platform', exitCode, sourcesStable: stable, sourceSha256: baseline.sha256,
   scope: 'Actual OS kernel leases, frozen JSONL file erasure, resource owners, cache/SQLite, real process death and reopen, strict Remote/client regressions, and tarball loading on isolated sessions.',
   limits: 'The isolated composition qualifies an implemented candidate explicitly. This report alone does not enable production deletion or prove other architectures, filesystems, GUI/OS input methods, or power-loss durability.',
   scratch, sources: baseline.inventory };
 await writeFile(join(scratch, 'verification.json'), JSON.stringify(report, null, 2) + '\n');
 console.log(JSON.stringify({ ...report, sources: undefined }, null, 2));
+workflowNotice('Platform verification evidence', JSON.stringify({ status: report.status, platform: report.platform,
+  arch: report.arch, node: report.node, libuv: report.libuv, sdk: report.sdk, filesystem: report.filesystem,
+  sourceSha256: report.sourceSha256 }));
 process.exitCode = exitCode || (stable ? 0 : 1);
