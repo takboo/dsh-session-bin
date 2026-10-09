@@ -45,6 +45,12 @@ dsh plugin --profile web remove dsh-session-bin
 
 首发目标包名为 `@takboo/dsh-session-bin`；当前开发包仍名为 `dsh-session-bin`，以上命令对应当前源码。npm 和 GitHub Release 的公开安装方式会在首发后补充。分发契约见[发布文档](docs/release.md)。
 
+### 自动构建与 Release
+
+每次分支 push 或 PR 的 Linux x64 验收通过后，[GitHub Actions](https://github.com/takboo/dsh-session-bin/actions/workflows/host-lifecycle.yml) 提供 `release-payload` artifact，包含真实测试过的 tarball、校验文件和提交信息，供发布前检查。
+
+推送与 `package.json.version` 一致的 `v<version>` tag 时，五个平台全部通过后自动创建 [GitHub Release](https://github.com/takboo/dsh-session-bin/releases)，附上 `dsh-session-bin.tgz`、`SHA256SUMS` 和 `release.json`。预发布版本标记为 prerelease；tag 须指向 `main` 历史中的提交。版本 tag 的推送就是发布触发操作，流程见[发布文档](docs/release.md#自动-tarball-release)。
+
 ## 使用
 
 1. 使用 Harness 原生“归档会话”操作归档目标会话。

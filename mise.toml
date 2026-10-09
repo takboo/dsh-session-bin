@@ -67,3 +67,15 @@ run = "pnpm run verify:gui"
 description = "Verify one locale from DSH_GUI_LOCALE for diagnosis"
 depends = ["build"]
 run = "pnpm run verify:gui:locale"
+
+[tasks."release:check"]
+description = "Check a release tag against package version, triggering commit, and main"
+run = "node scripts/release.mjs check-tag"
+
+[tasks."release:prepare"]
+description = "Copy the identical Loader and bilingual GUI verified tarball on a clean CI runner"
+run = "node scripts/release.mjs prepare"
+
+[tasks."release:verify"]
+description = "Verify a downloaded release payload against its tag and commit"
+run = "node scripts/release.mjs check-artifact"
