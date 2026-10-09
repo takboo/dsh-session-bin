@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { fork, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { access, lstat, mkdir, mkdtemp, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
+import { access, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -1278,6 +1278,9 @@ async function main() {
   await access(join(frontend, 'dist', 'index.html'));
   const browserSelection = await discoverBrowserExecutable({ fallbackExecutable: chromium.executablePath() });
   const executable = browserSelection.path;
+  // Linux singleton sockets must fit sockaddr_un even in long CI workspaces.
+  const browserTmp = process.platform === 'linux' ? await mkdtemp('/tmp/dsh-gui-') : paths.tmp;
+  const browserEnvironment = { ...environment, TMPDIR: browserTmp, TMP: browserTmp, TEMP: browserTmp };
   const browserConsole = [];
   const pageErrors = [];
   const deletionQualification = nativePlatformVerified() ? 'supported' : 'unsupported';
@@ -1286,6 +1289,7 @@ async function main() {
     scratch, locale: browserLocale, requestedLanguage,
     deletionQualification,
     browserExecutable: browserSelection, isolatedTemporaryEnvironment: { TMPDIR: paths.tmp, TMP: paths.tmp, TEMP: paths.tmp },
+    browserTemporaryEnvironment: { TMPDIR: browserTmp, TMP: browserTmp, TEMP: browserTmp },
     checks: [], coverage: [], languageSwitches: [], metadata: [], hostLaunches: [], hostShutdown: [],
     deletedSessionIds: [], screenshots: {}, limits: [], browserConsole, browserConsoleDetails: [], pageErrors,
     evidence: { deletionQualification, envBrowserConsole: browserConsole, pageErrors },
@@ -1328,7 +1332,7 @@ async function main() {
     report.url = host.cleanUrl;
     browserContext = await chromium.launchPersistentContext(paths.browser, {
       executablePath: executable, headless: true, locale: browserLocale, viewport: { width: 1440, height: 900 },
-      colorScheme: 'light', reducedMotion: 'reduce', env: environment,
+      colorScheme: 'light', reducedMotion: 'reduce', env: browserEnvironment,
       args: ['--no-proxy-server', '--disable-breakpad', '--disable-crash-reporter'],
     });
     report.browser = browserContext.browser()?.version() ?? 'system Chrome';
@@ -1382,7 +1386,7 @@ async function main() {
     const withoutBin = await startHost(cli, environment, paths.primary, 'host-after-uninstall.log');
     report.hostLaunches.push({ stage: 'post-uninstall-host', cli, shutdownDelivery: withoutBin.shutdownDelivery });
     browserContext = await chromium.launchPersistentContext(paths.browserAfterUninstall, {
-      executablePath: executable, headless: true, locale: browserLocale, viewport: { width: 1440, height: 900 }, env: environment,
+      executablePath: executable, headless: true, locale: browserLocale, viewport: { width: 1440, height: 900 }, env: browserEnvironment,
       args: ['--no-proxy-server', '--disable-breakpad', '--disable-crash-reporter'],
     });
     const reloaded = browserContext.pages()[0] ?? await browserContext.newPage();
@@ -1432,6 +1436,7 @@ async function main() {
       activeHost = undefined;
     }
     for (const child of [...children]) await stopChild(child);
+    if (browserTmp !== paths.tmp) await rm(browserTmp, { recursive: true, force: true });
     if (savedHome === undefined) delete process.env.DSH_HOME;
     else process.env.DSH_HOME = savedHome;
     await drainDiagnostics();

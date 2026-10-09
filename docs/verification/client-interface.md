@@ -6,6 +6,8 @@
 
 日期：2026-10-09。基线及工具修复见[Host 同轮验证](host-lifecycle.md#跨平台-ci-与-pnpm-退出修复验证)。Linux x64、Node `24.18.1`、pnpm `11.23.0`、DSH `0.2.0-rc.2`；`mise run verify:gui` 完整退出 **0**。[中文报告](../../.local/gui/client-zh-F4JozK/verification.json)和[English 报告](../../.local/gui/client-en-EmERFo/verification.json)各 **17 检查通过**，browser console/pageErrors 为空；四次 Host 关闭均 code 0、signal null、未强制终止。
 
+对基线 `321dc2bd87b00d0154193210f6e55a34e74224eb` 的远程复验发现另一项 Linux runner 限制：工作区内 TMPDIR 太长，Chromium singleton socket 启动失败。隔离长路径探针在实际 Chromium 中复现 `Socket path too long`，使用独立 `/tmp` 短目录后启动与导航成功。修复后再次执行完整双语任务，[中文](../../.local/gui/client-zh-Hhjx2k/verification.json)及[English](../../.local/gui/client-en-T8y9j5/verification.json)仍各 17 项通过、错误为空、Host 均正常关闭；两份报告记录的浏览器短临时目录已在结束时删除。profile、SDK 数据及证据仍使用原有隔离工作区。
+
 全新 profile 使用缓存优先的在线安装补齐独立解析的依赖；公开 CLI 安装、卸载及卸载后的新浏览器数据目录/真正 Web 启动均成功。验证覆盖原生 Archive/Undo、已有归档、单项及批量取消归档、筛选、语言与偏好重载、浅深色和窄屏。Linux 生产删除资格仍为 unsupported：单项、批量、清空确认拒绝并执行零次，SDK 重开后原始 transcript 字节保留。此结果解决此前 Linux CLI/GUI 安装与退出失败，不代表 Linux 删除已获生产资格，也不替代物理操作系统输入法验收。较早 macOS 删除验收与失败诊断保留各自基线。
 
 ## dev.2 单项、固定批量、清空与恢复验证
