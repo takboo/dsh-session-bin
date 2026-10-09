@@ -141,7 +141,7 @@ Node `24.18.1` 内置 libuv `1.52.1`（本仓库 mise 固定版本实测 `node -
 
 **[S]** src 侧：
 
-- `src/host/platform-files.ts`（新增）：平台门 `nativePlatformCandidate`（darwin/linux/win32 × arm64/x64）与 `nativePlatformVerified`（仅 darwin/arm64/node 24.18.1）；Windows 信号量获取/释放、`syncDirectory`（win32 直接 return）、`openRegularFile`（lstat+fstat 双查）。与 §3/§5 的要求一致；`syncDirectory` 的 win32 no-op 是事实性无操作而非持久化。
+- `src/host/platform-files.ts`（新增）：平台门 `nativePlatformCandidate`（darwin/linux/win32 × arm64/x64）与独立晋级的 `nativePlatformVerified`（当前 Windows x64、macOS ARM64/Intel、Linux ARM64/x64，且固定 Node `24.18.1` / libuv `1.52.1`）；Windows 信号量获取/释放、`syncDirectory`（win32 直接 return）、`openRegularFile`（lstat+fstat 双查）。与 §3/§5 的要求一致；`syncDirectory` 的 win32 no-op 是事实性无操作而非持久化。
 - `src/host/native-jsonl-files.ts`：POSIX 通过既有 `session.lock` inode + flock 取排他；Windows 使用明确的 semaphore 清单身份与 SDK 同名 kernel 租约，不要求或创建锁文件。Windows 文件动作先同步清零再 unlink；只有已有 admission 的维护 scope 可以按冻结 dev/ino/birthtime 续同一空文件，普通 inventory 拒绝不完整 header。
 - `src/host/native-retirement-owner.ts`：未验证平台只能由独立隔离 composition 显式提供 `platformQualification`；生产 Service 配置不接收它，默认资格以已实际验收组合为准。
 - `src/host/native-retirement-metadata.ts`：projcache 文档使用实际 FD 的 fstat 核对硬链接数、读取前后身份和摘要；Windows 不伪造目录 fsync，SDK medium 删除与后续物理 absence、内存收敛分别检查。

@@ -2,7 +2,7 @@
 
 为 DeepSeek Harness 设计的原生归档管理插件，提供元数据搜索、工作区筛选、单项及固定选择的批量取消归档，并为已验证组合提供单项、固定批量永久删除与明确范围清空。
 
-**当前状态：已切换到原生 Archive 为唯一入口，插件直接管理原生已归档集合，支持搜索、工作区筛选和单项/批量取消归档；已移除独立 Move to Session Bin 菜单与重复 Undo。旧 v1 条目和历史回执兼容处理，启动及迁移不改变原生归档状态。支持经源码指纹与资源准入检查的冷会话单项、固定选择批量永久删除及点击时全部原生归档的清空，提供原生确认界面、逐项结果与断线查询恢复。当前默认删除资格限 DSH `0.2.0-rc.2`、Node `24.18.1` / libuv `1.52.1`、macOS ARM64、单 Host，以及 JSONL raw/zstd、已知 Workspace/JSON domain 和已启用或明确禁用内存 SQLite 查询的已知组合；未验收组合明确拒绝。Windows、macOS Intel 和 Linux 的内核租约、文件身份及隔离候选验收已接入，生产资格不会因代码存在而自动扩大。共享附件 GC 未实现；开发包保留 `private: true`，未发布 npm 包或市场条目。** 接口与部署边界见[Host 生命周期](docs/host-lifecycle.md)和[客户端接口](docs/client-interface.md)，实际检查分别见[Host 验证](docs/verification/host-lifecycle.md)及[客户端验证](docs/verification/client-interface.md)。早期 SDK 探针的基线和复现方式见[兼容性验证](docs/verification/dsh-0.2-compatibility.md)。
+**当前状态：已切换到原生 Archive 为唯一入口，插件直接管理原生已归档集合，支持搜索、工作区筛选和单项/批量取消归档；已移除独立 Move to Session Bin 菜单与重复 Undo。旧 v1 条目和历史回执兼容处理，启动及迁移不改变原生归档状态。支持经源码指纹与资源准入检查的冷会话单项、固定选择批量永久删除及点击时全部原生归档的清空，提供原生确认界面、逐项结果与断线查询恢复。当前默认删除资格限 DSH `0.2.0-rc.2`、Node `24.18.1` / libuv `1.52.1`、单 Host，以及已验收的 Windows x64、macOS ARM64/Intel、Linux ARM64/x64 与 JSONL raw/zstd、已知 Workspace/JSON domain、已启用或明确禁用内存 SQLite 查询组合；未验收的平台/架构、运行时或资源组合明确拒绝。共享附件 GC 未实现；开发包保留 `private: true`，未发布 npm 包或市场条目。** 接口与部署边界见[Host 生命周期](docs/host-lifecycle.md)和[客户端接口](docs/client-interface.md)，实际检查分别见[Host 验证](docs/verification/host-lifecycle.md)及[客户端验证](docs/verification/client-interface.md)。早期 SDK 探针的基线和复现方式见[兼容性验证](docs/verification/dsh-0.2-compatibility.md)。
 
 ## 首次公开发布目标
 
@@ -34,7 +34,7 @@
 
 工具版本集中在 [mise.toml](mise.toml)。Node 对齐已安装 DSH 的发布元数据；pnpm 固定到同一主版本的 `11.23.0`，包含安装打印 `Done` 后工作线程仍阻止退出的[上游修复](https://github.com/pnpm/pnpm/pull/13226)。GitHub CLI 固定到调研时可用版本。
 
-在本地信任并安装该配置后，用 `mise run env` 查看工具版本。pnpm 使用 npm 分发后端，兼容缺少 standalone 安装包的 macOS Intel；mise 统一设置工作区缓存，脚本发现依赖漂移时明确报错，由 `mise run install` 使用 frozen lockfile、禁用安装脚本完成更新。`mise run verify` 执行两端类型检查、预编译构建、隔离行为与文案回归及 tarball 检查。`mise run verify:gui` 用系统 Chromium 顺序验收中文与 English 两个独立 Web profile，包含原生语言切换和安装/卸载；新 profile 使用缓存优先的在线安装补齐传递依赖，前提与范围见[客户端接口](docs/client-interface.md)。`mise run verify:platform` 在实际 OS 上通过隔离 composition 验收实现候选并保存源码基线；`mise run verify:linux` 用同版本 Node 容器在独立 Linux 文件系统运行该流程，需要 Docker。candidate 通过不自动扩大生产支持，Windows、macOS Intel 与 Linux 的实际验收矩阵和发布门槛见[分发与发布](docs/release.md)。实际结果和历史探针的复现方式见对应验证报告。
+在本地信任并安装该配置后，用 `mise run env` 查看工具版本。pnpm 使用 npm 分发后端，兼容缺少 standalone 安装包的 macOS Intel；mise 统一设置工作区缓存，脚本发现依赖漂移时明确报错，由 `mise run install` 使用 frozen lockfile、禁用安装脚本完成更新。`mise run verify` 执行两端类型检查、预编译构建、隔离行为与文案回归及 tarball 检查。`mise run verify:gui` 用系统 Chromium 顺序验收中文与 English 两个独立 Web profile，包含原生语言切换和安装/卸载；新 profile 使用缓存优先的在线安装补齐传递依赖，前提与范围见[客户端接口](docs/client-interface.md)。`mise run verify:platform` 在实际 OS 上通过隔离 composition 验收实现候选并保存源码、文件系统与运行时基线；`mise run verify:linux` 用同版本 Node 容器在独立 Linux 文件系统运行该流程，需要 Docker。candidate 通过不自动扩大生产支持；当前生产矩阵与历史晋级证据见对应验证报告，发布门槛见[分发与发布](docs/release.md)。
 
 仓库使用 `main` 作为默认本地分支。本地 `.local/` 包含调研时提取的安装包快照，并已从 Git 排除；事实和出处记录在研究文档，快照不作为发布依赖。
 

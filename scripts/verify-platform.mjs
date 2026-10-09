@@ -18,10 +18,10 @@ const parent = join(root, '.local', 'platform');
 await mkdir(parent, { recursive: true });
 const scratch = await mkdtemp(join(parent, `${process.platform}-${process.arch}-`));
 
-async function capture(file, args) {
+async function capture(file, args, env = process.env) {
   let stdout = ''; let stderr = '';
   const code = await new Promise((resolve, reject) => {
-    const child = spawn(file, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(file, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
     child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk; });
     child.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
     child.once('error', reject);
@@ -36,7 +36,8 @@ async function filesystemEvidence(path) {
   const stats = await statfs(path, { bigint: true });
   const name = process.platform === 'win32'
     ? await capture('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
-      '[System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($args[0])).DriveFormat', path])
+      '[System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($env:DSH_SESSION_BIN_EVIDENCE_PATH)).DriveFormat'],
+    { ...process.env, DSH_SESSION_BIN_EVIDENCE_PATH: path })
     : process.platform === 'darwin'
       ? await capture('stat', ['-f', '%T', path])
       : await capture('stat', ['-f', '-c', '%T', path]);
