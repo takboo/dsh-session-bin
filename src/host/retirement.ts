@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { entrySchema } from '../operations/schema.js';
 import type { BinEntry } from '../operations/schema.js';
+import type { ArchiveEntry } from '../operations/archive.js';
 import {
   lifecycleEqual, lifecycleKeySchema, preparePurgeRequestSchema, purgePlanSchema, purgeResultSchema,
   retirementBindingSchema, retirementCapabilitiesSchema, retirementManifestSchema, retirementStateSchema,
@@ -11,12 +11,19 @@ import type {
   RetirementCapabilities, RetirementManifest, RetirementRequest, RetirementState, RetirementAuthorization,
 } from '../operations/retirement.js';
 import type { RetirementStore } from './retirement-store.js';
-import { sessionBinRefusal } from './module.js';
+import { sessionBinRefusal, isSessionBinRefusal, SessionBinError } from './module.js';
+
+const ownerRefusals = new WeakSet<Error>();
+export function isRetirementOwnerRefusal(error: unknown): boolean { return error instanceof Error && ownerRefusals.has(error); }
+export function retirementOwnerRefusal(reason: string): Error {
+  const error = new Error(reason); ownerRefusals.add(error); return error;
+}
 
 /** The resource owner implements its own durable admission fence and recovery.
  * This interface is a plugin seam, not a native DSH SDK service. */
 export interface SessionRetirementOwnerV1 {
   capabilities(): Promise<RetirementCapabilities>;
+  eligibility?(sessionId: string): Promise<string | null>;
   inspect(sessionId: string): Promise<LifecycleKey | null>;
   prepare(expected: LifecycleKey): Promise<RetirementManifest>;
   retire(request: RetirementRequest, authorize: () => Promise<RetirementAuthorization>, frozenManifest?: RetirementManifest): Promise<RetirementState>;
@@ -25,13 +32,19 @@ export interface SessionRetirementOwnerV1 {
 }
 export interface RetirementOptions {
   store: RetirementStore;
+  /** False when the composition closes a journal shared by multiple consumers after draining both. */
+  closeStore?: boolean;
   owner?: SessionRetirementOwnerV1;
+  resolveOwner?: () => Promise<SessionRetirementOwnerV1 | undefined>;
   /** Admission is supplied by the Host composition, never by owner self-report or Client Config. */
   verified?: (capabilities: RetirementCapabilities) => boolean;
+  /** Separate qualification for native archive admission and visibility coordination. */
+  verifiedNativeArchive?: (capabilities: RetirementCapabilities) => boolean;
 }
 export interface PurgeHooks {
   newRequestsDisabled?: boolean;
-  entry(sessionId: string): BinEntry | undefined;
+  target?: 'native-archive';
+  entry(sessionId: string): BinEntry | ArchiveEntry | undefined;
   invalidated(entryId: string): boolean;
   archived(sessionId: string): Promise<boolean>;
   activity(sessionId: string): Promise<string[]>;
@@ -62,18 +75,20 @@ export function retirementManifestDigest(input: RetirementManifest): string {
   return createHash('sha256').update(canonical(ordered)).digest('hex');
 }
 function sameBinding(a: RetirementBinding, b: RetirementBinding): boolean {
-  return a.entryId === b.entryId && a.entryVersion === b.entryVersion && lifecycleEqual(a.lifecycle, b.lifecycle)
+  return a.schemaVersion === b.schemaVersion && a.entryId === b.entryId && a.entryVersion === b.entryVersion && lifecycleEqual(a.lifecycle, b.lifecycle)
     && capabilitiesKey(a.capabilities) === capabilitiesKey(b.capabilities);
 }
 function samePlan(a: PurgePlan, b: PurgePlan): boolean {
-  return a.sessionId === b.sessionId && a.expectedEntryId === b.expectedEntryId
+  return a.schemaVersion === b.schemaVersion && a.sessionId === b.sessionId && a.expectedEntryId === b.expectedEntryId
     && (a.binding === null ? b.binding === null : b.binding !== null && sameBinding(a.binding, b.binding))
     && (a.manifest === null ? b.manifest === null : b.manifest !== null && retirementManifestDigest(a.manifest) === retirementManifestDigest(b.manifest));
 }
 function requestFor(plan: PurgePlan): RetirementRequest {
   if (!plan.binding || !plan.manifest) throw new Error('Executable purge lacks its lifecycle witness.');
   return retirementRequestSchema.parse({ operationId: plan.operationId, expected: plan.binding.lifecycle,
-    bin: { entryId: plan.binding.entryId, entryVersion: plan.binding.entryVersion },
+    bin: plan.binding.schemaVersion === 2
+      ? { kind: 'native-archive', entryId: plan.binding.entryId, entryVersion: 2 }
+      : { entryId: plan.binding.entryId, entryVersion: 1 },
     manifestDigest: retirementManifestDigest(plan.manifest) });
 }
 
@@ -88,7 +103,7 @@ async function externalCall<T>(context: string, work: () => Promise<T>): Promise
   try { return await work(); } catch (cause) { throw externalFailure(context, cause); }
 }
 
-/** Inner operations only: SessionBinModule owns the one queue, failure fence and lifetime lease. */
+/** Inner operations only: the owning archive/legacy Module supplies the queue, failure fence and lifetime lease. */
 export class SessionBinPurgeModule {
   private readonly store: RetirementStore;
   constructor(private readonly options: RetirementOptions, private readonly hooks: PurgeHooks) {
@@ -111,10 +126,14 @@ export class SessionBinPurgeModule {
   blocks(sessionId: string): boolean {
     return this.store.operations().some(item => item.plan.sessionId === sessionId && item.phase !== 'done');
   }
+  blocksTarget(sessionId: string): boolean {
+    const version = this.hooks.target === 'native-archive' ? 2 : 1;
+    return this.store.operations().some(item => item.schemaVersion === version && item.plan.sessionId === sessionId && item.phase !== 'done');
+  }
   ownsPendingEntry(entryId: string): boolean {
     return this.store.operations().some(item => item.entry?.entryId === entryId && item.phase !== 'done');
   }
-  close(): Promise<void> { return this.store.close(); }
+  close(): Promise<void> { return this.options.closeStore === false ? Promise.resolve() : this.store.close(); }
 
   async capture(entry: BinEntry): Promise<void> {
     const capabilities = await this.admittedCapabilities();
@@ -138,16 +157,48 @@ export class SessionBinPurgeModule {
 
   async prepare(input: PreparePurgeRequest): Promise<PurgePlan> {
     const request = preparePurgeRequestSchema.parse(input);
+    const version = this.hooks.target === 'native-archive' ? 2 : 1;
     const entry = this.hooks.entry(request.sessionId);
-    const binding = entry ? this.store.binding(entry.entryId) ?? null : null;
-    const plan: PurgePlan = { schemaVersion: 1, action: 'purge', operationId: request.operationId ?? randomUUID(),
+    let binding = entry ? this.store.binding(entry.entryId) ?? null : null;
+    const plan: PurgePlan = { schemaVersion: version, action: 'purge', operationId: request.operationId ?? randomUUID(),
       sessionId: request.sessionId, expectedEntryId: entry?.entryId ?? null, binding, manifest: null, blockers: [] };
+    if (version === 2 && (this.hooks.hasArchiveOperation(plan.operationId) || this.store.operation(plan.operationId))) {
+      throw sessionBinRefusal('bin/operation-id-reused', 'Prepare requires a fresh operation identity.');
+    }
+    try {
+    // Explicit preparation alone may bind an observed native member. Listing,
+    // startup and old Bin migration never mint lifecycle witnesses.
+    if (version === 2 && entry && !binding && !this.blocks(entry.sessionId)
+      && !this.hooks.hasPendingArchiveOperation(entry.sessionId) && !this.hooks.invalidated(entry.entryId)
+      && await this.hooks.archived(entry.sessionId)) {
+      const capabilities = await this.admittedCapabilities();
+      if (capabilities && await this.eligibility(entry.sessionId) === null) {
+        const observed = await this.ownerCall(() => this.options.owner!.inspect(entry.sessionId));
+        if (observed !== null) {
+          binding = retirementBindingSchema.parse({ schemaVersion: 2, target: 'native-archive',
+            entryId: entry.entryId, entryVersion: 2, lifecycle: lifecycleKeySchema.parse(observed), capabilities });
+          if (binding.lifecycle.sessionId !== entry.sessionId) throw new Error('Owner inspection changed the target session.');
+          if (!this.hooks.invalidated(entry.entryId) && this.hooks.entry(entry.sessionId)?.entryId === entry.entryId
+            && await this.hooks.archived(entry.sessionId)) {
+            await this.store.putBinding(binding);
+            plan.binding = binding;
+          }
+        }
+      }
+    }
     const reason = await this.check(plan, false);
     if (reason) plan.blockers.push({ code: reason });
     else {
-      const manifest = retirementManifestSchema.parse(await this.ownerCall(() => this.options.owner!.prepare(lifecycleKeySchema.parse(binding!.lifecycle))));
-      this.validateManifest(binding!, manifest);
+      const manifest = retirementManifestSchema.parse(await this.ownerCall(() => this.options.owner!.prepare(lifecycleKeySchema.parse(plan.binding!.lifecycle))));
+      this.validateManifest(plan.binding!, manifest);
       plan.manifest = manifest;
+      const changed = await this.check(plan, true);
+      if (changed) plan.blockers.push({ code: changed });
+    }
+    } catch (error) {
+      const reason = this.refusalReason(error);
+      if (reason === null) throw error;
+      plan.manifest = null; plan.blockers.push({ code: reason });
     }
     return purgePlanSchema.parse(plan);
   }
@@ -161,16 +212,28 @@ export class SessionBinPurgeModule {
     if (previous) {
       if (!samePlan(previous.plan, plan)) throw sessionBinRefusal('bin/operation-id-reused', 'Purge identity belongs to a different request.');
       if (previous.phase === 'done') return purgeResultSchema.parse(previous.result);
+      if (plan.schemaVersion !== (this.hooks.target === 'native-archive' ? 2 : 1)) {
+        throw sessionBinRefusal('bin/deletion-target-mismatch', 'Pending deletion requires its original target consumer.');
+      }
       return this.recover(previous);
+    }
+    if (plan.schemaVersion !== (this.hooks.target === 'native-archive' ? 2 : 1)) {
+      throw sessionBinRefusal('bin/deletion-target-mismatch', 'Deletion plan belongs to a different target protocol.');
     }
     const current = this.hooks.entry(plan.sessionId);
     const entry = current?.entryId === plan.expectedEntryId ? current : null;
-    const operation: PurgeOperation = { schemaVersion: 1, plan, createdAt: new Date().toISOString(),
+    const operation: PurgeOperation = { schemaVersion: plan.schemaVersion, plan, createdAt: new Date().toISOString(),
       phase: 'intent', entry, authorizationId: null, ownerState: null, result: null };
     if ((current?.entryId ?? null) !== plan.expectedEntryId) return this.finish(operation, 'conflict', 'entry-changed');
     const reason = await this.check(plan, true);
     if (reason) return this.finish(operation, 'rejected', reason);
-    const fresh = retirementManifestSchema.parse(await this.ownerCall(() => this.options.owner!.prepare(lifecycleKeySchema.parse(plan.binding!.lifecycle))));
+    let fresh: RetirementManifest;
+    try { fresh = retirementManifestSchema.parse(await this.ownerCall(() => this.options.owner!.prepare(lifecycleKeySchema.parse(plan.binding!.lifecycle)))); }
+    catch (error) {
+      const refusal = this.refusalReason(error);
+      if (refusal === null) throw error;
+      return this.finish(operation, 'rejected', refusal);
+    }
     this.validateManifest(plan.binding!, fresh);
     if (retirementManifestDigest(fresh) !== retirementManifestDigest(plan.manifest!)) {
       return this.finish(operation, 'conflict', 'resource-scope-changed');
@@ -243,6 +306,7 @@ export class SessionBinPurgeModule {
   async reconcile(resume = false): Promise<PurgeReconcileReport> {
     const report: PurgeReconcileReport = { completed: [], pending: [] };
     for (const operation of this.store.operations()) {
+      if (operation.schemaVersion !== (this.hooks.target === 'native-archive' ? 2 : 1)) continue;
       if (operation.phase === 'done') continue;
       const result = await this.recover(operation, resume);
       if (['success', 'rejected', 'conflict'].includes(result.status)) report.completed.push(result);
@@ -250,22 +314,46 @@ export class SessionBinPurgeModule {
     }
     return report;
   }
-  private ownerCall<T>(work: () => Promise<T>): Promise<T> {
-    return externalCall('Retirement resource owner failed', work);
+  private async ownerCall<T>(work: () => Promise<T>): Promise<T> {
+    try { return await work(); }
+    catch (cause) {
+      if (cause instanceof Error && ownerRefusals.has(cause)) throw sessionBinRefusal('bin/retirement-refused', cause.message);
+      throw externalFailure('Retirement resource owner failed', cause);
+    }
+  }
+  private refusalReason(error: unknown): string | null {
+    return error instanceof SessionBinError && isSessionBinRefusal(error) && error.code === 'bin/retirement-refused' ? error.message : null;
+  }
+  private async eligibility(sessionId: string): Promise<string | null> {
+    const owner = this.options.owner;
+    if (!owner?.eligibility) return null;
+    const reason = await this.ownerCall(() => owner.eligibility!(sessionId));
+    if (reason !== null && (typeof reason !== 'string' || !reason.length || reason.length > 1024)) {
+      throw new Error('Resource owner returned an invalid eligibility refusal.');
+    }
+    return reason;
   }
   private async admittedCapabilities(): Promise<RetirementCapabilities | null> {
+    if (!this.options.owner && this.options.resolveOwner) {
+      const resolved = await this.ownerCall(() => this.options.resolveOwner!());
+      if (resolved) this.options.owner = resolved;
+    }
     if (!this.options.owner) return null;
     const capabilities = retirementCapabilitiesSchema.parse(await this.ownerCall(() => this.options.owner!.capabilities()));
     return this.options.verified?.(retirementCapabilitiesSchema.parse(capabilities)) === true ? capabilities : null;
   }
   private async check(plan: PurgePlan, requireManifest: boolean, authorizing = false): Promise<string | null> {
+    try { return await this.checkInner(plan, requireManifest, authorizing); }
+    catch (error) { const reason = this.refusalReason(error); if (reason !== null) return reason; throw error; }
+  }
+  private async checkInner(plan: PurgePlan, requireManifest: boolean, authorizing = false): Promise<string | null> {
     if (this.hooks.newRequestsDisabled) {
       if (this.store.operations().some(item => item.phase !== 'done' && item.plan.sessionId === plan.sessionId
         && item.plan.operationId !== plan.operationId)) return 'pending-deletion';
       return await this.hooks.archived(plan.sessionId) ? 'permanent-deletion-unsupported' : 'not-archived';
     }
     const entry = this.hooks.entry(plan.sessionId);
-    if (!entry) return 'not-in-bin';
+    if (!entry) return this.hooks.target === 'native-archive' ? 'not-archived' : 'not-in-bin';
     if (entry.entryId !== plan.expectedEntryId) return 'entry-changed';
     if (this.hooks.invalidated(entry.entryId) || !(await this.hooks.archived(plan.sessionId))) return 'archive-changed';
     if (this.hooks.hasPendingArchiveOperation(plan.sessionId)) return 'pending-operation';
@@ -273,9 +361,12 @@ export class SessionBinPurgeModule {
       && item.plan.sessionId === plan.sessionId && item.plan.operationId !== plan.operationId)) return 'pending-deletion';
     const capabilities = await this.admittedCapabilities();
     if (!capabilities) return 'permanent-deletion-unsupported';
+    const eligibility = await this.eligibility(plan.sessionId);
+    if (eligibility !== null) return eligibility;
     const binding = this.store.binding(entry.entryId);
     if (!binding || !plan.binding) return 'lifecycle-unbound';
-    if (!sameBinding(binding, plan.binding) || capabilitiesKey(capabilities) !== capabilitiesKey(binding.capabilities)) return 'lifecycle-changed';
+    if (entry.schemaVersion !== plan.schemaVersion || binding.schemaVersion !== plan.schemaVersion
+      || !sameBinding(binding, plan.binding) || capabilitiesKey(capabilities) !== capabilitiesKey(binding.capabilities)) return 'lifecycle-changed';
     const observed = await this.ownerCall(() => this.options.owner!.inspect(plan.sessionId));
     if (observed === null || !lifecycleEqual(binding.lifecycle, lifecycleKeySchema.parse(observed))) return 'lifecycle-changed';
     if ((await this.hooks.activity(plan.sessionId)).length) return 'session-active';

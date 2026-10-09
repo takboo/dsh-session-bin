@@ -146,6 +146,10 @@ export class RetirementOwnerCoordinator implements SessionRetirementOwnerV1 {
       }
     })();
   }
+  ownsCurrentMaintenanceFrame(): boolean {
+    const frame = this.frames.getStore(); return frame !== undefined && this.activeFrames.has(frame);
+  }
+  isRefusal(error: unknown): boolean { return error instanceof Error && this.expectedErrors.has(error); }
   capabilities(): Promise<RetirementCapabilities> {
     this.requireControlReady();
     return Promise.resolve(this.capabilitiesSnapshot());

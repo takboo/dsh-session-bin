@@ -8,6 +8,7 @@ import { SessionId } from '@deepseek-ai/dsh-session';
 import * as bin from '../dist/index.js';
 import { createScratch, transcript, accounting } from './helpers/fixture.mjs';
 import { latch, openRetirementFixture, override } from './helpers/retirement-owner.mjs';
+import { assertCrashExit } from './helpers/platform-fixture.mjs';
 
 const workerPath = new URL('./helpers/retirement-worker.mjs', import.meta.url);
 const clone = value => structuredClone(value);
@@ -57,8 +58,7 @@ async function killAt(root, checkpoint, plan) {
   try {
     const [code, signal] = await once(worker, 'exit');
     assert.equal(timedOut, false, stderr);
-    assert.equal(code, null, stderr);
-    assert.equal(signal, 'SIGKILL', stderr);
+    assertCrashExit(root, checkpoint, code, signal, stderr);
     assert.deepEqual(sent, plan);
   } finally {
     clearTimeout(timeout);

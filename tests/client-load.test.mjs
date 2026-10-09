@@ -35,7 +35,7 @@ const menuSeat = 'sidebar.workspaces.session.menu.item';
 async function nativeSeed(context, seed) {
   const result = await build({
     absWorkingDir: workspaceRoot,
-    stdin: { contents: `export { IconTrashOutlineRegular, IconRefreshOutlineRegular, Button, Input, Checkbox, Toast } from '${PRIMITIVES}';`,
+    stdin: { contents: `export { IconTrashOutlineRegular, IconRefreshOutlineRegular, Button, Input, Checkbox, Toast, Modal } from '${PRIMITIVES}';`,
       resolveDir: workspaceRoot, sourcefile: 'artifact-platform-primitives.js' },
     bundle: true, write: false, format: 'cjs', platform: 'browser', target: 'es2022',
     external: Object.keys(seed),
@@ -90,7 +90,7 @@ test('the built lazy Client factory registers real components and cleans up ever
       const context = dom.getInternalVMContext();
       // The native browser uses one AbortSignal realm. Keep the in-process
       // Node carrier and this temporary DOM on the same signal constructor.
-      Object.assign(dom.window, { AbortController, AbortSignal, TextEncoder, TextDecoder });
+      Object.assign(dom.window, { AbortController, AbortSignal, TextEncoder, TextDecoder, structuredClone });
       Object.defineProperty(dom.window, 'crypto', { configurable: true, value: webcrypto });
       assert.equal(dom.window.React, undefined, 'do not supply a global that hides classic JSX mistakes');
       const run = (code, filename) => new vm.Script(code, { filename }).runInContext(context);

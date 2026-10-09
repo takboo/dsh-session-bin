@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { fork, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { access, mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
+import { access, lstat, mkdir, mkdtemp, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -11,11 +11,16 @@ import * as storageJson from '@deepseek-ai/dsh-storage-json';
 import * as storageDomain from '@deepseek-ai/dsh-storage-domain';
 import { SessionStore, SessionId } from '@deepseek-ai/dsh-session';
 import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
-import { WorkspaceRegistry } from '@deepseek-ai/dsh-workspace';
+import { WorkspaceRegistry, workspaceDomainSpec, workspaceDomainState, workspaceRecord } from '@deepseek-ai/dsh-workspace';
 import { chromium } from 'playwright-core';
+import { nativePlatformVerified, windowsSemaphoreName } from '../dist/index.js';
+import { discoverBrowserExecutable } from './browser-executable.mjs';
+import { shutdownMessage } from './gui-host-worker.mjs';
+import { configuredPackageManager } from './package-manager.mjs';
 
 const require = createRequire(import.meta.url);
 const workspace = fileURLToPath(new URL('../', import.meta.url));
+const guiHostWorker = fileURLToPath(new URL('./gui-host-worker.mjs', import.meta.url));
 const expectedSdk = '0.2.0-rc.2';
 const fixtures = [
   { id: 'gui-quiet', title: '待整理的设计讨论', workspace: 'primary' },
@@ -33,33 +38,49 @@ const copy = {
   zh: {
     panel: '会话回收站', archive: '归档会话', nativeUnarchive: '取消归档', restore: '取消归档', undo: '撤销', search: '搜索归档',
     workspace: '工作区筛选', restoreSelected: '取消归档所选', refresh: '刷新', clearSelection: '取消选择',
-    description: '直接管理 Harness 原生归档，支持搜索、筛选与批量取消归档。', allWorkspaces: '所有工作区', ungrouped: '未分组',
+    description: '管理原生归档，支持搜索、筛选、取消归档与明确确认的永久删除。', allWorkspaces: '所有工作区', ungrouped: '未分组',
     empty: '没有已归档的会话', emptyHint: '通过会话菜单中的原生归档将会话收起。',
     noMatches: '没有匹配的会话', noMatchesHint: '试试其他关键词或工作区。',
     selectAll: '选择当前显示的会话', entries: '已归档的会话',
-    restored: '会话已取消归档',
+    restored: '会话已取消归档', deleted: '会话已永久删除',
+    deleteAction: title => `永久删除${title}`, deleteTitle: title => `永久删除“${title}”？`,
+    deleteAck: '我理解删除后无法恢复这个会话。', deleteConfirm: '确认永久删除', deleteCancel: '取消',
+    deletionUnsupported: '当前宿主与存储组合暂不支持永久删除。',
+    clearAllArchived: count => `清空全部归档（${count}）`, deleteSelected: '永久删除所选',
+    batchSelectionTitle: count => `永久删除所选的 ${count} 个会话？`, batchAllTitle: count => `清空全部 ${count} 个归档会话？`,
+    batchSummary: (total, executable, blocked) => `固定 ${total} 项 · 可执行 ${executable} 项 · 阻止 ${blocked} 项`,
+    batchItems: '固定删除对象', batchAck: '我理解可执行的会话删除后无法恢复。', batchConfirm: '删除可执行会话',
+    batchCancelled: '批量删除已停止', batchDone: '批量删除已完成', dismissBatch: '关闭批次结果',
     count: count => `${count} 个会话`, selected: count => `已选 ${count} 项`, select: title => `选择 ${title}`,
     viewOptions: '视图选项', showArchived: '全部对话（显示已归档）', flat: '单列表',
     preview: '预览版说明', continue: '继续', keySetup: '添加一个 API Key 开始使用', configureLater: '稍后配置',
     settings: '设置', general: '通用设置', settingsClose: '关闭', languageLabel: '中文', htmlLanguage: 'zh-CN',
     plugins: '插件', openDetail: title => `查看 ${title}`,
-    packageDescription: '直接管理 Harness 原生归档，支持搜索、筛选与批量取消归档。',
+    packageDescription: '管理原生归档，支持搜索、筛选、取消归档与明确确认的永久删除。',
   },
   en: {
     panel: 'Session Bin', archive: 'Archive session', nativeUnarchive: 'Unarchive session', restore: 'Unarchive', undo: 'undo', search: 'Search archives',
     workspace: 'Workspace filter', restoreSelected: 'Unarchive selected', refresh: 'Refresh', clearSelection: 'Clear selection',
-    description: 'Manage Harness native archives with search, filters, and batch unarchive.', allWorkspaces: 'All workspaces', ungrouped: 'Ungrouped',
+    description: 'Manage native archives with search, filters, unarchive, and explicit permanent deletion.', allWorkspaces: 'All workspaces', ungrouped: 'Ungrouped',
     empty: 'No archived conversations', emptyHint: 'Use Archive in the conversation menu to collect conversations here.',
     noMatches: 'No matching conversations', noMatchesHint: 'Try another search or workspace.',
     selectAll: 'Select visible conversations', entries: 'Archived conversations',
-    restored: 'Conversation unarchived',
+    restored: 'Conversation unarchived', deleted: 'Conversation permanently deleted',
+    deleteAction: title => `Permanently delete ${title}`, deleteTitle: title => `Permanently delete “${title}”?`,
+    deleteAck: 'I understand that this conversation cannot be restored.', deleteConfirm: 'Delete permanently', deleteCancel: 'Cancel',
+    deletionUnsupported: 'Permanent deletion is not supported by this Host and storage combination.',
+    clearAllArchived: count => `Clear all archived (${count})`, deleteSelected: 'Permanently delete selected',
+    batchSelectionTitle: count => `Permanently delete ${count} selected conversations?`, batchAllTitle: count => `Clear all ${count} archived conversations?`,
+    batchSummary: (total, executable, blocked) => `${total} fixed · ${executable} executable · ${blocked} blocked`,
+    batchItems: 'Fixed deletion targets', batchAck: 'I understand that executable conversations cannot be restored.', batchConfirm: 'Delete executable conversations',
+    batchCancelled: 'Batch deletion stopped', batchDone: 'Batch deletion complete', dismissBatch: 'Dismiss batch results',
     count: count => `${count} ${count === 1 ? 'conversation' : 'conversations'}`,
     selected: count => `${count} selected`, select: title => `Select ${title}`,
     viewOptions: 'View options', showArchived: 'All conversations (show archived)', flat: 'In one list',
     preview: 'Preview Notice', continue: 'Continue', keySetup: 'Add an API key to get started', configureLater: 'Configure later',
     settings: 'Settings', general: 'General', settingsClose: 'Close', languageLabel: 'English', htmlLanguage: 'en',
     plugins: 'Plugins', openDetail: title => `View ${title}`,
-    packageDescription: 'Manage Harness native archives with search, filters, and batch unarchive.',
+    packageDescription: 'Manage native archives with search, filters, unarchive, and explicit permanent deletion.',
   },
 };
 let language = requestedLanguage;
@@ -69,10 +90,42 @@ const menuItem = (root, name) => root.getByRole('menuitem', { name, exact: true 
 const textbox = (root, name) => root.getByRole('textbox', { name, exact: true });
 const text = (root, value) => root.getByText(value, { exact: true });
 const children = new Set();
+const guiHostWorkers = new WeakSet();
+const guiHostWorkerState = new WeakMap();
+const stoppingChildren = new WeakMap();
 const cancellation = new AbortController();
 let browserContext;
 let scratch;
 let activeHost;
+const diagnosticTasks = new Set();
+function observePage(page, report, stage) {
+  page.on('pageerror', error => report.pageErrors.push(`${stage}: ${redact(error.message)}`));
+  page.on('console', message => {
+    if (message.type() !== 'error' && message.type() !== 'warning') return;
+    report.browserConsole.push(`${stage}: ${redact(message.text())}`);
+    if (report.browserConsole.length > 100) report.browserConsole.shift();
+    const task = Promise.all(message.args().map(argument => argument.evaluate(value => {
+      const seen = new Set();
+      const copy = (item, depth = 0) => {
+        if (item === null || typeof item !== 'object') return typeof item === 'function' ? '[function]' : item;
+        if (seen.has(item) || depth > 5) return '[truncated]';
+        seen.add(item);
+        if (Array.isArray(item)) return item.slice(0, 20).map(child => copy(child, depth + 1));
+        const result = {};
+        const keys = new Set(['name', 'message', 'stack', 'code', 'cause', 'errors', 'failures', 'details', 'entries', 'id', 'status', 'type', ...Object.getOwnPropertyNames(item)]);
+        const excluded = new Set(['ctx', 'context', 'fiber', 'parent', 'runtime', 'store', 'config', 'configuration']);
+        for (const key of [...keys].filter(key => !excluded.has(key)).slice(0, 24)) {
+          try { if (item[key] !== undefined) result[key] = copy(item[key], depth + 1); } catch {}
+        }
+        return result;
+      };
+      return copy(value);
+    }))).then(details => report.browserConsoleDetails.push({ stage, details: JSON.parse(redact(JSON.stringify(details))) })).catch(() => {});
+    diagnosticTasks.add(task);
+    void task.finally(() => diagnosticTasks.delete(task));
+  });
+}
+async function drainDiagnostics() { while (diagnosticTasks.size) await Promise.allSettled([...diagnosticTasks]); }
 
 // Readiness URLs are consumed privately. Diagnostics and saved reports must not
 // expose the process token, browser cookies, or credentials.
@@ -107,31 +160,124 @@ function managedSpawn(command, args, options) {
   child.once('close', () => children.delete(child));
   return child;
 }
+function managedGuiHostWorker(cli, args, options) {
+  cancellation.signal.throwIfAborted();
+  const child = fork(guiHostWorker, [cli, ...args], {
+    ...options, detached: false, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+  });
+  const state = { cliReturned: false, delivered: false, listeners: 0, error: null };
+  guiHostWorkers.add(child);
+  guiHostWorkerState.set(child, state);
+  child.on('message', message => {
+    if (message?.type === 'dsh-gui-host-cli-returned') state.cliReturned = true;
+    if (message?.type === 'dsh-gui-host-shutdown-delivered') {
+      state.delivered = true;
+      state.listeners = message.listeners;
+    }
+    if (message?.type === 'dsh-gui-host-shutdown-error') state.error = { type: message.type, reason: message.reason };
+    if (message?.type === 'dsh-gui-host-worker-error') state.error = { type: message.type, error: redact(message.error) };
+  });
+  children.add(child);
+  child.once('close', () => children.delete(child));
+  return child;
+}
+const COMMAND_OUTPUT_DRAIN_MS = 2000;
 function exited(child) {
   if (child.exitCode !== null || child.signalCode !== null) {
     return Promise.resolve({ code: child.exitCode, signal: child.signalCode });
   }
   return new Promise((resolve, reject) => {
-    child.once('error', reject);
-    child.once('close', (code, signal) => resolve({ code, signal }));
+    const cleanup = () => {
+      child.off('error', onError);
+      child.off('exit', onExit);
+    };
+    const onError = error => { cleanup(); reject(error); };
+    const onExit = (code, signal) => { cleanup(); resolve({ code, signal }); };
+    child.once('error', onError);
+    child.once('exit', onExit);
   });
 }
-async function stopChild(child) {
-  if (!child) return { code: null, signal: null, forced: false };
-  if (child.exitCode !== null || child.signalCode !== null) {
-    return { code: child.exitCode, signal: child.signalCode, forced: false };
-  }
-  const exit = exited(child);
-  signalChild(child, 'SIGTERM');
+function streamDrained(stream) {
+  if (!stream || stream.readableEnded || stream.closed || stream.destroyed) return Promise.resolve();
+  return new Promise(resolve => {
+    const cleanup = () => {
+      stream.off('end', finish);
+      stream.off('close', finish);
+      stream.off('error', finish);
+    };
+    const finish = () => { cleanup(); resolve(); };
+    stream.once('end', finish);
+    stream.once('close', finish);
+    stream.once('error', finish);
+  });
+}
+async function drainChildOutput(child, timeout = COMMAND_OUTPUT_DRAIN_MS) {
+  const streams = [child.stdout, child.stderr].filter(Boolean);
+  if (streams.length === 0) return;
+  const drains = streams.map(streamDrained);
   let timer;
-  const result = await Promise.race([
-    exit,
-    new Promise(resolve => { timer = setTimeout(() => resolve(null), 8000); }),
+  const drained = await Promise.race([
+    Promise.allSettled(drains).then(() => true),
+    new Promise(resolve => { timer = setTimeout(() => resolve(false), timeout); }),
   ]);
   clearTimeout(timer);
-  if (result) return { ...result, forced: false };
-  signalChild(child, 'SIGKILL');
-  return { ...await exit, forced: true };
+  if (drained) return;
+  for (const stream of streams) stream.destroy();
+  let closeTimer;
+  await Promise.race([
+    Promise.allSettled(drains),
+    new Promise(resolve => { closeTimer = setTimeout(resolve, 1000); }),
+  ]);
+  clearTimeout(closeTimer);
+}
+function stopChild(child) {
+  if (!child) return Promise.resolve({ code: null, signal: null, forced: false, delivery: 'none' });
+  const existing = stoppingChildren.get(child);
+  if (existing) return existing;
+  const stopping = (async () => {
+    const worker = process.platform === 'win32' && guiHostWorkers.has(child);
+    const delivery = worker ? 'ipc-to-sdk-sigterm-handler' : 'os-sigterm';
+    if (child.exitCode !== null || child.signalCode !== null) {
+      await drainChildOutput(child);
+      return { code: child.exitCode, signal: child.signalCode, forced: false, delivery };
+    }
+    const exit = exited(child);
+    if (worker) {
+      if (child.connected) child.send(shutdownMessage);
+    } else {
+      signalChild(child, 'SIGTERM');
+    }
+    let timer;
+    const result = await Promise.race([
+      exit,
+      new Promise(resolve => { timer = setTimeout(() => resolve(null), 8000); }),
+    ]);
+    clearTimeout(timer);
+    if (result) {
+      await drainChildOutput(child);
+      const state = guiHostWorkerState.get(child);
+      return { ...result, forced: false, delivery, ...(state ? { worker: { ...state } } : {}) };
+    }
+    signalChild(child, 'SIGKILL');
+    const forced = await exit;
+    await drainChildOutput(child);
+    return { ...forced, forced: true, delivery, ...(guiHostWorkerState.has(child) ? { worker: { ...guiHostWorkerState.get(child) } } : {}) };
+  })();
+  stoppingChildren.set(child, stopping);
+  return stopping;
+}
+function recordHostShutdown(status, report, stage) {
+  assert.equal(status.forced, false, 'Normal GUI verification must allow graceful Host disposal');
+  assert.equal(status.code, 0, 'The public CLI shutdown handler must complete successfully');
+  if (process.platform === 'win32') {
+    assert.equal(status.delivery, 'ipc-to-sdk-sigterm-handler');
+    assert.equal(status.worker?.delivered, true, 'Windows worker must deliver shutdown inside the child process');
+    assert(status.worker.listeners >= 1, 'Windows worker must observe the SDK SIGTERM handler before delivery');
+    assert.equal(status.worker.error, null);
+  } else {
+    assert.equal(status.delivery, 'os-sigterm', 'POSIX Host shutdown uses an OS signal to the isolated process group');
+  }
+  report.hostShutdown.push({ stage, ...status });
 }
 async function runCommand(command, args, options, label, timeout = 180000) {
   const child = managedSpawn(command, args, options);
@@ -140,24 +286,31 @@ async function runCommand(command, args, options, label, timeout = 180000) {
   const limit = 1024 * 1024;
   child.stdout.setEncoding('utf8').on('data', chunk => { output = (output + chunk).slice(-limit); });
   child.stderr.setEncoding('utf8').on('data', chunk => { errors = (errors + chunk).slice(-limit); });
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    void stopChild(child).catch(error => { console.error(redact(error.message)); });
-  }, timeout);
+  let timer;
   try {
-    const status = await exited(child);
-    if (timedOut || status.code !== 0) {
-      throw new Error(`${label} failed (${timedOut ? 'timeout' : `exit ${status.code}, signal ${status.signal}`}):\n${redact(errors || output)}`);
+    const status = await Promise.race([
+      exited(child),
+      new Promise(resolve => { timer = setTimeout(() => resolve(null), timeout); }),
+    ]);
+    clearTimeout(timer);
+    if (status === null) {
+      await stopChild(child);
+      throw new Error(`${label} failed (timeout):\n${redact(errors || output)}`);
+    }
+    await drainChildOutput(child);
+    if (status.code !== 0) {
+      throw new Error(`${label} failed (exit ${status.code}, signal ${status.signal}):\n${redact(errors || output)}`);
     }
     return { stdout: output, stderr: errors };
   } finally { clearTimeout(timer); await stopChild(child); }
 }
 async function startHost(cli, environment, cwd, logName) {
-  const child = managedSpawn(process.execPath, [cli, 'web', '--no-open', '--host', '127.0.0.1', '--port', '0'], {
-    cwd, env: environment,
-  });
-  const host = { child, authenticatedUrl: undefined, cleanUrl: undefined, log: '', logName };
+  const args = ['web', '--no-open', '--host', '127.0.0.1', '--port', '0'];
+  const child = process.platform === 'win32'
+    ? managedGuiHostWorker(cli, args, { cwd, env: environment })
+    : managedSpawn(process.execPath, [cli, ...args], { cwd, env: environment });
+  const host = { child, authenticatedUrl: undefined, cleanUrl: undefined, log: '', logName,
+    shutdownDelivery: process.platform === 'win32' ? 'IPC delivered inside worker to SDK SIGTERM handler' : 'POSIX SIGTERM to isolated process group' };
   activeHost = host;
   let partial = '';
   let settled = false;
@@ -270,15 +423,132 @@ async function openSdkFixture(paths, seed = false) {
     return { ctx, close };
   } catch (error) { await close(); throw error; }
 }
-async function readLogs(fixture) {
+async function readLogs(fixture, excluded = []) {
   const logs = {};
-  for (const item of fixtures) {
+  for (const item of fixtures.filter(item => !excluded.includes(item.id))) {
     const handle = await fixture.ctx.sessionPersistence.open(SessionId(item.id), 'read');
     try { logs[item.id] = structuredClone(await handle.read()); }
     finally { await handle.close(); }
   }
   return logs;
 }
+async function physicalLogs(fixture, paths) {
+  const root = await realpath(paths.sessions);
+  const result = {};
+  for (const item of fixtures) {
+    const handle = await fixture.ctx.sessionPersistence.open(SessionId(item.id), 'read');
+    let location;
+    try { location = fixture.ctx.sessionPersistence.locate(handle.header); }
+    finally { await handle.close(); }
+    assert.equal(location.kind, 'jsonl');
+    const canonicalArtifact = await realpath(location.path);
+    const directory = await realpath(dirname(canonicalArtifact));
+    ownsPath(root, directory);
+    const directoryIdentity = await lstat(directory);
+    const members = await readdir(directory, { withFileTypes: true });
+    assert(members.every(member => member.isFile() && !member.isSymbolicLink()), 'GUI seed owns only regular JSONL artifacts and any POSIX stable lock');
+    const lock = join(directory, 'session.lock');
+    let coordination;
+    if (process.platform === 'win32') {
+      assert(!members.some(member => member.name === 'session.lock'), 'The audited Windows JSONL writer uses no session.lock file');
+      coordination = { kind: 'win32-semaphore', name: windowsSemaphoreName(lock, 'session'), lockPath: lock };
+    } else {
+      const identity = await lstat(lock);
+      assert(identity.isFile() && !identity.isSymbolicLink(), 'The POSIX writer lock must be a regular file');
+      coordination = { kind: 'posix-lock-inode', path: lock,
+        identity: { device: String(identity.dev), inode: String(identity.ino) } };
+    }
+    const files = [];
+    for (const member of members.filter(member => process.platform === 'win32' || member.name !== 'session.lock').sort((a, b) => a.name.localeCompare(b.name))) {
+      const path = join(directory, member.name);
+      files.push({ path, name: member.name, sha256: createHash('sha256').update(await readFile(path)).digest('hex') });
+    }
+    assert(files.some(file => file.path === canonicalArtifact), 'Current seeded diagnostic artifact must physically exist');
+    result[item.id] = { directory, directoryIdentity: { device: String(directoryIdentity.dev), inode: String(directoryIdentity.ino) }, files, coordination };
+  }
+  return result;
+}
+async function assertCoordinationIdentity(saved) {
+  if (saved.coordination.kind === 'win32-semaphore') {
+    await assert.rejects(access(saved.coordination.lockPath), error => error.code === 'ENOENT', 'Windows JSONL coordination must not gain a lock file');
+    assert.equal(saved.coordination.name, windowsSemaphoreName(saved.coordination.lockPath, 'session'), 'Windows evidence must use the SDK writer semaphore path rule');
+    return saved.coordination;
+  }
+  const identity = await lstat(saved.coordination.path);
+  assert(identity.isFile() && !identity.isSymbolicLink(), 'Stable POSIX writer lock must remain a regular file');
+  assert.deepEqual({ device: String(identity.dev), inode: String(identity.ino) }, saved.coordination.identity,
+    'Permanent deletion must not replace or unlink the POSIX lock inode');
+  return saved.coordination;
+}
+async function assertSavedTranscriptSha(saved, message = 'Unselected transcript bytes remain unchanged') {
+  for (const file of saved.files) {
+    assert.equal(createHash('sha256').update(await readFile(file.path)).digest('hex'), file.sha256, message);
+  }
+}
+async function assertPhysicalDeletion(before, deletedSessionIds, report) {
+  const deleted = new Set(deletedSessionIds);
+  assert(deleted.size > 0 && [...deleted].every(id => fixtures.some(item => item.id === id)),
+    'Deletion result must be the exact non-empty set of explicitly selected GUI fixtures');
+  const evidence = [];
+  for (const item of fixtures) {
+    const saved = before[item.id];
+    const directory = await lstat(saved.directory);
+    assert(directory.isDirectory(), 'Permanent deletion must preserve the stable session directory');
+    assert.deepEqual({ device: String(directory.dev), inode: String(directory.ino) }, saved.directoryIdentity, 'Session directory identity must remain stable');
+    const coordination = await assertCoordinationIdentity(saved);
+    for (const file of saved.files) {
+      if (deleted.has(item.id)) await assert.rejects(access(file.path), error => error.code === 'ENOENT', 'Selected transcript bytes must physically disappear');
+      else assert.equal(createHash('sha256').update(await readFile(file.path)).digest('hex'), file.sha256, 'Unselected transcript bytes remain unchanged');
+    }
+    if (deleted.has(item.id)) {
+      assert.deepEqual((await readdir(saved.directory)).sort(), process.platform === 'win32' ? [] : ['session.lock'],
+        'No transcript or unexpected successor survives selected deletion');
+    }
+    evidence.push({ sessionId: item.id, transcript: deleted.has(item.id) ? 'physically absent' : 'unchanged SHA-256',
+      artifacts: saved.files.length, stableDirectory: true, coordination });
+  }
+  report.physicalDeletion = evidence;
+}
+async function assertPhysicalPreservation(before, report) {
+  const evidence = [];
+  for (const item of fixtures) {
+    const saved = before[item.id];
+    const directory = await lstat(saved.directory);
+    assert(directory.isDirectory());
+    assert.deepEqual({ device: String(directory.dev), inode: String(directory.ino) }, saved.directoryIdentity);
+    const coordination = await assertCoordinationIdentity(saved);
+    const expectedMembers = [...saved.files.map(file => file.name), ...(saved.coordination.kind === 'posix-lock-inode' ? ['session.lock'] : [])].sort();
+    assert.deepEqual((await readdir(saved.directory)).sort(), expectedMembers,
+      'Unsupported deletion and unarchive must neither remove nor publish physical artifacts');
+    for (const file of saved.files) {
+      assert.equal(createHash('sha256').update(await readFile(file.path)).digest('hex'), file.sha256,
+        'An unsupported deletion attempt and later unarchive must preserve every transcript byte');
+    }
+    evidence.push({ sessionId: item.id, transcript: 'unchanged SHA-256', artifacts: saved.files.length,
+      stableDirectory: true, coordination });
+  }
+  report.physicalPreservation = evidence;
+}
+function workspaceMembership(fixture) {
+  return fixture.ctx.workspaceRegistry.list().map(workspace => ({ workspaceId: workspace.id, sessionIds: [...workspace.sessionIds] }));
+}
+
+async function readWorkspaceMembership(paths) {
+  const ctx = new Context();
+  let unit;
+  try {
+    await ctx.plugin(Storage);
+    await ctx.plugin(storageJson, { root: paths.storages });
+    unit = await ctx.storage.backend.get('json').kv.open({ name: workspaceDomainSpec.name, version: workspaceDomainSpec.version,
+      tables: Object.keys(workspaceDomainSpec.tables), hasGlobal: true, layout: 'single' });
+    const snapshot = await unit.loadAll(); // No Domain initialization, Registry, SessionStore, write, or Agent activation.
+    const state = workspaceDomainState.parse(snapshot.global);
+    assert(state.initialized && state.pendingMutation === undefined, 'Workspace snapshot must be committed and initialized');
+    return state.workspaceIds.map(workspaceId => ({ workspaceId,
+      sessionIds: [...workspaceRecord.parse(snapshot.tables.workspaces[workspaceId]).sessionIds] }));
+  } finally { try { await unit?.close(); } finally { await ctx.fiber.dispose(); } }
+}
+
 async function eventually(assertion, description, timeout = 15000) {
   const until = Date.now() + timeout;
   let last;
@@ -331,10 +601,10 @@ async function panel(page) {
   return page.getByRole('region', { name: ui.panel, exact: true });
 }
 async function panelCount(root, count) {
-  await eventually(async () => assert.equal(await root.getByRole('listitem').count(), count), 'Bin row count');
+  await eventually(async () => assert.equal(await root.getByRole('list', { name: ui.entries, exact: true }).getByRole('listitem').count(), count), 'Bin row count');
 }
 function panelEntry(root, title) {
-  return root.getByRole('listitem').filter({ has: root.page().getByText(title, { exact: true }) });
+  return root.getByRole('list', { name: ui.entries, exact: true }).getByRole('listitem').filter({ has: root.page().getByText(title, { exact: true }) });
 }
 async function screenshot(page, paths, name) {
   const path = join(paths.artifacts, `${name}-${language}.png`);
@@ -364,6 +634,9 @@ async function assertPanelCopy(page, count, { visibleCount = count, selectedCoun
   assert.equal(await textbox(root, ui.search).inputValue(), draft, 'Language changes must not replace the search draft');
   assert.equal(await textbox(root, ui.search).getAttribute('placeholder'), ui.search);
   await button(root, ui.refresh).waitFor({ state: 'visible' });
+  const clearAll = button(root, ui.clearAllArchived(count));
+  await clearAll.waitFor({ state: 'visible' });
+  assert.equal(await clearAll.isEnabled(), count > 0, 'Clear-all availability follows the complete archive collection');
   const filter = root.getByRole('combobox', { name: ui.workspace, exact: true });
   assert.equal(await filter.locator('option').first().textContent(), ui.allWorkspaces);
   assert.equal(await filter.locator('option').last().textContent(), ui.ungrouped);
@@ -385,6 +658,7 @@ async function assertPanelCopy(page, count, { visibleCount = count, selectedCoun
   if (selectedCount) {
     await text(root, ui.selected(selectedCount)).waitFor({ state: 'visible' });
     await button(root, ui.clearSelection).waitFor({ state: 'visible' });
+    await button(root, ui.deleteSelected).waitFor({ state: 'visible' });
     await button(root, ui.restoreSelected).waitFor({ state: 'visible' });
   } else {
     assert.equal(await button(root, ui.clearSelection).count(), 0);
@@ -435,7 +709,107 @@ async function assertNarrowLayout(page, root, report) {
   const restore = layout.controls.find(control => control.label === ui.restoreSelected);
   assert(restore && restore.y >= 0 && restore.bottom <= layout.viewport.height + 1, 'Batch restore must remain visible in the narrow viewport');
 }
-async function runGui(page, paths, report) {
+function purgePlanSummary(plan) {
+  const binding = plan?.binding;
+  const manifest = plan?.manifest;
+  const blockers = Array.isArray(plan?.blockers) ? plan.blockers.map(blocker => blocker.code) : [];
+  const base = plan?.schemaVersion === 2 && plan?.action === 'purge' && typeof plan?.operationId === 'string'
+    && plan.operationId.length > 0 && typeof plan?.sessionId === 'string' && plan.sessionId.length > 0
+    && typeof plan?.expectedEntryId === 'string' && plan.expectedEntryId.length > 0;
+  const scoped = Boolean(binding && manifest && binding.schemaVersion === 2 && binding.target === 'native-archive'
+    && binding.entryId === plan.expectedEntryId && binding.lifecycle?.sessionId === plan.sessionId
+    && manifest.lifecycle?.storeId === binding.lifecycle?.storeId
+    && manifest.lifecycle?.sessionId === binding.lifecycle?.sessionId
+    && manifest.lifecycle?.lifecycleId === binding.lifecycle?.lifecycleId
+    && Array.isArray(manifest.resources) && manifest.resources.length > 0);
+  const blockedWithoutScope = !binding && !manifest && blockers.length > 0;
+  return { operationId: plan?.operationId ?? null, sessionId: plan?.sessionId ?? null,
+    expectedEntryId: plan?.expectedEntryId ?? null, schemaVersion: plan?.schemaVersion ?? null,
+    action: plan?.action ?? null, blockers, bound: Boolean(binding), frozen: Boolean(manifest),
+    manifestResources: manifest?.resources?.length ?? 0,
+    fixedRequestValid: Boolean(base && (scoped || blockedWithoutScope)) };
+}
+function ownerReceiptValid(result, execution) {
+  const owner = result?.ownerState;
+  return result?.status === 'success' && owner?.phase === 'done' && typeof owner.authorizationId === 'string'
+    && owner.request?.operationId === execution.operationId
+    && owner.request?.expected?.sessionId === execution.sessionId
+    && owner.request?.bin?.entryId === execution.expectedEntryId
+    && owner.resources?.length === execution.manifestResources
+    && owner.resources.every(resource => resource.status !== 'failed');
+}
+async function confirmingBatchDialog(page, scope, count) {
+  const title = scope === 'selection' ? ui.batchSelectionTitle(count) : ui.batchAllTitle(count);
+  const dialog = page.getByRole('dialog', { name: title, exact: true });
+  await dialog.waitFor({ state: 'visible' });
+  await dialog.getByRole('checkbox', { name: ui.batchAck, exact: true }).waitFor({ state: 'visible' });
+  return dialog;
+}
+async function assertBatchConfirmation(dialog, targets, { executable, blocked }) {
+  await text(dialog, ui.batchSummary(targets.length, executable, blocked)).waitFor({ state: 'visible' });
+  const list = dialog.getByRole('list', { name: ui.batchItems, exact: true });
+  await list.waitFor({ state: 'visible' });
+  assert.equal(await list.getByRole('listitem').count(), targets.length, 'Batch modal must render the frozen target count');
+  for (const target of targets) await text(list, target.title).waitFor({ state: 'visible' });
+  await eventually(async () => assert(await button(dialog, ui.deleteCancel).evaluate(element => element === document.activeElement)),
+    'Batch deletion initially focuses Cancel');
+  return dialog.getByRole('checkbox', { name: ui.batchAck, exact: true });
+}
+async function dismissBatchResult(page, title) {
+  await text(page, title).waitFor({ state: 'visible' });
+  await button(page, ui.dismissBatch).click();
+  await text(page, title).waitFor({ state: 'hidden' });
+}
+function observeDeletionRpc(page, report) {
+  report.deletionPrepares = [];
+  report.deletionExecutions = [];
+  report.deletionSerial = { maxInFlight: 0, completedResponses: 0 };
+  let activeExecutions = 0;
+  const path = url => new URL(url).pathname;
+  page.on('request', request => {
+    if (path(request.url()) !== '/api/sessionBin/executePurge') return;
+    try {
+      const envelope = request.postDataJSON();
+      const summary = purgePlanSummary(envelope.payload?.args?.plan);
+      activeExecutions += 1;
+      report.deletionSerial.maxInFlight = Math.max(report.deletionSerial.maxInFlight, activeExecutions);
+      report.deletionExecutions.push({ ...summary, requestSequence: report.deletionExecutions.length + 1,
+        responseStatus: null, ownerPhase: null, ownerReceiptValid: false });
+    } catch (error) { report.deletionExecutions.push({ error: redact(error.message), fixedRequestValid: false }); }
+  });
+  page.on('response', response => {
+    const responsePath = path(response.url());
+    if (responsePath === '/api/sessionBin/executePurge') {
+      activeExecutions = Math.max(0, activeExecutions - 1);
+      report.deletionSerial.completedResponses += 1;
+      const task = response.json().then(envelope => {
+        const result = envelope.result?.ok ? envelope.result.value : null;
+        const execution = report.deletionExecutions.find(row => row.operationId === result?.operationId);
+        if (!execution) return;
+        execution.responseStatus = result.status;
+        execution.ownerPhase = result.ownerState?.phase ?? null;
+        execution.authorizationId = result.ownerState?.authorizationId ?? null;
+        execution.ownerReceiptValid = ownerReceiptValid(result, execution);
+      }).catch(error => report.deletionExecutions.push({ responseError: redact(error.message), fixedRequestValid: false }));
+      diagnosticTasks.add(task);
+      void task.finally(() => diagnosticTasks.delete(task));
+      return;
+    }
+    if (responsePath !== '/api/sessionBin/preparePurge') return;
+    const task = response.json().then(envelope => {
+      const result = envelope.result;
+      if (!result?.ok) {
+        report.deletionPrepares.push({ status: 'remote-error', code: result?.error?.code ?? null, fixedRequestValid: false }); return;
+      }
+      report.deletionPrepares.push({ status: 'prepared', ...purgePlanSummary(result.value) });
+    }).catch(error => report.deletionPrepares.push({ status: 'diagnostic-error', error: redact(error.message), fixedRequestValid: false }));
+    diagnosticTasks.add(task);
+    void task.finally(() => diagnosticTasks.delete(task));
+  });
+}
+
+async function runGui(page, paths, report, beforePhysical) {
+  observeDeletionRpc(page, report);
   const [quiet, sibling, nativeOnly, prearchived] = fixtures;
   await page.waitForFunction(() => Array.isArray(window.__DSH_BOOT__?.entries));
   assert(await page.evaluate(() => window.__DSH_BOOT__.entries.some(entry => entry.id === 'dsh-session-bin')));
@@ -558,6 +932,279 @@ async function runGui(page, paths, report) {
   report.checks.push('Preexisting archives unarchive normally and the empty collection shows native Archive guidance');
   report.coverage.push('single/batch unarchive', 'singular/plural/empty collection', 'native row convergence');
 
+  await archiveSession(page, nativeOnly.id);
+  root = await assertPanelCopy(page, 1);
+  report.membershipBeforeDeletion = await readWorkspaceMembership(paths);
+  await button(panelEntry(root, nativeOnly.title), ui.deleteAction(nativeOnly.title)).click();
+  let deletion = page.getByRole('dialog', { name: ui.deleteTitle(nativeOnly.title), exact: true });
+  await deletion.waitFor({ state: 'visible' });
+  await eventually(async () => assert(await button(deletion, ui.deleteCancel).evaluate(element => element === document.activeElement)), 'Deletion initially focuses Cancel');
+  assert.equal(await button(deletion, ui.deleteConfirm).isEnabled(), false);
+  assert.equal(report.deletionExecutions.length, 0, 'Unacknowledged deletion never executes');
+  await button(deletion, ui.deleteCancel).click();
+  await deletion.waitFor({ state: 'hidden' }); await panelCount(root, 1);
+  assert.equal(report.deletionExecutions.length, 0, 'Cancel must never submit the destructive request');
+  await button(panelEntry(root, nativeOnly.title), ui.deleteAction(nativeOnly.title)).click();
+  deletion = page.getByRole('dialog', { name: ui.deleteTitle(nativeOnly.title), exact: true });
+  await deletion.waitFor({ state: 'visible' });
+  const acknowledgement = deletion.getByRole('checkbox', { name: ui.deleteAck, exact: true });
+  await drainDiagnostics();
+  assert.equal(report.deletionPrepares.length, 2, 'Cancelled and second dialogs prepare distinct explicit plans');
+  assert.notEqual(report.deletionPrepares[0].operationId, report.deletionPrepares[1].operationId);
+  if (report.deletionQualification === 'supported') {
+    assert.equal(await acknowledgement.isEnabled(), true, `Cold archived GUI target must be eligible: ${await deletion.innerText()}\n${JSON.stringify(report.deletionPrepares)}`);
+    assert(report.deletionPrepares.every(plan => plan.status === 'prepared' && plan.fixedRequestValid && plan.schemaVersion === 2
+      && plan.sessionId === nativeOnly.id && plan.expectedEntryId && plan.bound && plan.frozen && plan.blockers.length === 0),
+    'Both qualified preparations bind the observed target and frozen owner scope');
+    await acknowledgement.check();
+    assert.equal(await button(deletion, ui.deleteConfirm).isEnabled(), true, await deletion.innerText());
+    report.screenshots.deletion = await screenshot(page, paths, 'session-bin-permanent-delete');
+    await button(deletion, ui.deleteConfirm).click();
+    await assertToastCopy(page, ui.deleted);
+    root = await assertPanelCopy(page, 0);
+    await eventually(async () => assert.equal(await page.locator(`[data-row-key="session:${nativeOnly.id}"]`).count(), 0), 'Native row is removed after actual deletion');
+    await drainDiagnostics();
+    assert.equal(report.deletionExecutions.length, 1, 'Single explicit confirmation submits exactly one deletion');
+    const confirmed = report.deletionPrepares[1];
+    const execution = report.deletionExecutions[0];
+    assert(execution.fixedRequestValid && execution.operationId === confirmed.operationId && execution.sessionId === nativeOnly.id
+      && execution.expectedEntryId === confirmed.expectedEntryId && execution.responseStatus === 'success' && execution.ownerReceiptValid,
+    'Single execution must reuse the prepared fixed request and finish with the actual SDK owner receipt');
+    report.deletedSessionId = nativeOnly.id;
+    report.deletedSessionIds.push(nativeOnly.id);
+    report.singleDeletion = { scope: 'single', frozenCount: 1, cancelledExecutionCount: 0,
+      confirmedExecutionCount: 1, ownerReceiptValid: execution.ownerReceiptValid };
+    report.membershipAfterSingleDeletion = await readWorkspaceMembership(paths);
+    const afterSingle = report.membershipBeforeDeletion.map(workspace => ({ ...workspace,
+      sessionIds: workspace.sessionIds.filter(id => id !== nativeOnly.id) }));
+    assert.deepEqual(report.membershipAfterSingleDeletion, afterSingle,
+      'Only the single fixed target leaves the complete runtime Workspace account');
+    report.checks.push('Qualified single deletion uses a frozen owner plan, explicit acknowledgement, Cancel focus and a complete owner receipt');
+    report.coverage.push('single: fixed request and owner receipt', 'single: Cancel executes zero', 'single: native row removal');
+
+    for (const item of [quiet, sibling]) await archiveSession(page, item.id);
+    root = await assertPanelCopy(page, 2);
+    for (const item of [quiet, sibling]) {
+      await panelEntry(root, item.title).getByRole('checkbox', { name: ui.select(item.title), exact: true }).check();
+    }
+    root = await assertPanelCopy(page, 2, { selectedCount: 2 });
+    const batchPrepareStart = report.deletionPrepares.length;
+    const batchExecuteStart = report.deletionExecutions.length;
+    await button(root, ui.deleteSelected).click();
+    let batchDialog = await confirmingBatchDialog(page, 'selection', 2);
+    let batchAck = await assertBatchConfirmation(batchDialog, [quiet, sibling], { executable: 2, blocked: 0 });
+    await drainDiagnostics();
+    let batchPlans = report.deletionPrepares.slice(batchPrepareStart);
+    assert.equal(batchPlans.length, 2, 'The first selection modal prepares exactly its two fixed targets');
+    assert.deepEqual(new Set(batchPlans.map(plan => plan.sessionId)), new Set([quiet.id, sibling.id]));
+    assert(batchPlans.every(plan => plan.status === 'prepared' && plan.fixedRequestValid && plan.bound && plan.frozen
+      && plan.blockers.length === 0), 'Each selected item must have a valid binding and frozen manifest');
+    assert.equal(await batchAck.isChecked(), false);
+    assert.equal(await button(batchDialog, ui.batchConfirm).isEnabled(), false, 'Unchecked batch confirmation stays disabled');
+    assert.equal(report.deletionExecutions.length, batchExecuteStart, 'Unchecked selection batch executes nothing');
+    await button(batchDialog, ui.deleteCancel).click();
+    await batchDialog.waitFor({ state: 'hidden' });
+    assert.equal(report.deletionExecutions.length, batchExecuteStart, 'Cancelled selection batch executes nothing');
+    await dismissBatchResult(page, ui.batchCancelled);
+
+    const confirmedBatchPrepareStart = report.deletionPrepares.length;
+    await button(root, ui.deleteSelected).click();
+    batchDialog = await confirmingBatchDialog(page, 'selection', 2);
+    batchAck = await assertBatchConfirmation(batchDialog, [quiet, sibling], { executable: 2, blocked: 0 });
+    await drainDiagnostics();
+    batchPlans = report.deletionPrepares.slice(confirmedBatchPrepareStart);
+    assert.equal(batchPlans.length, 2, 'The confirmed selection batch freshly prepares both fixed targets');
+    assert(batchPlans.every(plan => plan.fixedRequestValid && plan.bound && plan.frozen && plan.blockers.length === 0));
+    await batchAck.check();
+    assert.equal(await button(batchDialog, ui.batchConfirm).isEnabled(), true);
+    report.screenshots.batchDeletion = await screenshot(page, paths, 'session-bin-batch-delete-confirmation');
+    await button(batchDialog, ui.batchConfirm).click();
+    await text(page, ui.batchDone).waitFor({ state: 'visible' });
+    root = await assertPanelCopy(page, 0);
+    await drainDiagnostics();
+    const batchExecutions = report.deletionExecutions.slice(batchExecuteStart);
+    assert.equal(batchExecutions.length, 2, 'Confirmed selection submits exactly two purge executions');
+    assert.deepEqual(batchExecutions.map(item => item.operationId), batchPlans.map(item => item.operationId),
+      'Selection execution reuses each freshly prepared request in fixed order');
+    assert(batchExecutions.every(item => item.fixedRequestValid && item.responseStatus === 'success' && item.ownerReceiptValid),
+      'Each selection target must finish with a complete actual SDK owner receipt');
+    assert.equal(report.deletionSerial.maxInFlight, 1, 'Batch purge requests must execute strictly serially');
+    report.batchDeletion = { scope: 'selection', frozenCount: 2, executable: 2, blocked: 0,
+      cancelledExecutionCount: 0, confirmedExecutionCount: batchExecutions.length, strictSerialMaxInFlight: report.deletionSerial.maxInFlight };
+    for (const item of [quiet, sibling]) {
+      assert.equal(await page.locator(`[data-row-key="session:${item.id}"]`).count(), 0, 'Successfully deleted batch rows disappear from the native list');
+      report.deletedSessionIds.push(item.id);
+    }
+    await assertSavedTranscriptSha(beforePhysical[prearchived.id],
+      'The not-yet-selected prearchived transcript must keep its original SHA before clear-all');
+    report.preClearUntouched = { sessionId: prearchived.id, transcript: 'unchanged SHA-256' };
+    await dismissBatchResult(page, ui.batchDone);
+    report.membershipAfterBatchDeletion = await readWorkspaceMembership(paths);
+    const afterBatch = report.membershipBeforeDeletion.map(workspace => ({ ...workspace,
+      sessionIds: workspace.sessionIds.filter(id => !new Set(report.deletedSessionIds).has(id)) }));
+    assert.deepEqual(report.membershipAfterBatchDeletion, afterBatch,
+      'Selection batch removes only its explicit fixed targets and retains any Host-created session');
+    report.checks.push('Qualified batch deletion fixes two prepared identities and runs two actual owner operations strictly serially');
+    report.coverage.push('batch: selection scope two', 'batch: Cancel and unchecked execute zero',
+      'batch: strict serial owner success', 'batch: unselected SHA unchanged');
+
+    await archiveSession(page, prearchived.id);
+    root = await assertPanelCopy(page, 1);
+    search = textbox(root, ui.search);
+    await search.fill('原先');
+    await root.getByRole('combobox', { name: ui.workspace, exact: true }).selectOption({ label: fixtureWorkspaces.primary });
+    root = await assertPanelCopy(page, 1, { visibleCount: 0, draft: '原先' });
+    const clearPrepareStart = report.deletionPrepares.length;
+    const clearExecuteStart = report.deletionExecutions.length;
+    await button(root, ui.clearAllArchived(1)).click();
+    let clearDialog = await confirmingBatchDialog(page, 'all-archived', 1);
+    let clearAck = await assertBatchConfirmation(clearDialog, [prearchived], { executable: 1, blocked: 0 });
+    await drainDiagnostics();
+    let clearPlans = report.deletionPrepares.slice(clearPrepareStart);
+    assert.equal(clearPlans.length, 1);
+    assert(clearPlans[0].fixedRequestValid && clearPlans[0].sessionId === prearchived.id
+      && clearPlans[0].bound && clearPlans[0].frozen && clearPlans[0].blockers.length === 0,
+    'Clear-all must prepare the complete hidden archive set, not only visible rows');
+    assert.equal(await clearAck.isChecked(), false);
+    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), false);
+    assert.equal(report.deletionExecutions.length, clearExecuteStart, 'Unchecked clear-all executes nothing');
+    await button(clearDialog, ui.deleteCancel).click();
+    await clearDialog.waitFor({ state: 'hidden' });
+    assert.equal(report.deletionExecutions.length, clearExecuteStart, 'Cancelled clear-all executes nothing');
+    await dismissBatchResult(page, ui.batchCancelled);
+
+    const confirmedClearPrepareStart = report.deletionPrepares.length;
+    await button(root, ui.clearAllArchived(1)).click();
+    clearDialog = await confirmingBatchDialog(page, 'all-archived', 1);
+    clearAck = await assertBatchConfirmation(clearDialog, [prearchived], { executable: 1, blocked: 0 });
+    await drainDiagnostics();
+    clearPlans = report.deletionPrepares.slice(confirmedClearPrepareStart);
+    assert.equal(clearPlans.length, 1);
+    assert(clearPlans[0].fixedRequestValid && clearPlans[0].sessionId === prearchived.id
+      && clearPlans[0].bound && clearPlans[0].frozen && clearPlans[0].blockers.length === 0);
+    await clearAck.check();
+    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), true);
+    report.screenshots.clearAll = await screenshot(page, paths, 'session-bin-clear-all-confirmation');
+    await button(clearDialog, ui.batchConfirm).click();
+    await text(page, ui.batchDone).waitFor({ state: 'visible' });
+    await drainDiagnostics();
+    const clearExecutions = report.deletionExecutions.slice(clearExecuteStart);
+    assert.equal(clearExecutions.length, 1, 'Confirmed clear-all submits its one complete hidden target');
+    assert.equal(clearExecutions[0].operationId, clearPlans[0].operationId);
+    assert(clearExecutions[0].fixedRequestValid && clearExecutions[0].responseStatus === 'success' && clearExecutions[0].ownerReceiptValid);
+    report.clearAllDeletion = { scope: 'all-archived', frozenCount: 1, visibleCount: 0, executable: 1, blocked: 0,
+      cancelledExecutionCount: 0, confirmedExecutionCount: clearExecutions.length };
+    report.deletedSessionIds.push(prearchived.id);
+    root = await assertPanelCopy(page, 0, { draft: '原先' });
+    await dismissBatchResult(page, ui.batchDone);
+    await textbox(root, ui.search).fill('');
+    await root.getByRole('combobox', { name: ui.workspace, exact: true }).selectOption('all');
+    root = await assertPanelCopy(page, 0);
+    report.membershipAfterDeletion = await readWorkspaceMembership(paths);
+    const deleted = new Set(report.deletedSessionIds);
+    const afterAllDeletion = report.membershipBeforeDeletion.map(workspace => ({ ...workspace,
+      sessionIds: workspace.sessionIds.filter(id => !deleted.has(id)) }));
+    assert.deepEqual(report.membershipAfterDeletion, afterAllDeletion,
+      'Clear-all removes only the last explicit fixture while every unrelated Host-created membership remains unchanged');
+    assert.deepEqual(deleted, new Set(fixtures.map(item => item.id)), 'Qualified GUI flow must delete exactly the four seeded fixtures');
+    assert(report.deletionPrepares.every(plan => plan.status === 'prepared' && plan.fixedRequestValid),
+      'Every single, batch, and clear preparation must carry a legal fixed request');
+    assert(report.deletionExecutions.every(item => item.fixedRequestValid && item.ownerReceiptValid),
+      'Every destructive request must carry the fixed plan through a complete owner receipt');
+    assert.equal(report.deletionSerial.completedResponses, report.deletionExecutions.length,
+      'Every destructive request must receive exactly one observed response');
+    report.checks.push('Qualified clear-all freezes the complete archive set despite hidden filters and erases only after a second explicit confirmation');
+    report.coverage.push('clear: all-archived full set under visible zero', 'clear: Cancel executes zero',
+      'clear: confirmed owner success', 'clear: unrelated Host membership retained');
+  } else {
+    const prepared = report.deletionPrepares;
+    assert(prepared.every(plan => plan.status === 'prepared' && plan.fixedRequestValid && plan.schemaVersion === 2
+      && plan.sessionId === nativeOnly.id && plan.expectedEntryId && plan.blockers.includes('permanent-deletion-unsupported')),
+    'Each unqualified single preparation must explicitly report permanent-deletion-unsupported for the fixed observation');
+    await text(deletion, ui.deletionUnsupported).waitFor({ state: 'visible' });
+    assert.equal(await acknowledgement.isEnabled(), false, 'Unsupported deletion acknowledgement must stay disabled');
+    assert.equal(await button(deletion, ui.deleteConfirm).isEnabled(), false, 'Unsupported deletion execution must stay disabled');
+    assert.equal(report.deletionExecutions.length, 0, 'Unsupported deletion must execute zero purge requests');
+    report.screenshots.deletionUnsupported = await screenshot(page, paths, 'session-bin-deletion-unsupported');
+    report.unsupportedModal = { blocker: 'permanent-deletion-unsupported', cancelInitiallyFocused: true,
+      checkboxDisabled: true, confirmDisabled: true, executeCount: 0 };
+    await button(deletion, ui.deleteCancel).click();
+    await deletion.waitFor({ state: 'hidden' });
+    await button(panelEntry(root, nativeOnly.title), ui.restore).click();
+    await assertToastCopy(page, ui.restored);
+    root = await assertPanelCopy(page, 0);
+    report.checks.push('Unqualified single deletion renders its blocker and executes zero requests before normal unarchive');
+    report.coverage.push('single unsupported: blocker, disabled controls and zero execute');
+
+    for (const item of [quiet, sibling]) await archiveSession(page, item.id);
+    root = await assertPanelCopy(page, 2);
+    for (const item of [quiet, sibling]) {
+      await panelEntry(root, item.title).getByRole('checkbox', { name: ui.select(item.title), exact: true }).check();
+    }
+    root = await assertPanelCopy(page, 2, { selectedCount: 2 });
+    const batchPrepareStart = report.deletionPrepares.length;
+    await button(root, ui.deleteSelected).click();
+    let batchDialog = await confirmingBatchDialog(page, 'selection', 2);
+    const batchAck = await assertBatchConfirmation(batchDialog, [quiet, sibling], { executable: 0, blocked: 2 });
+    await drainDiagnostics();
+    const batchPlans = report.deletionPrepares.slice(batchPrepareStart);
+    assert.equal(batchPlans.length, 2);
+    assert(batchPlans.every(plan => plan.status === 'prepared' && plan.fixedRequestValid
+      && plan.blockers.includes('permanent-deletion-unsupported')),
+    'Unsupported selection must prepare both fixed targets as blocked M0 items');
+    assert.equal(await batchAck.isEnabled(), false);
+    assert.equal(await button(batchDialog, ui.batchConfirm).isEnabled(), false);
+    assert.equal(report.deletionExecutions.length, 0);
+    await button(batchDialog, ui.deleteCancel).click();
+    await batchDialog.waitFor({ state: 'hidden' });
+    await dismissBatchResult(page, ui.batchCancelled);
+    assert.equal(report.deletionExecutions.length, 0, 'Unsupported selection cancel must keep execute count at zero');
+    report.unsupportedBatch = { scope: 'selection', count: 2, executable: 0, blocked: 2, executeCount: 0 };
+    await button(root, ui.clearSelection).click();
+    root = await assertPanelCopy(page, 2);
+    report.checks.push('Unqualified batch renders a fixed two-item M0 scope and Cancel sends no purge request');
+    report.coverage.push('batch unsupported: scope two, M0, disabled acknowledgement and zero execute');
+
+    await archiveSession(page, prearchived.id);
+    root = await assertPanelCopy(page, 3);
+    search = textbox(root, ui.search);
+    await search.fill('原先');
+    await root.getByRole('combobox', { name: ui.workspace, exact: true }).selectOption({ label: fixtureWorkspaces.primary });
+    root = await assertPanelCopy(page, 3, { visibleCount: 0, draft: '原先' });
+    const clearPrepareStart = report.deletionPrepares.length;
+    await button(root, ui.clearAllArchived(3)).click();
+    const clearDialog = await confirmingBatchDialog(page, 'all-archived', 3);
+    const clearAck = await assertBatchConfirmation(clearDialog, [quiet, sibling, prearchived], { executable: 0, blocked: 3 });
+    await drainDiagnostics();
+    const clearPlans = report.deletionPrepares.slice(clearPrepareStart);
+    assert.equal(clearPlans.length, 3, 'Unsupported clear-all must still prepare the complete hidden collection');
+    assert.deepEqual(new Set(clearPlans.map(plan => plan.sessionId)), new Set([quiet.id, sibling.id, prearchived.id]));
+    assert(clearPlans.every(plan => plan.status === 'prepared' && plan.fixedRequestValid
+      && plan.blockers.includes('permanent-deletion-unsupported')));
+    assert.equal(await clearAck.isEnabled(), false);
+    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), false);
+    assert.equal(report.deletionExecutions.length, 0);
+    await button(clearDialog, ui.deleteCancel).click();
+    await clearDialog.waitFor({ state: 'hidden' });
+    await dismissBatchResult(page, ui.batchCancelled);
+    report.unsupportedClear = { scope: 'all-archived', count: 3, visibleCount: 0, executable: 0, blocked: 3, executeCount: 0 };
+    await textbox(root, ui.search).fill('');
+    await root.getByRole('combobox', { name: ui.workspace, exact: true }).selectOption('all');
+    root = await assertPanelCopy(page, 3);
+    await root.getByRole('checkbox', { name: ui.selectAll, exact: true }).check();
+    root = await assertPanelCopy(page, 3, { selectedCount: 3 });
+    await button(root, ui.restoreSelected).click();
+    root = await assertPanelCopy(page, 0);
+    report.membershipAfterDeletionRefusal = await readWorkspaceMembership(paths);
+    assert.deepEqual(report.membershipAfterDeletionRefusal, report.membershipBeforeDeletion,
+      'Unsupported single, batch, clear and final unarchive preserve complete Workspace membership');
+    assert.equal(report.deletionExecutions.length, 0, 'No unsupported scope may be mislabeled as a successful deletion');
+    assert(report.deletionPrepares.every(plan => plan.status === 'prepared' && plan.fixedRequestValid));
+    report.checks.push('Unqualified clear-all fixes all three entries while filters show zero, stays M0, then all entries unarchive normally');
+    report.coverage.push('clear unsupported: all-archived hidden full set', 'clear unsupported: M0 and zero execute',
+      'unsupported unified unarchive to empty');
+  }
+
   for (const target of [requestedLanguage, requestedLanguage === 'zh' ? 'en' : 'zh']) {
     if (language !== target) await switchLanguage(page, target, report);
     await button(page, ui.plugins).click();
@@ -575,6 +1222,7 @@ async function runGui(page, paths, report) {
   await assertDocumentLanguage(page);
   await skipModelSetup(page);
   await assertPanelCopy(page, 0);
+  report.membershipBeforeShutdown = await readWorkspaceMembership(paths);
   report.checks.push('Localized Plugins metadata and final archive state survive page reload');
 }
 
@@ -594,7 +1242,8 @@ async function main() {
   const environment = {
     ...process.env, DSH_HOME: paths.home, DSH_TELEMETRY_DISABLED: '1', DSH_PERMISSION_MODE: 'workspace-write',
     CI: 'true', NO_UPDATE_NOTIFIER: '1',
-    TMPDIR: paths.tmp, XDG_CONFIG_HOME: join(scratch, 'xdg-config'), XDG_CACHE_HOME: join(scratch, 'xdg-cache'),
+    TMPDIR: paths.tmp, TMP: paths.tmp, TEMP: paths.tmp,
+    XDG_CONFIG_HOME: join(scratch, 'xdg-config'), XDG_CACHE_HOME: join(scratch, 'xdg-cache'),
     XDG_DATA_HOME: join(scratch, 'xdg-data'), XDG_STATE_HOME: join(scratch, 'xdg-state'),
     npm_config_userconfig: paths.userconfig, npm_config_globalconfig: paths.globalconfig, npm_config_cache: join(scratch, 'npm-cache'),
     npm_config_ignore_scripts: 'true',
@@ -610,23 +1259,36 @@ async function main() {
   const webRequire = createRequire(cliRequire.resolve('@deepseek-ai/dsh-web-app/package.json'));
   const frontend = dirname(webRequire.resolve('@deepseek-ai/dsh-web-frontend/package.json'));
   await access(join(frontend, 'dist', 'index.html'));
-  const executable = process.env.DSH_GUI_BROWSER_EXECUTABLE ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  await access(executable);
+  const browserSelection = await discoverBrowserExecutable({ fallbackExecutable: chromium.executablePath() });
+  const executable = browserSelection.path;
+  const browserConsole = [];
+  const pageErrors = [];
+  const deletionQualification = nativePlatformVerified() ? 'supported' : 'unsupported';
   const report = {
     status: 'running', sdk: expectedSdk, node: process.version, platform: process.platform, arch: process.arch,
-    scratch, locale: browserLocale, requestedLanguage, checks: [], coverage: [], languageSwitches: [], metadata: [],
-    screenshots: {}, limits: [], browserConsole: [], browserConsoleDetails: [], pageErrors: [],
+    scratch, locale: browserLocale, requestedLanguage,
+    deletionQualification,
+    browserExecutable: browserSelection, isolatedTemporaryEnvironment: { TMPDIR: paths.tmp, TMP: paths.tmp, TEMP: paths.tmp },
+    checks: [], coverage: [], languageSwitches: [], metadata: [], hostLaunches: [], hostShutdown: [],
+    deletedSessionIds: [], screenshots: {}, limits: [], browserConsole, browserConsoleDetails: [], pageErrors,
+    evidence: { deletionQualification, envBrowserConsole: browserConsole, pageErrors },
   };
   const savedHome = process.env.DSH_HOME;
   process.env.DSH_HOME = paths.home;
   let beforeLogs;
+  let beforePhysical;
   try {
     const fixture = await openSdkFixture(paths, true);
-    try { beforeLogs = await readLogs(fixture); }
+    try {
+      beforeLogs = await readLogs(fixture);
+      beforePhysical = await physicalLogs(fixture, paths);
+      report.seedMembership = workspaceMembership(fixture);
+    }
     finally { await fixture.close(); }
-    const packed = await runCommand('npm', ['pack', '--json', '--ignore-scripts', '--offline',
+    const packCommand = await configuredPackageManager(['exec', 'npm', 'pack', '--json', '--ignore-scripts', '--offline',
       '--userconfig', paths.userconfig, '--globalconfig', paths.globalconfig,
-      '--cache', join(scratch, 'npm-cache'), '--pack-destination', scratch], {
+      '--cache', join(scratch, 'npm-cache'), '--pack-destination', scratch]);
+    const packed = await runCommand(packCommand.file, packCommand.args, {
       cwd: workspace, env: environment,
     }, 'Packing the client tarball');
     const [metadata] = JSON.parse(packed.stdout);
@@ -645,6 +1307,7 @@ async function main() {
     assert(profile.dsh.profile.bundles.includes('dsh-session-bin'), 'CLI installation must register the Bin bundle');
     report.checks.push('Public dsh plugin installs and activates the packed bundle in a new Web profile');
     const host = await startHost(cli, environment, paths.primary, 'host.log');
+    report.hostLaunches.push({ stage: 'installed-host', cli, shutdownDelivery: host.shutdownDelivery });
     report.url = host.cleanUrl;
     browserContext = await chromium.launchPersistentContext(paths.browser, {
       executablePath: executable, headless: true, locale: browserLocale, viewport: { width: 1440, height: 900 },
@@ -654,63 +1317,60 @@ async function main() {
     report.browser = browserContext.browser()?.version() ?? 'system Chrome';
     const page = browserContext.pages()[0] ?? await browserContext.newPage();
     page.setDefaultTimeout(15000);
-    const pageErrors = report.pageErrors;
-    page.on('pageerror', error => pageErrors.push(redact(error.message)));
-    page.on('console', message => {
-      if (message.type() === 'error' || message.type() === 'warning') {
-        report.browserConsole.push(redact(message.text()));
-        if (report.browserConsole.length > 100) report.browserConsole.shift();
-        void Promise.all(message.args().map(argument => argument.evaluate(value => {
-          const seen = new Set();
-          const copy = (item, depth = 0) => {
-            if (item === null || typeof item !== 'object') return typeof item === 'function' ? '[function]' : item;
-            if (seen.has(item) || depth > 5) return '[truncated]';
-            seen.add(item);
-            if (Array.isArray(item)) return item.slice(0, 20).map(child => copy(child, depth + 1));
-            const result = {};
-            const keys = new Set(['name', 'message', 'stack', 'code', 'cause', 'errors', 'failures', 'details', 'entries', 'id', 'status', 'type', ...Object.getOwnPropertyNames(item)]);
-            const excluded = new Set(['ctx', 'context', 'fiber', 'parent', 'runtime', 'store', 'config', 'configuration']);
-            for (const key of [...keys].filter(key => !excluded.has(key)).slice(0, 24)) {
-              try { if (item[key] !== undefined) result[key] = copy(item[key], depth + 1); } catch {}
-            }
-            return result;
-          };
-          return copy(value);
-        }))).then(details => {
-          report.browserConsoleDetails.push(JSON.parse(redact(JSON.stringify(details))));
-        }).catch(() => {});
-      }
-    });
+    observePage(page, report, 'installed');
     await page.goto(host.authenticatedUrl, { waitUntil: 'domcontentloaded' });
     await page.waitForURL(url => !url.searchParams.has('token'));
     assert.equal(new URL(page.url()).origin, new URL(host.cleanUrl).origin);
-    await runGui(page, paths, report);
-    assert.deepEqual(pageErrors, [], `Unexpected browser errors: ${pageErrors.join('\n')}`);
+    await runGui(page, paths, report, beforePhysical);
+    await drainDiagnostics();
+    assert.deepEqual(report.pageErrors, [], `Unexpected browser errors: ${report.pageErrors.join('\n')}`);
+    assert.deepEqual(report.browserConsole, [], `Unexpected browser warnings/errors: ${report.browserConsole.join('\n')}`);
     await browserContext.close();
     browserContext = undefined;
     const stopped = await stopChild(host.child);
-    assert.equal(stopped.forced, false, 'Normal GUI verification must allow graceful Host disposal');
-    assert.equal(stopped.code, 0, 'SIGTERM must complete the public CLI shutdown successfully');
+    recordHostShutdown(stopped, report, 'installed-host');
     await writeFile(join(scratch, host.logName), host.log);
     activeHost = undefined;
     const after = await openSdkFixture(paths);
     try {
-      assert.deepEqual(await readLogs(after), beforeLogs, 'Bin GUI operations must preserve all fixture transcripts');
+      if (report.deletionQualification === 'supported') {
+        const deleted = new Set(report.deletedSessionIds);
+        const expectedLogs = Object.fromEntries(Object.entries(beforeLogs).filter(([id]) => !deleted.has(id)));
+        assert.deepEqual(await readLogs(after, report.deletedSessionIds), expectedLogs,
+          'Every fixture outside the explicit deletion set keeps its original public SDK transcript');
+        for (const sessionId of report.deletedSessionIds) {
+          assert.equal(await after.ctx.sessionPersistence.stat(SessionId(sessionId)), undefined,
+            `Explicitly deleted fixture ${sessionId} remains absent to the public SDK`);
+        }
+        await assertPhysicalDeletion(beforePhysical, report.deletedSessionIds, report);
+        report.retainedWorkspaceSessionIds = report.membershipBeforeDeletion.flatMap(workspace => workspace.sessionIds)
+          .filter(id => !deleted.has(id));
+        report.checks.push('SDK reopen confirms all explicit single/batch/clear deletions, retained coordination identities and unchanged unrelated Workspace members');
+        report.coverage.push('qualified all-deleted SDK reopen', 'deleted directories retained with stable coordination identity');
+      } else {
+        assert.deepEqual(await readLogs(after), beforeLogs, 'Unsupported deletion refusal and unarchive preserve every public SDK transcript');
+        for (const item of fixtures) assert(await after.ctx.sessionPersistence.stat(SessionId(item.id)), `Fixture ${item.id} must remain readable after unsupported deletion`);
+        await assertPhysicalPreservation(beforePhysical, report);
+        report.checks.push('SDK reopen confirms unsupported deletion executed nothing and every original transcript byte remains');
+        report.coverage.push('unsupported deletion SDK reopen', 'unsupported all-log byte preservation');
+      }
+      assert.deepEqual(workspaceMembership(after), report.membershipBeforeShutdown, 'Complete post-GUI Workspace membership remains durable after SDK reopen');
       const archived = after.ctx.workspaceRegistry.archivedSessionIds;
-      assert.deepEqual(archived, [], 'All four explicit unarchives remain durable after restart');
+      assert.deepEqual(archived, [], 'Explicit unarchives and any qualified selected deletion remain durable after restart');
     } finally { await after.close(); }
-    report.checks.push('SDK reopen confirms native archive state and unchanged fixture transcripts');
     await runCommand(process.execPath, [cli, 'plugin', '--profile', 'web', 'remove', 'dsh-session-bin',
       `--store-dir=${store}`, `--cache-dir=${cache}`], { cwd: paths.primary, env: environment }, 'Uninstalling the test bundle');
     const removed = JSON.parse(await readFile(profilePath, 'utf8'));
     assert(!removed.dsh.profile.bundles.includes('dsh-session-bin'));
     const withoutBin = await startHost(cli, environment, paths.primary, 'host-after-uninstall.log');
+    report.hostLaunches.push({ stage: 'post-uninstall-host', cli, shutdownDelivery: withoutBin.shutdownDelivery });
     browserContext = await chromium.launchPersistentContext(paths.browser, {
       executablePath: executable, headless: true, locale: browserLocale, viewport: { width: 1440, height: 900 }, env: environment,
       args: ['--no-proxy-server', '--disable-breakpad', '--disable-crash-reporter'],
     });
     const reloaded = browserContext.pages()[0] ?? await browserContext.newPage();
     reloaded.setDefaultTimeout(15000);
+    observePage(reloaded, report, 'after-uninstall');
     await reloaded.goto(withoutBin.authenticatedUrl, { waitUntil: 'domcontentloaded' });
     await reloaded.waitForFunction(() => Array.isArray(window.__DSH_BOOT__?.entries));
     assert(!await reloaded.evaluate(() => window.__DSH_BOOT__.entries.some(entry => entry.id === 'dsh-session-bin')));
@@ -721,11 +1381,13 @@ async function main() {
     await browserContext.close();
     browserContext = undefined;
     const removedStopped = await stopChild(withoutBin.child);
-    assert.equal(removedStopped.forced, false);
-    assert.equal(removedStopped.code, 0);
+    recordHostShutdown(removedStopped, report, 'post-uninstall-host');
     await writeFile(join(scratch, withoutBin.logName), withoutBin.log);
     activeHost = undefined;
     report.checks.push('Public CLI uninstall and a fresh true Web boot remove the client contribution');
+    await drainDiagnostics();
+    assert.deepEqual(report.pageErrors, [], 'Installed and uninstalled Web boots have no page errors');
+    assert.deepEqual(report.browserConsole, [], 'Installed and uninstalled Web boots have no console warnings or errors');
     report.status = 'passed';
   } catch (error) {
     report.status = 'failed';
@@ -751,6 +1413,7 @@ async function main() {
     for (const child of [...children]) await stopChild(child);
     if (savedHome === undefined) delete process.env.DSH_HOME;
     else process.env.DSH_HOME = savedHome;
+    await drainDiagnostics();
     const reportPath = join(scratch, 'verification.json');
     await writeFile(reportPath, JSON.stringify(report, null, 2) + '\n');
     console.log(JSON.stringify({ ...report, report: reportPath }, null, 2));
@@ -758,11 +1421,15 @@ async function main() {
 }
 function onInterrupt() {
   cancellation.abort(new Error('GUI verification was interrupted'));
-  for (const child of children) signalChild(child, 'SIGTERM');
+  for (const child of children) void stopChild(child).catch(() => {});
   void browserContext?.close().catch(() => {});
 }
-process.once('SIGINT', onInterrupt);
-process.once('SIGTERM', onInterrupt);
-try { await main(); }
-catch (error) { console.error(redact(error.stack ?? error)); process.exitCode = 1; }
-finally { process.off('SIGINT', onInterrupt); process.off('SIGTERM', onInterrupt); }
+if (import.meta.main) {
+  process.once('SIGINT', onInterrupt);
+  process.once('SIGTERM', onInterrupt);
+  try { await main(); }
+  catch (error) { console.error(redact(error.stack ?? error)); process.exitCode = 1; }
+  finally { process.off('SIGINT', onInterrupt); process.off('SIGTERM', onInterrupt); }
+}
+
+export { runCommand };

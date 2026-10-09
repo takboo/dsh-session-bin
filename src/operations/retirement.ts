@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { blockerSchema, entrySchema } from './schema.js';
+import { archiveEntrySchema } from './archive.js';
 
 const key = z.string().min(1).max(1024);
 export const lifecycleKeySchema = z.object({ storeId: key, sessionId: key, lifecycleId: key }).strict();
@@ -12,10 +13,15 @@ export const retirementCapabilitiesSchema = z.object({
     ctx.addIssue({ code: 'custom', message: 'Participant identities must be unique.' });
   }
 });
-export const retirementBindingSchema = z.object({
+const legacyRetirementBindingSchema = z.object({
   schemaVersion: z.literal(1), entryId: z.uuid(), entryVersion: z.literal(1),
   lifecycle: lifecycleKeySchema, capabilities: retirementCapabilitiesSchema,
-}).strict().superRefine((value, ctx) => {
+}).strict();
+const nativeRetirementBindingSchema = z.object({
+  schemaVersion: z.literal(2), target: z.literal('native-archive'), entryId: z.uuid(), entryVersion: z.literal(2),
+  lifecycle: lifecycleKeySchema, capabilities: retirementCapabilitiesSchema,
+}).strict();
+export const retirementBindingSchema = z.union([legacyRetirementBindingSchema, nativeRetirementBindingSchema]).superRefine((value, ctx) => {
   if (value.lifecycle.storeId !== value.capabilities.storeId) {
     ctx.addIssue({ code: 'custom', message: 'Binding store differs from its owner.' });
   }
@@ -65,7 +71,10 @@ export const retirementManifestSchema = z.object({
 });
 export const retirementRequestSchema = z.object({
   operationId: key, expected: lifecycleKeySchema,
-  bin: z.object({ entryId: z.uuid(), entryVersion: z.literal(1) }).strict(),
+  bin: z.union([
+    z.object({ entryId: z.uuid(), entryVersion: z.literal(1) }).strict(),
+    z.object({ kind: z.literal('native-archive'), entryId: z.uuid(), entryVersion: z.literal(2) }).strict(),
+  ]),
   manifestDigest: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict();
 export const retirementResourceReceiptSchema = z.object({
@@ -119,10 +128,13 @@ export const retirementStateSchema = z.object({
 });
 export const preparePurgeRequestSchema = z.object({ sessionId: key, operationId: key.optional() }).strict();
 export const purgePlanSchema = z.object({
-  schemaVersion: z.literal(1), action: z.literal('purge'), operationId: key, sessionId: key,
+  schemaVersion: z.union([z.literal(1), z.literal(2)]), action: z.literal('purge'), operationId: key, sessionId: key,
   expectedEntryId: z.uuid().nullable(), binding: retirementBindingSchema.nullable(),
   manifest: retirementManifestSchema.nullable(), blockers: z.array(blockerSchema),
 }).strict().superRefine((value, ctx) => {
+  if (value.binding && value.binding.schemaVersion !== value.schemaVersion) {
+    ctx.addIssue({ code: 'custom', message: 'Legacy Bin and native archive deletion bindings cannot be interchanged.' });
+  }
   if (value.binding && (value.binding.entryId !== value.expectedEntryId || value.binding.lifecycle.sessionId !== value.sessionId)) {
     ctx.addIssue({ code: 'custom', message: 'Purge binding differs from its target entry.' });
   }
@@ -146,12 +158,16 @@ export const purgeResultSchema = z.object({
   }
 });
 export const purgeOperationSchema = z.object({
-  schemaVersion: z.literal(1), plan: purgePlanSchema, createdAt: z.iso.datetime(),
-  phase: z.enum(['intent', 'authorizing', 'owner-pending', 'done']), entry: entrySchema.nullable(),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]), plan: purgePlanSchema, createdAt: z.iso.datetime(),
+  phase: z.enum(['intent', 'authorizing', 'owner-pending', 'done']), entry: z.union([entrySchema, archiveEntrySchema]).nullable(),
   authorizationId: z.uuid().nullable(),
   ownerState: retirementStateSchema.nullable(), result: purgeResultSchema.nullable(),
 }).strict().superRefine((value, ctx) => {
   const { plan, entry, result, ownerState } = value;
+  if (value.schemaVersion !== plan.schemaVersion || (entry && entry.schemaVersion !== plan.schemaVersion)
+    || (ownerState && ownerState.request.bin.entryVersion !== plan.schemaVersion)) {
+    ctx.addIssue({ code: 'custom', message: 'Deletion journal target versions must agree.' });
+  }
   if (entry && (entry.entryId !== plan.expectedEntryId || entry.sessionId !== plan.sessionId)) {
     ctx.addIssue({ code: 'custom', message: 'Purge journal entry differs from the plan.' });
   }

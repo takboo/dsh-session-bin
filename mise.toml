@@ -1,3 +1,6 @@
+[env]
+PLAYWRIGHT_BROWSERS_PATH = "{{config_root}}/.local/browsers"
+
 [tools]
 node = "24.18.1"
 pnpm = "11.7.0"
@@ -32,6 +35,18 @@ run = "pnpm run verify:package"
 [tasks.verify]
 description = "Check, build, test, and verify the Host and Client tarball"
 run = "pnpm run verify"
+
+[tasks."verify:linux"]
+description = "Verify Linux in an isolated pinned Node container and preserve native evidence"
+run = "pnpm run verify:linux"
+
+[tasks."verify:platform"]
+description = "Verify the actual OS with an isolated candidate composition and source evidence"
+run = "pnpm run verify:platform"
+
+[tasks."verify:gui:browser"]
+description = "Install the pinned test Chromium and OS libraries on an isolated CI runner"
+run = "pnpm run verify:gui:browser"
 
 [tasks."verify:gui"]
 description = "Verify Chinese and English isolated Web profiles sequentially"

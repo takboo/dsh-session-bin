@@ -28,6 +28,12 @@ npm `repository` 指回最终 GitHub 仓库，`homepage`、`bugs`、`keywords` �
 
 永久删除至少验证日志与索引一致性、运行时重新加载、写锁竞争、活动出现、重复请求、中途失败和重启对账。未支持的存储提供方有明确结果。CI 中不使用真实用户会话目录。
 
+`mise run verify:platform` 使用当前实际 OS 的隔离候选 composition，执行类型、构建、全部行为回归及 tarball 检查，并保存源码 SHA-256 和运行平台；候选资格不会自动写入生产支持矩阵。`mise run verify:linux` 从 manifest 的 Node 版本选择容器镜像，复制项目源码到独立 Linux 文件系统运行同一验收，报告和临时证据导出到工作区。Docker/WSL/模拟 CPU 的结果必须写明环境，不作为实际 Windows 桌面验收。
+
+[CI 矩阵](../.github/workflows/host-lifecycle.yml)声明 Windows x64、macOS ARM64/Intel、Linux ARM64/x64 runners，启动时核对实际平台与架构。干净 runner 先显式运行 `mise run verify:gui:browser` 准备锁定 Playwright Chromium 和系统依赖，浏览器缓存位于工作区；再运行双语真实 CLI/GUI 并保留报告与截图。未获生产资格的平台的 GUI 拒绝检查须标记 unsupported，不能写成成功删除，更不能满足发布所要求的实际删除验收。Windows GUI 测试通过隔离 Node IPC 投递给 SDK 原有关闭处理器，单独记录这一关闭方式，不把它写作 POSIX OS 信号。
+
+项目 frozen lockfile 安装只填充该依赖图的缓存，新 profile 独立解析的传递版本可能不同；不能据此承诺干净 profile 已具备全部离线依赖。dev.2 的 Linux 补验需要另行预热 profile 缓存，之后安装成功，但卸载尚未自然退出，结果见[实际补验](verification/host-lifecycle.md#linux-cli-补验与未通过边界)。发布验收须消除这一失败或独立证明实际支持组合能够安装、卸载并正常退出；`Done` 输出、强制终止和源码平台候选矩阵都不能代替通过。
+
 ## npm 与 GitHub Release
 
 从通过检查的同一提交生成一次 tarball。npm 发布该 tarball；GitHub Release 附相同产物及校验摘要，并说明 DSH 支持范围、变化和已知限制。发布渠道的版本与 git tag 一致。
@@ -51,7 +57,7 @@ npm 包的 `repository` 与目录仓库匹配时，由市场自动关联。条�
 首次公开发布须先完成围绕原生 Archive 的手动核心闭环：归档管理、取消归档、单项永久删除、固定选择的批量永久删除及明确对象范围的清空。原生 Archive 为唯一入口，产品模型以[已选定决策](design-proposal.md#已选定的原生归档产品模型)为准。原生归档管理与取消归档的实现及证据见 README 和验证报告。永久删除的资源生命周期协议与隔离故障验收先通过，再进入公开分发；已有归档与恢复验收不能替代删除验收。具体行为与准入见[设计提案](design-proposal.md)。
 
 - npm 包可通过完整 bundle 安装及卸载，预编译资产均在 tarball 内。
-- 至少一个明确的 DSH 版本与存储提供方组合通过永久删除验收；单项、批量及清空的行为有实际证据，未支持的组合不能执行删除，支持范围与限制如实声明。
+- Windows、macOS、Linux 三类主要平台均须完成隔离验收。每个平台至少覆盖一个明确的 DSH 版本、CPU 架构、文件系统与 JSONL 提供方组合，并通过归档管理、取消归档、单项删除、固定批量及清空、写锁竞争、实际进程终止与重开、cache/index 收敛及 tarball 安装/卸载检查。macOS 的 Intel 与 Apple Silicon、Linux 的 libc 及 Windows 的原生锁差异按支持矩阵分别记录；不能用 macOS 测试或模拟平台的单元测试替代其他系统的实际验收。未支持或未验收组合不能执行删除，证据不足时不得正式发布。
 - GitHub 有源码、许可、安装说明、真实截图、支持范围、issue/PR 流程与通过的检查。
 - Release 与 npm 发布使用相同提交和构建产物。
 - 目录提交只修改本项目条目，满足仓库年龄和内容要求；是否已合并、是否已在市场可见如实记录。

@@ -1,6 +1,6 @@
 # ADR 0004：资源 owner 通过逐参与者确认和维护 scope 推进 retirement
 
-状态：已采用，可复用 owner 协调实现。默认 native 组合仍没有获准 owner；本文不作原生删除支持声明。
+状态：已采用，可复用 owner 协调实现。本文不以协调器本身授予 native 资格；已实现的版本绑定 cold JSONL 接入由 [ADR 0007](0007-native-jsonl-deletion-adapter.md)独立决定和验证。
 
 ## 背景
 

@@ -356,16 +356,19 @@ export async function openRetirementFixture(root, options = {}) {
   try {
     release = await bin.acquireBinLease(join(root, 'coordination'));
     backendCleanup = await options.beforeDomains?.(fixture);
-    binDomain = await fixture.ctx.storageDomain.open(bin.binDomainSpec);
+    binDomain = await fixture.ctx.storageDomain.open(options.nativeArchive ? bin.archiveDomainSpec : bin.binDomainSpec);
     purgeDomain = await fixture.ctx.storageDomain.open(bin.retirementDomainSpec);
     owner = await ReferenceRetirementOwner.open(fixture.ctx, root, options.ownerOptions);
     if (options.seed) await owner.seed(options.sessionIds ?? ids);
-    const store = new bin.DomainBinStore(binDomain);
+    const store = options.nativeArchive ? new bin.DomainArchiveStore(binDomain) : new bin.DomainBinStore(binDomain);
     const retirementStore = new bin.DomainRetirementStore(purgeDomain);
     const native = new bin.DshBinPort(fixture.ctx);
     const exposedOwner = options.ownerEnabled === false ? undefined : options.ownerWrapper ? options.ownerWrapper(owner) : owner;
-    module = new bin.SessionBinModule(options.storeWrapper?.(store) ?? store, options.nativeWrapper?.(native) ?? native,
-      { retirement: { owner: exposedOwner, store: options.purgeStoreWrapper?.(retirementStore) ?? retirementStore,
+    const Module = options.nativeArchive ? bin.ArchiveModule : bin.SessionBinModule;
+    module = new Module(options.storeWrapper?.(store) ?? store, options.nativeWrapper?.(native) ?? native,
+      { ...options.moduleOptions, retirement: { owner: exposedOwner, store: options.purgeStoreWrapper?.(retirementStore) ?? retirementStore,
+        verifiedNativeArchive: options.verifiedNativeArchive ?? (options.nativeArchive && !options.legacyQualificationOnly
+          ? options.verified ?? (caps => caps.providerId === 'fixture-domain-v1' && caps.hostVersion === 'test-fixture-v1') : undefined),
         verified: options.verified ?? (caps => caps.providerId === 'fixture-domain-v1' && caps.hostVersion === 'test-fixture-v1') } });
     off = fixture.ctx.root.on('domain/changed', change => {
       if (change.domain === 'workspace' && change.table === '' && change.operation === 'put') void module.observeArchives(change.value.archivedSessionIds).catch(() => {});

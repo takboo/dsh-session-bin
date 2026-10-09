@@ -58,8 +58,8 @@ test('balanced bilingual templates render native archive states and accessible l
       assert.equal(query(h.document, 'section ul').getAttribute('aria-label'), h.t('entries'));
       assert.equal(h.document.querySelector('time'), null);
       assert(!h.text().includes(entries[0].entryId), 'observation identity is not user-facing archive metadata');
-      assert.equal(h.document.querySelectorAll('section li button').length, 2);
-      for (const node of h.document.querySelectorAll('section li button')) assert.equal(node.textContent, h.t('unarchive'));
+      assert.equal(h.document.querySelectorAll('section li button').length, 4);
+      for (const row of h.document.querySelectorAll('section li')) assert.deepEqual([...row.querySelectorAll('button')].map(node => node.textContent), [h.t('unarchive'), h.t('permanentDelete')]);
       await h.click(selectNamed(h)); expectText(h, h.t('selected', { count: 1 }));
       button(h.document, h.t('unarchiveSelected')); await h.click(button(h.document, h.t('clearSelection')));
       const selectAll = [...h.document.querySelectorAll('label')].find(node => node.textContent === h.t('selectAll'));
@@ -109,6 +109,7 @@ test('visible errors, pending receipts and query-only legacy copy are localized 
   const reasons = [
     ['session-active', 'active'], ['session-not-found', 'missing'], ['not-archived', 'notArchived'], ['legacy-pending', 'legacyPending'],
     ['pending-result', 'pendingResult'], ['pending-operation', 'pendingResult'], ['pending-deletion', 'pendingDeletion'], ['connection-failed', 'connectionFailed'],
+    ['purge-cache-capacity', 'purgeCacheCapacity'],
     ['state-changed', 'stateChanged'], ['archive-changed', 'stateChanged'], ['entry-changed', 'stateChanged'],
     ['interrupted', 'stateChanged'], ['future-unknown-reason', 'operationFailed'], [null, 'operationFailed'],
   ];
@@ -119,7 +120,9 @@ test('visible errors, pending receipts and query-only legacy copy are localized 
       for (const [reason, key] of reasons) {
         assert.equal(h.components.reasonText(reason, h.t), h.t(key));
         await h.state({ ...h.baseState, phase: 'error', error: reason ?? 'future-unknown-reason' });
-        assert.equal(query(h.document, '[role="alert"] span').textContent, h.t(key)); button(h.document, h.t('retry'));
+        assert.equal(query(h.document, '[role="alert"] span').textContent, h.t(key));
+        if (reason === 'purge-cache-capacity') assert.equal([...h.document.querySelectorAll('button')].filter(node => node.textContent.trim() === h.t('retry')).length, 0);
+        else button(h.document, h.t('retry'));
       }
       await h.click(button(h.document, h.t('retry'))); assert.equal(h.calls.at(-1)[0], 'refresh');
       await h.state({ ...h.baseState, pending: [{ schemaVersion: 2, sessionId: 'named', operationId: 'pending-one' }] });

@@ -9,6 +9,9 @@ import type { BinRemoteErrorCode, BinSnapshot } from '../remote/contracts.js';
 import { archivePlanSchema as planSchema, archiveResultSchema as resultSchema } from '../operations/archive.js';
 import type { ArchiveOperation, ArchivePlan as BinPlan, ArchiveResult as BinResult, ArchivePrepareRequest as PrepareRequest } from '../operations/archive.js';
 import type { BinOperation } from '../operations/schema.js';
+import { nativePurgePlanSchema, optionalPurgeOperationSchema, purgeOperationsSchema } from '../remote/contracts.js';
+import { purgeResultSchema } from '../operations/retirement.js';
+import type { PreparePurgeRequest, PurgePlan, PurgeResult, PurgeOperation } from '../operations/retirement.js';
 
 const knownRemoteCodes = new Set<string>(binRemoteErrorCodes);
 function isBinRemoteCode(code: string): code is BinRemoteErrorCode { return knownRemoteCodes.has(code); }
@@ -53,6 +56,21 @@ export class SessionBinRemote extends TypertRemoteService {
     return this.call(signal, async () => optionalOperationSchema.parse(await this.ctx.sessionBin.getOperation(operationId) ?? null));
   }
 
+  preparePurge(request: PreparePurgeRequest, signal: AbortSignal): Promise<PurgePlan> {
+    return this.call(signal, async () => nativePurgePlanSchema.parse(await this.ctx.sessionBin.preparePurge(request)));
+  }
+  executePurge(input: PurgePlan, signal: AbortSignal): Promise<PurgeResult> {
+    const plan = nativePurgePlanSchema.parse(input);
+    return this.call(signal, async () => purgeResultSchema.parse(await this.ctx.sessionBin.executePurge(plan)));
+  }
+  getPurgeOperation(operationId: string, signal: AbortSignal): Promise<PurgeOperation | null> {
+    return this.call(signal, async () => optionalPurgeOperationSchema.parse(await this.ctx.sessionBin.getPurgeOperation(operationId) ?? null));
+  }
+
+  purgeOperations(signal: AbortSignal): Promise<PurgeOperation[]> {
+    return this.call(signal, async () => purgeOperationsSchema.parse(await this.ctx.sessionBin.purgeOperations()));
+  }
+
   follow(signal: AbortSignal): RemoteStream<BinSnapshot> {
     const cancelled = new AbortController();
     const lifetime = AbortSignal.any([signal, this.lifetime.signal, cancelled.signal]);
@@ -85,12 +103,14 @@ export class SessionBinRemote extends TypertRemoteService {
   private async *snapshots(signal: AbortSignal): AsyncGenerator<BinSnapshot, void, unknown> {
     if (signal.aborted || this.closed) return;
     let dirty = true;
+    let deletionDirty = false;
     let wake = wakeGate();
     const changed = () => { dirty = true; wake.resolve(); };
     // Subscribe before the first list. Every generation receives a full baseline;
     // notifications are coalesced into replacement snapshots, with no replay cursor.
     const off = this.ctx.root.on('domain/changed', change => {
-      if (change.domain === 'session_archive' || change.domain === 'workspace') changed();
+      if (change.domain === 'session_bin_purge') { deletionDirty = true; changed(); }
+      else if (change.domain === 'session_archive' || change.domain === 'workspace') changed();
     });
     signal.addEventListener('abort', changed, { once: true });
     let previous: string | undefined;
@@ -103,8 +123,9 @@ export class SessionBinRemote extends TypertRemoteService {
           }));
           if (signal.aborted || this.closed) return;
           const signature = JSON.stringify(snapshot);
-          if (signature !== previous) {
+          if (signature !== previous || deletionDirty) {
             previous = signature;
+            deletionDirty = false;
             yield snapshot;
           }
           continue;

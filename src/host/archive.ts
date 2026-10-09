@@ -5,16 +5,23 @@ import type { BinBlocker } from '../operations/schema.js';
 import type { ArchiveStore } from './store.js';
 import { SessionBinError, sessionBinRefusal, isSessionBinRefusal } from './module.js';
 import type { NativeSessionState } from './module.js';
+import { SessionBinPurgeModule } from './retirement.js';
+import type { RetirementOptions, PurgeReconcileReport } from './retirement.js';
+import { preparePurgeRequestSchema, purgePlanSchema } from '../operations/retirement.js';
+import type { PreparePurgeRequest, PurgePlan } from '../operations/retirement.js';
 
 export interface NativeArchivePort {
   archivedSessionIds(): readonly string[];
   inspect(sessionId: string): Promise<NativeSessionState>;
+  activity?(sessionId: string): Promise<string[]>;
   unarchive(sessionId: string): Promise<void>;
 }
 export interface ArchiveOptions {
+  retirement?: RetirementOptions;
   operationIdClaimed?: (operationId: string) => boolean;
   pendingPurge?: (sessionId: string) => boolean;
   reconcileLegacy?: () => Promise<unknown>;
+  reconcileLegacyPurge?: () => Promise<PurgeReconcileReport>;
 }
 
 /** Native archive membership, with durable observation identities, never deletion grants. */
@@ -28,8 +35,21 @@ export class ArchiveModule {
   private readonly rearchived = new Set<string>();
   // Track allocated identities before put settles so a frame cannot miss them.
   private readonly identities = new Map<string, ArchiveEntry>();
+  private readonly purge: SessionBinPurgeModule | undefined;
   constructor(private readonly store: ArchiveStore, private readonly native: NativeArchivePort,
     private readonly options: ArchiveOptions = {}) {
+    this.purge = options.retirement ? new SessionBinPurgeModule({ ...options.retirement,
+      verified: caps => options.retirement!.verifiedNativeArchive?.(caps) === true }, {
+      target: 'native-archive', entry: id => store.entry(id), invalidated: id => this.invalidated.has(id),
+      archived: async id => native.archivedSessionIds().includes(id),
+      activity: id => {
+        if (!native.activity) throw new Error('Native retirement requires an activity port.');
+        return native.activity(id);
+      },
+      deleteEntry: id => store.deleteEntry(id),
+      hasArchiveOperation: id => store.operation(id) !== undefined || options.operationIdClaimed?.(id) === true,
+      hasPendingArchiveOperation: id => store.operations().some(item => item.phase !== 'done' && item.plan.sessionId === id),
+    }) : undefined;
     for (const entry of store.entries()) this.identities.set(entry.entryId, entry);
     for (const operation of store.operations()) {
       this.checkClaim(operation.plan.operationId);
@@ -91,9 +111,33 @@ export class ArchiveModule {
     });
   }
 
+  preparePurge(request: PreparePurgeRequest) {
+    const input = preparePurgeRequestSchema.parse(request);
+    return this.enqueue(async () => { await this.reconcileInner(); return this.requirePurge().prepare(input); });
+  }
+  executePurge(input: PurgePlan) {
+    const plan = purgePlanSchema.parse(input);
+    return this.enqueue(() => this.requirePurge().execute(plan));
+  }
+  getPurgeOperation(id: string) { return this.enqueue(async () => this.requirePurge().operation(id)); }
+  purgeOperations() { return this.enqueue(async () => this.requirePurge().operations()); }
+  reconcilePurge() {
+    return this.enqueue(async () => {
+      const legacy = await this.options.reconcileLegacyPurge?.();
+      const native = await this.requirePurge().reconcile(true);
+      return { completed: [...(legacy?.completed ?? []), ...native.completed], pending: [...(legacy?.pending ?? []), ...native.pending] };
+    });
+  }
+  private requirePurge() {
+    if (!this.purge) throw sessionBinRefusal('bin/permanent-deletion-unsupported', 'No retirement journal/owner is composed.');
+    return this.purge;
+  }
   compatibility<T>(work: () => Promise<T>): Promise<T> { return this.enqueue(work); }
   list(): Promise<ArchiveEntry[]> {
-    return this.enqueue(async () => { await this.reconcileInner(); return this.store.entries(); });
+    return this.enqueue(async () => {
+      await this.reconcileInner();
+      return this.store.entries().filter(entry => this.native.archivedSessionIds().includes(entry.sessionId));
+    });
   }
   getOperation(operationId: string): Promise<ArchiveOperation | undefined> {
     return this.enqueue(async () => this.store.operation(operationId));
@@ -101,7 +145,12 @@ export class ArchiveModule {
   operations(): Promise<ArchiveOperation[]> {
     return this.enqueue(async () => { await this.reconcileInner(); return this.store.operations(); });
   }
-  reconcile(): Promise<void> { return this.enqueue(() => this.reconcileInner()); }
+  reconcile(): Promise<void> {
+    return this.enqueue(async () => {
+      await this.options.reconcileLegacyPurge?.();
+      await this.purge?.reconcile(true); await this.reconcileInner();
+    });
+  }
   observeArchives(ids: readonly string[]): Promise<void> {
     if (this.failed) return Promise.reject(this.unavailable());
     const members = new Set(ids);
@@ -115,12 +164,15 @@ export class ArchiveModule {
     this.closing = true;
     return this.closePromise ??= this.tail.then(async () => {
       try { if (!this.failed) await this.reconcileInner(); }
-      finally { await this.store.close(); }
+      finally {
+        try { await this.purge?.close(); }
+        finally { await this.store.close(); }
+      }
     });
   }
 
   private checkClaim(operationId: string) {
-    if (this.options.operationIdClaimed?.(operationId)) {
+    if (this.purge?.operation(operationId) || this.options.operationIdClaimed?.(operationId)) {
       throw sessionBinRefusal('bin/operation-id-reused', 'Operation identity belongs to a legacy or purge request.');
     }
   }
@@ -136,7 +188,7 @@ export class ArchiveModule {
   }
   private blockers(plan: ArchivePlan, state: NativeSessionState, entry: ArchiveEntry | undefined): BinBlocker[] {
     const blockers: BinBlocker[] = [];
-    if (this.options.pendingPurge?.(plan.sessionId)) blockers.push({ code: 'pending-deletion' });
+    if (this.purge?.blocks(plan.sessionId) || this.options.pendingPurge?.(plan.sessionId)) blockers.push({ code: 'pending-deletion' });
     if (!state.known) blockers.push({ code: 'session-not-found' });
     if (!state.archived || !entry || this.invalidated.has(entry.entryId)) blockers.push({ code: 'not-archived' });
     if (this.store.operations().some(item => item.phase !== 'done' && item.plan.sessionId === plan.sessionId
@@ -163,6 +215,7 @@ export class ArchiveModule {
   }
   private async reconcileInner(): Promise<void> {
     await this.options.reconcileLegacy?.();
+    await this.purge?.reconcile(false);
     for (const operation of this.store.operations()) {
       if (operation.phase === 'done') continue;
       if (operation.phase === 'applied') await this.finalize(operation);
@@ -176,12 +229,14 @@ export class ArchiveModule {
     while (true) {
       const before = new Set(this.native.archivedSessionIds());
       for (const entry of this.store.entries()) {
+        if (this.purge?.ownsPendingEntry(entry.entryId)) continue;
         if (this.invalidated.has(entry.entryId) || !before.has(entry.sessionId)) {
           await this.store.deleteEntry(entry.sessionId);
         }
       }
       for (const sessionId of this.native.archivedSessionIds()) {
         const current = this.store.entry(sessionId);
+        if (this.purge?.blocksTarget(sessionId)) continue;
         if (!current || this.invalidated.has(current.entryId)) {
           const entry = archiveEntrySchema.parse({ schemaVersion: 2, sessionId, entryId: randomUUID() });
           this.identities.set(entry.entryId, entry);
@@ -189,8 +244,9 @@ export class ArchiveModule {
         }
       }
       const members = new Set(this.native.archivedSessionIds());
-      const entries = this.store.entries();
-      if (entries.length === members.size && entries.every(entry => members.has(entry.sessionId)
+      const entries = this.store.entries().filter(entry => !this.purge?.blocksTarget(entry.sessionId));
+      const ordinary = [...members].filter(id => !this.purge?.blocksTarget(id));
+      if (entries.length === ordinary.length && entries.every(entry => members.has(entry.sessionId)
         && !this.invalidated.has(entry.entryId))) break;
     }
     const retained = new Set(this.store.entries().map(entry => entry.entryId));

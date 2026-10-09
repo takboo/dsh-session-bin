@@ -1,6 +1,7 @@
 import { openFixture } from './fixture.mjs';
 import { acquireBinLease } from '../../dist/index.js';
 import { join } from 'node:path';
+import { crashAt } from './platform-fixture.mjs';
 
 const [mode, root, action, checkpoint] = process.argv.slice(2);
 if (mode === 'lease') {
@@ -25,7 +26,7 @@ if (mode === 'lease') {
     if ((checkpoint === 'native' && nativeChanged)
       || (['intent', 'applied', 'done'].includes(checkpoint) && journal && change.value.phase === checkpoint)
       || (checkpoint === 'entry' && entryChanged)) {
-      process.kill(process.pid, 'SIGKILL');
+      crashAt(root, checkpoint);
     }
   });
   const result = await fixture.bin.execute(plan);

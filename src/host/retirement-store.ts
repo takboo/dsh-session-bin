@@ -3,7 +3,8 @@ import type { Domain } from '@deepseek-ai/dsh-storage-domain';
 import { purgeOperationSchema, retirementBindingSchema } from '../operations/retirement.js';
 import type { PurgeOperation, RetirementBinding } from '../operations/retirement.js';
 
-/** Separate sidecar: the existing Bin domain and Remote DTOs keep their v1 shape. */
+/** Separate sidecar accepts unchanged legacy v1 records and explicitly tagged native v2 records.
+ * Its storage domain version stays 1; no automatic data migration or native mutation. */
 export const retirementDomainSpec = defineDomain({
   name: 'session_bin_purge', version: 1, layout: 'single',
   tables: { bindings: domainTable(retirementBindingSchema), operations: domainTable(purgeOperationSchema) },

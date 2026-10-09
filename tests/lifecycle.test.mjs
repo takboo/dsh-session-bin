@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import { acquireBinLease } from '../dist/index.js';
 import { createScratch, openFixture, transcript, accounting } from './helpers/fixture.mjs';
+import { assertCrashExit } from './helpers/platform-fixture.mjs';
 
 const workerPath = new URL('./helpers/worker.mjs', import.meta.url);
 async function crashedOperation(root, action, checkpoint) {
@@ -20,8 +21,7 @@ async function crashedOperation(root, action, checkpoint) {
   const [code, signal] = await once(worker, 'exit');
   clearTimeout(timeout);
   assert.equal(timedOut, false, `Worker timed out before its crash checkpoint: ${stderr}`);
-  assert.equal(code, null, stderr);
-  assert.equal(signal, 'SIGKILL', stderr);
+  assertCrashExit(root, checkpoint, code, signal, stderr);
   assert(plan, `Worker did not prepare its operation: ${stderr}`);
   return plan;
 }

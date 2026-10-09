@@ -1,3 +1,4 @@
+import { configuredPackageManager } from './package-manager.mjs';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -17,9 +18,11 @@ const scratch = await createScratch('package-');
 const userconfig = join(scratch, 'user.npmrc');
 const globalconfig = join(scratch, 'global.npmrc');
 await Promise.all([writeFile(userconfig, ''), writeFile(globalconfig, '')]);
-const { stdout } = await exec('npm', ['pack', '--json', '--ignore-scripts', '--offline',
+assert(process.env.npm_execpath, 'Run package verification through the configured mise/pnpm task.');
+const packCommand = await configuredPackageManager(['exec', 'npm', 'pack', '--json', '--ignore-scripts', '--offline',
   '--userconfig', userconfig, '--globalconfig', globalconfig,
-  '--cache', join(scratch, 'npm-cache'), '--pack-destination', scratch], { cwd: workspaceRoot });
+  '--cache', join(scratch, 'npm-cache'), '--pack-destination', scratch]);
+const { stdout } = await exec(packCommand.file, packCommand.args, { cwd: workspaceRoot });
 const [pack] = JSON.parse(stdout);
 const files = pack.files.map(file => file.path).sort();
 assert(files.includes('dist/index.js') && files.includes('dist/index.d.ts'));
@@ -50,8 +53,8 @@ const { readPluginMeta } = await import(pathToFileURL(cliRequire.resolve('@deeps
 const localizedMeta = readPluginMeta('dsh-session-bin', pathToFileURL(join(installed, 'anchor.mjs')).href);
 assert.deepEqual(localizedMeta?.title, { en: 'Session Bin', zh: '会话回收站' });
 assert.deepEqual(localizedMeta?.description, {
-  en: 'Manage Harness native archives with search, filters, and batch unarchive.',
-  zh: '直接管理 Harness 原生归档，支持搜索、筛选与批量取消归档。',
+  en: 'Manage native archives with search, filters, unarchive, and explicit permanent deletion.',
+  zh: '管理原生归档，支持搜索、筛选、取消归档与明确确认的永久删除。',
 });
 const entryPath = require.resolve('dsh-session-bin');
 assert.equal(entryPath, join(installed, 'dist/index.js'));
@@ -70,6 +73,8 @@ assert.deepEqual(Object.keys(patch[0]), ['insert']);
 assert.equal(patch[0].insert.length, 1);
 const row = patch[0].insert[0];
 assert.equal(row.name, manifest.name);
+const packedImplementation = await import(pathToFileURL(entryPath).href);
+const productionDeletionQualified = packedImplementation.nativePlatformVerified();
 const fixture = await openFixture(scratch, { seed: true, plugin: false });
 try {
   await fixture.mount(Loader, { baseUrl: pathToFileURL(join(scratch, 'installed') + '/').href });
@@ -95,6 +100,17 @@ try {
   await fixture.ctx.loader.await();
   assert.equal((await fixture.ctx.sessionBin.list()).length, 1);
   assert.equal((await fixture.ctx.sessionBin.execute(await fixture.ctx.sessionBin.prepare({ action: 'unarchive', sessionId: 'quiet' }))).status, 'success');
+  await fixture.ctx.workspaceRegistry.archiveSession(SessionId('sibling'));
+  const purge = await fixture.ctx.sessionBin.preparePurge({ sessionId: 'sibling' });
+  if (productionDeletionQualified) {
+    assert.deepEqual(purge.blockers, [], 'Packed owner must qualify the actual pinned JSONL composition.');
+    assert.equal((await fixture.ctx.sessionBin.executePurge(purge)).status, 'success');
+    assert.equal(await fixture.ctx.sessionPersistence.stat(SessionId('sibling')), undefined);
+  } else {
+    assert(purge.blockers.some(item => item.code === 'permanent-deletion-unsupported'));
+    assert.equal((await fixture.ctx.sessionBin.executePurge(purge)).status, 'rejected');
+    assert(await fixture.ctx.sessionPersistence.stat(SessionId('sibling')), 'Unqualified production must retain the transcript.');
+  }
   const againFiber = fixture.ctx.loader.resolve(again).fiber;
   fixture.ctx.loader.remove(again);
   await againFiber?.await();
@@ -102,7 +118,8 @@ try {
 const report = {
   status: 'passed', tarball, sha256: createHash('sha256').update(await readFile(tarball)).digest('hex'),
   files, sdk: manifest.peerDependencies,
-  scope: 'Packed public exports and bundle patch; real Cordis Loader activation, native archive/unarchive, disposal and reactivation on temporary JSONL sessions.',
+  platform: process.platform, arch: process.arch, node: process.versions.node, productionDeletionQualified,
+  scope: `Packed public exports and bundle patch; real Cordis Loader activation, native archive/unarchive, ${productionDeletionQualified ? 'actual single-conversation JSONL deletion' : 'explicit unsupported deletion with transcript preservation'}, disposal and reactivation on temporary sessions.`,
   limits: 'SDK dependencies supplied by the pinned repository install; not a clean profile/CLI install or a real GUI test.',
 };
 await writeFile(join(scratch, 'verification.json'), JSON.stringify(report, null, 2) + '\n');

@@ -116,8 +116,8 @@ for (const phase of ['intent', 'applied']) test(`startup migration of legacy ${p
   } finally { await fixture.close(); }
 });
 
-test('production default purge is unsupported for native members and observation never acquires a lifecycle witness', async () => {
-  const fixture = await openFixture(await createScratch('archive-purge-disabled-'), { seed: true, legacy: false });
+test('production explicitly disabled purge stays unsupported and observation never acquires a lifecycle witness', async () => {
+  const fixture = await openFixture(await createScratch('archive-purge-disabled-'), { seed: true, legacy: false, permanentDeletion: false });
   try {
     await archive(fixture, 'native-only');
     const plan = await fixture.bin.preparePurge({ sessionId: 'native-only' });
@@ -143,6 +143,7 @@ test('persisted legacy pending purge guard blocks production unarchive across st
   const log = await transcript(fixture);
   await fixture.close(); fixture = await openFixture(root, { legacy: false });
   try {
+    assert.equal((await fixture.bin.list())[0].sessionId, 'quiet');
     const plan = await fixture.bin.prepare({ action: 'unarchive', sessionId: 'quiet' });
     assert(plan.blockers.some(blocker => blocker.code === 'pending-deletion'));
     const result = await fixture.bin.execute({ ...plan, blockers: [] });

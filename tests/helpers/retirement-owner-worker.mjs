@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { openRetirementFixture, multiParticipantOptions } from './retirement-owner.mjs';
+import { crashAt } from './platform-fixture.mjs';
 
 const [root, selected, rawRequest] = process.argv.slice(2);
 assert(root && selected && rawRequest);
@@ -14,7 +15,7 @@ const fixture = await openRetirementFixture(root, { skipReconcile: true,
         : name === 'participant-quiesced' ? 'quiesced' : 'converged';
       if (!context.record?.participants.find(participant => participant.id === participantId)?.[flag]) return;
     }
-    process.kill(process.pid, 'SIGKILL');
+    crashAt(root, selected);
   } }),
 });
 const manifest = await fixture.owner.prepare(request.expected);

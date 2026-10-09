@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { Context } from '@deepseek-ai/cordis';
 import * as stores from '@deepseek-ai/dsh-client-store';
@@ -49,8 +50,8 @@ export async function createI18nHarness() {
   const seeds = { react: React, 'react/jsx-runtime': jsxRuntime, 'react-dom': ReactDOM };
   const bundle = async (contents, sourcefile, extra = {}) => {
     const result = await build({
-      absWorkingDir: new URL('.', workspace).pathname,
-      stdin: { contents, resolveDir: new URL('.', workspace).pathname, sourcefile },
+      absWorkingDir: fileURLToPath(new URL('.', workspace)),
+      stdin: { contents, resolveDir: fileURLToPath(new URL('.', workspace)), sourcefile },
       bundle: true, write: false, platform: 'browser', format: 'cjs', jsx: 'automatic', target: 'es2022',
       external: [...Object.keys(seeds), ...Object.keys(extra)],
       plugins: [{ name: 'discard-css-in-copy-tier', setup(builder) {
@@ -64,7 +65,7 @@ export async function createI18nHarness() {
     }, module, module.exports);
     return module.exports;
   };
-  const primitives = await bundle("export { Button, Checkbox, Input, Toast, IconTrashOutlineRegular, IconRefreshOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';", 'i18n-native-seed.js');
+  const primitives = await bundle("export { Button, Checkbox, Input, Toast, Modal, IconTrashOutlineRegular, IconRefreshOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';", 'i18n-native-seed.js');
   const components = await bundle("export * from './src/client/components.tsx'; export * from './src/client/locales.ts';", 'i18n-components.tsx', {
     '@deepseek-ai/dsh-client-ui-primitives': primitives,
   });
@@ -83,7 +84,8 @@ export async function createI18nHarness() {
   const locale = new localeExports.LocaleRuntime(ctx);
   const removeDictionary = locale.register(components.NS, { en: components.en, zh: components.zh });
   const t = locale.bind(components.NS);
-  const baseState = { phase: 'ready', entries: [], busy: [], pending: [], results: [], error: null, notice: null };
+  const baseState = { phase: 'ready', entries: [], busy: [], pending: [], results: [], error: null, notice: null,
+    purgeConfirmation: null, purgePending: [], purgeResults: [], purgeBatch: null, purgeCacheBlocked: false, purgeBatchOperationIds: [] };
   const bin = mutable(baseState);
   const sessions = mutable({ byId: {} });
   const workspaces = mutable({ items: [] });
@@ -93,6 +95,22 @@ export async function createI18nHarness() {
     unarchive: async entry => { calls.push(['unarchive', entry]); return { sessionId: entry.sessionId, entryId: entry.entryId, status: 'success', reason: null }; },
     unarchiveMany: async entries => { calls.push(['unarchiveMany', entries]); return entries.map(entry => ({ sessionId: entry.sessionId, entryId: entry.entryId, status: 'success', reason: null })); },
     checkPending: async () => { calls.push(['checkPending']); },
+    preparePurge: async (entry, title) => { calls.push(['preparePurge', entry, title]); },
+    cancelPurge: () => { calls.push(['cancelPurge']); bin.set({ ...bin.getSnapshot(), purgeConfirmation: null }); },
+    acknowledgePurge: acknowledged => { calls.push(['acknowledgePurge', acknowledged]); const state = bin.getSnapshot();
+      if (state.purgeConfirmation) bin.set({ ...state, purgeConfirmation: { ...state.purgeConfirmation, acknowledged } }); },
+    confirmPurge: async () => { calls.push(['confirmPurge']); bin.set({ ...bin.getSnapshot(), purgeConfirmation: null }); },
+    checkPurgePending: async () => { calls.push(['checkPurgePending']); },
+    retryPurge: async operationId => { calls.push(['retryPurge', operationId]); },
+    discardMissingPurge: async operationId => { calls.push(['discardMissingPurge', operationId]); },
+    preparePurgeAgain: async (operationId, title) => { calls.push(['preparePurgeAgain', operationId, title]); },
+    preparePurgeBatch: async (scope, titles) => { calls.push(['preparePurgeBatch', scope, titles]); },
+    acknowledgePurgeBatch: acknowledged => { calls.push(['acknowledgePurgeBatch', acknowledged]); const state = bin.getSnapshot();
+      if (state.purgeBatch) bin.set({ ...state, purgeBatch: { ...state.purgeBatch, acknowledged } }); },
+    runPurgeBatch: async () => { calls.push(['runPurgeBatch']); },
+    stopPurgeBatch: () => { calls.push(['stopPurgeBatch']); const state = bin.getSnapshot();
+      if (state.purgeBatch) bin.set({ ...state, purgeBatch: { ...state.purgeBatch, stopRequested: true, phase: 'cancelled' } }); },
+    dismissPurgeBatch: () => { calls.push(['dismissPurgeBatch']); bin.set({ ...bin.getSnapshot(), purgeBatch: null }); },
     dismissNotice: () => { calls.push(['dismissNotice']); bin.set({ ...bin.getSnapshot(), notice: null }); },
   };
   const hook = source => selector => selector(React.useSyncExternalStore(source.subscribe, source.getSnapshot));

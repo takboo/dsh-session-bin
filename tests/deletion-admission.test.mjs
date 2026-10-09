@@ -3,13 +3,14 @@ import { fork } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 import { test } from 'node:test';
 import { zstdCompressSync } from 'node:zlib';
 import { Context } from '@deepseek-ai/cordis';
 import { SessionId, SessionStore, SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session';
 import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
 import { createScratch, openFixture, transcript } from './helpers/fixture.mjs';
+import { assertStableSessionLock } from './helpers/platform-fixture.mjs';
 
 // Admission probes, not an erasure implementation. Public SDK operations only;
 // historical/damaged artifacts are seeded in fresh scratch data and never removed.
@@ -61,7 +62,7 @@ async function quietDirectory(root) {
 }
 
 for (const compression of ['none', 'zstd']) {
-  test(`deletion admission: flush preserves writer exclusion and lock inode (${compression})`, async t => {
+  test(`deletion admission: flush preserves writer exclusion and coordination identity (${compression})`, async t => {
     const root = await createScratch('deletion-flush-');
     t.diagnostic(root);
     const fixture = await openFixture(root, { seed: true, plugin: false, compression });
@@ -71,17 +72,15 @@ for (const compression of ['none', 'zstd']) {
       const id = SessionId('quiet');
       writer = await fixture.ctx.sessionPersistence.open(id, 'write');
       reader = await fixture.ctx.sessionPersistence.open(id, 'read');
-      const lockPath = join(await quietDirectory(root), 'session.lock');
-      const before = await stat(lockPath, { bigint: true });
+      const directory = await quietDirectory(root);
+      const before = await assertStableSessionLock(directory);
       const revision = (await fixture.ctx.sessionPersistence.stat(id)).revision;
       await fixture.ctx.sessionPersistence.flush();
       assert.deepEqual((await reader.read()).events, events);
       assert.equal((await probeWriter(root, compression, id)).error, 'SessionAlreadyOwnedError');
       await writer.close(); writer = undefined;
       assert.equal((await probeWriter(root, compression, id)).opened, true);
-      const after = await stat(lockPath, { bigint: true });
-      assert.equal(after.dev, before.dev);
-      assert.equal(after.ino, before.ino);
+      await assertStableSessionLock(directory, before);
       assert.equal((await fixture.ctx.sessionPersistence.stat(id)).revision, revision,
         'writer churn does not provide a lifecycle revision');
       assert.deepEqual((await reader.read()).events, events, 'writer close leaves a read handle alive');
@@ -282,7 +281,10 @@ test('deletion admission: equal file bytes under different names share one attac
     assert.notEqual(first.name, second.name);
     const firstPath = fixture.ctx.attachments.fileHostPath(first);
     const secondPath = fixture.ctx.attachments.fileHostPath(second);
-    for (const path of [firstPath, secondPath]) assert((await realpath(path)).startsWith(`${root}/`));
+    for (const path of [firstPath, secondPath]) {
+      const rel = relative(root, await realpath(path));
+      assert(rel && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+    }
     const firstStat = await stat(firstPath, { bigint: true });
     const secondStat = await stat(secondPath, { bigint: true });
     assert.equal(firstStat.dev, secondStat.dev);

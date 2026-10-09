@@ -1,6 +1,36 @@
 # 客户端切片验证
 
-状态：本地两端验证及中文、English 真实 GUI 验证通过。目标为 DSH 0.2.0-rc.2、Node 24.18.1、pnpm 11.7.0、macOS ARM64，私有开发包 0.1.0-dev.0。真实浏览器为系统 Chrome 154.0.8037.98。
+本文按代码基线记录客户端与真实 CLI/GUI 的运行证据。当前 dev.2 单项删除、固定批量、清空及恢复边界见下一节；较早 dev.0/dev.1 章节保留其原有范围。实现状态见 [README](../../README.md)。
+
+## dev.2 单项、固定批量、清空与恢复验证
+
+日期：2026-10-09。基线为 `e26e0dbeea2caf7cd6db3021cfbcd85b15c968ec` 加真实删除、跨平台候选、严格 Remote、批次编排及客户端边界修复的工作区变更。两端相同 90 文件清单和摘要 `fe69a7490825cd975f56a8002c47d2812eede583a3dc8f643b345d5cba47ba64` 见[Host 当前验收](host-lifecycle.md#dev2-真实冷-jsonl-删除与固定批次验证)。正式交互见[客户端接口](../client-interface.md)，选定编排见 [ADR 0009](../decisions/0009-fixed-purge-batches.md)。
+
+| 层次 | 实际结果 |
+| --- | --- |
+| 类型、构建与 Host | 两端检查、构建、macOS 全量 342 项通过/6 项 Windows 专属跳过、Linux candidate 341 项通过/7 项跳过及两端真实 Loader/tarball 检查均退出 0；范围和跳过项见 Host 报告。 |
+| 模型、DOM 与严格 Remote | [批次模型](../../tests/native-deletion-batch.test.mjs)32 项、[批次 DOM](../../tests/native-deletion-batch-ui.test.mjs)5 项、[单项及 Remote](../../tests/native-deletion-client.test.mjs)30 项，共 **67/67 通过，0 跳过**，并进入同轮全量。 |
+| 中文实际 CLI/浏览器 | [zh-CN 报告](../../.local/gui/client-zh-NgXPYK/verification.json)：**17 检查/28 覆盖项通过**。 |
+| English 实际 CLI/浏览器 | [en-US 报告](../../.local/gui/client-en-XJItAB/verification.json)：**17 检查/28 覆盖项通过**。 |
+
+两个全新独立 profile 由 `mise run verify:gui` 顺序运行，退出码 **0**。环境：SDK `0.2.0-rc.2`、Node `24.18.1`、pnpm `11.7.0`、macOS ARM64、系统 Chrome **155.0.8059.39**。两份 GUI 与[macOS 打包报告](../../.local/lifecycle/package-qCagP3/verification.json)、[Linux 打包报告](../../.local/platform/linux-container-rcnaCX/lifecycle/package-T1O92G/verification.json)使用同字节 `0.1.0-dev.2` 包，SHA-256 为 `9fa5d571d38a9458ac48dbf92250af477b8f1b49bdcecc9fc7484e4523e2ca67`。browser console/pageErrors 均为空；四次 Host 关闭均 code 0、signal null、未强制终止。
+
+真实 GUI 覆盖原生 Archive 唯一入口/Undo、已有归档、单项/批量取消归档、元数据搜索及筛选、语言切换保留草稿与选择、Host 偏好重载、浅深色、390px 窄屏，以及下列真实删除效果：
+
+- 单项冻结请求、默认取消焦点、不可逆勾选及 owner done 完整回执；取消和未勾选执行数为 0。
+- 固定两项批量分别准备独立计划，实际执行并发峰值 **1**，owner 成功响应逐项确认；未选中会话在清空前的 transcript SHA-256 不变。
+- 搜索隐藏全部行时，清空仍冻结完整归档集合；取消不执行，再次明确确认后才发送。每种语言共实际删除 4 个测试目标：单项 1、批量 2、清空 1。
+- 真正 Host 关闭后 SDK 重开确认四个目标的日志物理缺失，原目录和稳定协调身份保留，无关 Workspace 成员保持；公开 CLI 卸载及新的真正 Web 启动撤销贡献。
+
+新增恢复回归覆盖 missing 批次项在停止、关闭和重载后的独立 fresh preparation/confirmation；取消确认仍保留旧 guard，执行新确认才替换，provenance 始终禁止 discard，observed/uncertain grant 与替换观察仍拒绝。断线中的 success/rejected/conflict 当前项完整排空，后续项暂停；新 baseline 先于当前回复到达也不自动恢复。公开订阅通知重入 refresh、stop/dismiss，以及异步 journal 查询跨连接代次后不能发送或重新打开确认。以上故障窗口由实际 Model/Remote/DOM 回归验收，正常真实 GUI 流程不被写成这些故障的网络注入证据。
+
+实际截图：[中文浅色](../../.local/gui/client-zh-NgXPYK/artifacts/session-bin-light-zh.png)、[中文深色](../../.local/gui/client-zh-NgXPYK/artifacts/session-bin-dark-zh.png)、[中文批量确认](../../.local/gui/client-zh-NgXPYK/artifacts/session-bin-batch-delete-confirmation-zh.png)、[中文清空确认](../../.local/gui/client-zh-NgXPYK/artifacts/session-bin-clear-all-confirmation-zh.png)；[English 浅色](../../.local/gui/client-en-XJItAB/artifacts/session-bin-light-en.png)、[English 深色](../../.local/gui/client-en-XJItAB/artifacts/session-bin-dark-en.png)、[English 窄屏](../../.local/gui/client-en-XJItAB/artifacts/session-bin-narrow-en.png)。
+
+Linux CLI 的额外 add/remove 补验没有通过：profile 缓存预热后安装成功，但 Corepack 与同版本原生 pnpm 对照的卸载均未满足自然退出断言。该失败与本节 macOS 双语 GUI 通过分别记录，详见[Host 补验与限制](host-lifecycle.md#linux-cli-补验与未通过边界)；没有据此扩大 Linux 生产资格。
+
+固定交付物为[dev.2 安装包](../../.local/packages/dsh-session-bin-0.1.0-dev.2.tgz)，大小 **501702 bytes**，与上述验收包逐字节一致，附[SHA-256 校验文件](../../.local/packages/dsh-session-bin-0.1.0-dev.2.tgz.sha256)。本轮整理交付物，没有安装到用户正在运行的 Harness。
+
+测试只连接脚本启动的临时端口 `58929/59071`，未连接当前 `19387` GUI或安装到真实用户 profile。合成 composition 不证明物理 OS 输入法会话。默认生产删除仍只限声明的 macOS ARM64 组合；Linux 容器 candidate、Windows 与其他架构的 GUI/实际删除资格保持独立，尚未满足三平台公开发布条件。
 
 ## 原生归档管理重构验证
 

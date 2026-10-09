@@ -4,6 +4,7 @@ import { fork } from 'node:child_process';
 import { once } from 'node:events';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import { createScratch, openFixture, transcript, accounting } from './helpers/fixture.mjs';
+import { assertCrashExit } from './helpers/platform-fixture.mjs';
 
 async function crash(root, checkpoint) {
   const worker = fork(new URL('./helpers/archive-worker.mjs', import.meta.url), [root, checkpoint], { silent: true });
@@ -17,8 +18,7 @@ async function crash(root, checkpoint) {
   const [code, signal] = await once(worker, 'exit');
   clearTimeout(timer);
   assert.equal(timedOut, false, `Checkpoint timed out: ${stderr}`);
-  assert.equal(code, null, stderr);
-  assert.equal(signal, 'SIGKILL', stderr);
+  assertCrashExit(root, checkpoint, code, signal, stderr);
   assert(plan, `Worker did not send a plan: ${stderr}`);
   return plan;
 }

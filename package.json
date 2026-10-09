@@ -1,54 +1,94 @@
 {
   "name": "dsh-session-bin",
-  "version": "0.1.0-dev.1",
+  "version": "0.1.0-dev.2",
   "private": true,
   "type": "module",
-  "description": "Manage Harness native archives with metadata search, workspace filters, and batch unarchive.",
+  "description": "Manage native archives with search, filters, unarchive, and explicit permanent deletion.",
   "license": "MIT",
   "packageManager": "pnpm@11.7.0",
-  "engines": { "node": "24.18.1", "dsh": "0.2.0-rc.2" },
+  "engines": {
+    "node": "24.18.1",
+    "dsh": "0.2.0-rc.2"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-    "./operations": { "types": "./dist/operations/index.d.ts", "default": "./dist/operations.js" },
-    "./remote": { "types": "./dist/remote/contracts.d.ts", "default": "./dist/remote.js" },
-    "./client": { "types": "./dist/types/client/index.d.ts", "default": "./dist/client.js" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./operations": {
+      "types": "./dist/operations/index.d.ts",
+      "default": "./dist/operations.js"
+    },
+    "./remote": {
+      "types": "./dist/remote/contracts.d.ts",
+      "default": "./dist/remote.js"
+    },
+    "./client": {
+      "types": "./dist/types/client/index.d.ts",
+      "default": "./dist/client.js"
+    },
     "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
-  "files": ["dist/", "locale/", "cordis.patch.yml", "LICENSE", "docs/host-lifecycle.md", "docs/client-interface.md"],
-  "dsh": { "manifestVersion": 1, "bundle": { "patch": "./cordis.patch.yml" }, "client": { "platform": "web" } },
+  "files": [
+    "dist/",
+    "locale/",
+    "cordis.patch.yml",
+    "LICENSE",
+    "docs/host-lifecycle.md",
+    "docs/client-interface.md"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
   "scripts": {
     "check": "tsc --noEmit && tsc --project tsconfig.client.json --noEmit",
     "build": "tsc --emitDeclarationOnly && tsc --project tsconfig.client.json --emitDeclarationOnly && node scripts/build.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
     "verify:package": "node scripts/verify-package.mjs",
+    "verify:gui:browser": "playwright-core install --with-deps chromium",
     "verify:gui": "node scripts/verify-gui-locales.mjs",
     "verify:gui:locale": "node scripts/verify-gui.mjs",
+    "verify:linux": "node scripts/verify-linux.mjs",
+    "verify:platform": "node scripts/verify-platform.mjs",
     "verify": "pnpm run check && pnpm run build && pnpm run test && pnpm run verify:package"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
+    "@deepseek-ai/dsh": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-api-gateway": "0.2.0-rc.2",
     "@deepseek-ai/dsh-session": "0.2.0-rc.2",
     "@deepseek-ai/dsh-session-persistence": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "0.2.0-rc.2",
     "@deepseek-ai/dsh-storage-domain": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-workspace": "0.2.0-rc.2",
     "@deepseek-ai/dsh-typert-registry": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-api-gateway": "0.2.0-rc.2"
+    "@deepseek-ai/dsh-workspace": "0.2.0-rc.2"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2",
     "@deepseek-ai/dsh-home-paths": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-format-catalog": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2",
     "@deepseek-ai/node-addon-system": "0.1.2",
     "@deepseek-ai/schemastery": "3.18.4",
+    "koffi": "3.1.1",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
     "@deepseek-ai/cordis-plugin-loader": "1.0.5",
     "@deepseek-ai/dsh": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-api-gateway": "0.2.0-rc.2",
     "@deepseek-ai/dsh-api-remotes": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-api-workspace-controller": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-locale": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-modules": "0.2.0-rc.2",
@@ -56,17 +96,10 @@
     "@deepseek-ai/dsh-client-ui-layout": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-sidebar": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-session": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-api-session-controller": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-api-workspace-controller": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-sidebar": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-workspace": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-typert-registry": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-api-gateway": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-util-workspace-path": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-util-code-language": "0.2.0-rc.2",
     "@deepseek-ai/dsh-invariants": "0.2.0-rc.2",
     "@deepseek-ai/dsh-session": "0.2.0-rc.2",
     "@deepseek-ai/dsh-session-persistence": "0.2.0-rc.2",
@@ -74,14 +107,19 @@
     "@deepseek-ai/dsh-storage": "0.2.0-rc.2",
     "@deepseek-ai/dsh-storage-domain": "0.2.0-rc.2",
     "@deepseek-ai/dsh-storage-json": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-typert-registry": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-util-code-language": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-util-workspace-path": "0.2.0-rc.2",
     "@deepseek-ai/dsh-workspace": "0.2.0-rc.2",
+    "@shikijs/langs": "4.5.0",
     "@types/node": "24.7.0",
     "@types/react": "18.3.1",
     "@types/react-dom": "18.3.0",
-    "@shikijs/langs": "4.5.0",
     "anser": "2.3.5",
     "clsx": "2.1.1",
     "diff": "9.0.0",
+    "esbuild": "0.25.10",
     "immer": "10.1.1",
     "jsdom": "26.1.0",
     "katex": "0.16.47",
@@ -94,16 +132,15 @@
     "micromark-factory-space": "2.0.1",
     "micromark-util-character": "2.1.1",
     "micromark-util-classify-character": "2.0.1",
-    "micromark-util-symbol": "2.0.1",
     "micromark-util-sanitize-uri": "2.0.1",
+    "micromark-util-symbol": "2.0.1",
     "playwright-core": "1.56.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "shiki": "4.5.0",
     "simple-icons": "16.31.0",
-    "zustand": "4.4.7",
-    "esbuild": "0.25.10",
     "typescript": "5.9.3",
-    "yaml": "2.8.1"
+    "yaml": "2.8.1",
+    "zustand": "4.4.7"
   }
 }

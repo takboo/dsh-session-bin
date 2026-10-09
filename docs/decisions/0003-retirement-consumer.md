@@ -1,6 +1,6 @@
 # ADR 0003：Host 删除消费者使用独立 sidecar 与一次性 owner 授权
 
-状态：已采用，Host 单项协议消费者。目标 SDK：DSH `0.2.0-rc.2`；没有原生永久删除 provider 准入。
+状态：已采用，Host 单项协议消费者。目标 SDK：DSH `0.2.0-rc.2`；没有原生永久删除 provider 准入。本文的 v1 Bin 移入捕获规则保留用于旧日志及测试；原生归档显式准备、v2 绑定和独立准入由 [ADR 0006](0006-native-archive-retirement-binding.md)补充。
 
 ## 背景
 
@@ -12,7 +12,7 @@
 
 保留归档 domain 与 v1 DTO，新建 `session_bin_purge` v1 sidecar。它保存按 immutable entryId 绑定的 lifecycle/owner 见证及独立删除 journal；只在新移入时捕获获准 owner 的见证，prepare purge 不按旧 Session ID 补授权。两个 journal 共用原 Host Module 的队列、未知故障暂停和 lifetime lease，operationId 在动作间统一认领。
 
-Host 只实现经过严格校验的 owner 协议消费者，不自行解析或删除 native 会话文件。默认 Service 没有获准 owner，Config 或能力自报不能启用删除。构造器 seam 供已验证的 Host composition 使用；当前执行资源清除的参考 owner 仅在 tests 下，独立拥有临时 domain，不作为 JSONL/native 支持依据。
+Host 只实现经过严格校验的 owner 协议消费者，不自行解析或删除 native 会话文件。默认 Service 没有获准 owner，Config 或能力自报不能启用删除。本文默认无 owner 的阶段描述为消费者切片历史；实际冷 JSONL owner、准入和 Remote/UI 由 [ADR 0007](0007-native-jsonl-deletion-adapter.md)补充。构造器 seam 供已验证的 Host composition 使用；当前执行资源清除的参考 owner 仅在 tests 下，独立拥有临时 domain，不作为 JSONL/native 支持依据。
 
 计划绑定 exact entry、持久化 lifecycle、owner/参与者版本和冻结资源清单摘要；执行重新检查，资源 owner 的围栏内再调用 Host 本地授权 callback。清单及 done 回执必须逐资源闭合，保留的共享/协调资源须有明确依据，任何失败、缺失或未知结果都不能变成成功。
 

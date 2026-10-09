@@ -1,4 +1,5 @@
 import { openFixture } from './fixture.mjs';
+import { crashAt } from './platform-fixture.mjs';
 
 const [root, checkpoint] = process.argv.slice(2);
 const fixture = await openFixture(root, { legacy: false });
@@ -14,7 +15,7 @@ fixture.ctx.on('domain/changed', change => {
     && change.key === 'quiet' && change.operation === 'deleted';
   if ((checkpoint === 'native' && nativeChanged)
     || (['intent', 'applied', 'done'].includes(checkpoint) && journal && change.value.phase === checkpoint)
-    || (checkpoint === 'entry' && entryChanged)) process.kill(process.pid, 'SIGKILL');
+    || (checkpoint === 'entry' && entryChanged)) crashAt(root, checkpoint);
 });
 const result = await fixture.bin.execute(plan);
 await fixture.close();

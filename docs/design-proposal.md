@@ -14,9 +14,9 @@
 
 ## 首次公开发布范围
 
-首次公开发布包含围绕原生归档的手动核心闭环：原生 Archive、归档管理与取消归档、单项永久删除、固定选择的批量永久删除及明确对象范围的清空。永久删除独立验收通过后，再准备公开分发；至少一个明确的宿主版本与存储提供方组合须有删除行为、资源生命周期和故障恢复证据。日志预览、自动定期清空、其他平台与跨设备同步不作为这一核心闭环的首发条件。
+首次公开发布包含围绕原生归档的手动核心闭环：原生 Archive、归档管理与取消归档、单项永久删除、固定选择的批量永久删除及明确对象范围的清空。永久删除独立验收通过后，再准备公开分发；Windows、macOS、Linux 三类主要平台均须有明确宿主版本、架构、文件系统及存储提供方的删除行为、资源生命周期和故障恢复证据。跨平台锁与文件操作须遵守各平台的实际宿主契约，未验收组合不得自动启用删除；具体发布条件见[分发与发布](release.md#首次发布完成条件)。日志预览、自动定期清空与跨设备同步不作为这一核心闭环的首发条件。
 
-所有删除目标须在准备与执行时核对当前原生归档成员、固定快照和生命周期身份；归档观察本身不授予删除权限，当前默认实现仍拒绝 native 永久删除。批量与清空在操作开始时固定条目集合，期间新增或重新创建的条目不进入该批次。确认展示实际对象数、不可逆语义与阻止原因；结果按对象报告，失败和未知结果可查询，重试重新检查状态。
+所有删除目标须在准备与执行时核对当前原生归档成员、固定快照和生命周期身份；归档观察本身不授予删除权限；当前已选择并实现 [ADR 0007](decisions/0007-native-jsonl-deletion-adapter.md) 的版本绑定冷 JSONL 单项 Adapter，未审计组合继续拒绝。批量与清空在操作开始时固定条目集合，期间新增或重新创建的条目不进入该批次。确认展示实际对象数、不可逆语义与阻止原因；结果按对象报告，失败和未知结果可查询，重试重新检查状态。
 
 删除准入依赖独立已验证的资源生命周期协议；可逆归档的日志、lease 与恢复证据不能替代。未支持的版本或提供方拒绝删除。不能直接删除会话目录、锁文件、共享附件或私有索引来补齐能力；共享资源按已验证的引用归属规则处理。接口与已发布参考实现的事实见[永久删除调研](research/permanent-deletion.md)。
 
@@ -88,13 +88,13 @@ UI 只持有会话身份、操作计划和逐项结果，路径由 Host 解析�
 
 ## 永久删除资源生命周期候选协议
 
-本节为 **2026-10-07 的完整资源 owner 候选接口方案，尚未获得原生删除 provider 准入**。其中 Bin entry 绑定描述的是旧 core 的已实现消费者与测试 owner；原生归档管理的观察 entry 不自动继承这种授权，原生集合的新删除绑定仍须独立设计并验收。公开 npm DSH `0.2.0-rc.2` 上的 12 项[准入探针](../tests/deletion-admission.test.mjs)复现了资源寿命与身份缺口，不能据此启用删除；结果及精确基线见[Host 验证](verification/host-lifecycle.md#永久删除资源准入探针)。已实现严格的 Host 协议消费者、sidecar、授权 grant 与恢复 guard，并提炼可复用 owner 阶段协调器及逐参与者 journal。正式行为见[Host 生命周期](host-lifecycle.md#host-单项删除协议消费者)，选定架构见 [ADR 0003](decisions/0003-retirement-consumer.md)与 [ADR 0004](decisions/0004-retirement-owner-coordination.md)。完整 native 资源端口仍须由实际所有者提供和独立验收。本插件不新增私有文件删除 Adapter 来绕过缺口，也不把下列建议名称当成已存在的 SDK Service。
+本节为 **2026-10-07 的完整资源 owner 候选接口方案，尚未获得原生删除 provider 准入**。其中 Bin entry 绑定描述的是旧 core 的消费者与测试 owner；原生归档观察不自动继承这种授权。新原生单项准备已采用显式 v2 binding：固定观察对象，由独立获准 owner 给出 exact lifecycle 与冻结清单，执行及 admission 再复核，正式行为见[Host 生命周期](host-lifecycle.md#原生归档单项删除准备与授权)和 [ADR 0006](decisions/0006-native-archive-retirement-binding.md)。这一消费者与 test-only owner 切片不代表完整 native 组合获得准入。公开 npm DSH `0.2.0-rc.2` 上的 12 项[准入探针](../tests/deletion-admission.test.mjs)复现了资源寿命与身份缺口，不能据此启用删除；结果及精确基线见[Host 验证](verification/host-lifecycle.md#永久删除资源准入探针)。已实现严格的 Host 协议消费者、sidecar、授权 grant 与恢复 guard，并提炼可复用 owner 阶段协调器及逐参与者 journal。正式行为见[Host 生命周期](host-lifecycle.md#host-单项删除协议消费者)，选定架构见 [ADR 0003](decisions/0003-retirement-consumer.md)与 [ADR 0004](decisions/0004-retirement-owner-coordination.md)。完整 public native 资源端口仍缺失；用户已明确选择自行实现，本插件采用 [ADR 0007](decisions/0007-native-jsonl-deletion-adapter.md) 的精确版本/源码/实例绑定 Adapter 补齐冷目标支持。Adapter 使用具体文件身份、同 inode 稳定锁和原生参与者协调，不递归删除目录、替换锁或直接写私有 SQLite 索引。下列候选名称仍不是现有 SDK Service，早期 test-only 结果不代替真实删除验收。
 
 ### 身份和范围
 
 需要资源所有者提供可持久化的 `{ storeId, sessionId, lifecycleId }`：`storeId` 标识持久化存储命名空间，`lifecycleId` 在逻辑会话首次创建时生成，跨 resume、重启和格式迁移保持，ID 重新创建必须更换。它与每次进入内存的 exact Session/Agent 对象身份、物理日志代际和变更 revision 分开。`createdAt/cwd` 可由调用方重复指定；persistence 的 `identity: symbol` 仅在进程内有效，`revision` 也不承诺跨实例比较。这些都不能替代上述删除身份。
 
-未来条目须在移入时绑定所有者生命周期，计划再绑定 `entryId`、条目版本、`operationId` 与资源清单摘要。准备及执行都检查本插件持久化条目、归档状态和所有者身份。原先未绑定的 v1 条目没有这样的生命周期见证，不能在删除时仅凭同名会话自动补齐；已选定的消费者实现保留原 v1 DTO，在新移入时另存 sidecar 见证。兼容方式为继续允许可逆恢复，经明确移入创建新的 entryId 和见证；生产 native 组合当前没有获准 owner，重新移入也不会启用删除。未观察到的取消归档再归档仍遵守现有归属限制，不以新身份方案宣称已恢复历史 actor 信息。
+旧 Bin 条目须在移入时绑定所有者生命周期，计划再绑定 `entryId`、条目版本、`operationId` 与资源清单摘要。原生归档对象采用上文的显式准备捕获，观察本身不带 lifecycle 见证。两种准备及执行都检查对应持久化对象、当前原生成员和所有者身份。原先未绑定的 v1 条目没有这样的生命周期见证，不能在删除时仅凭同名会话自动补齐；已选定的消费者实现保留原 v1 DTO，在新移入时另存 sidecar 见证。兼容方式为继续允许可逆恢复，经明确移入创建新的 entryId 和见证；旧 v1 见证不会自动升级成新原生授权；新冷 JSONL owner 仅通过原生显式准备 adoption 和独立组合准入获得资格。未观察到的取消归档再归档仍遵守现有归属限制，不以新身份方案宣称已恢复历史 actor 信息。
 
 单项指一个明确的插件条目和它绑定的逻辑会话，不隐式级联删除其他 Session。fork 与未选中的子代理会话保留；如果所有者不能证明父子日志、spill 或其他引用可安全分离，则拒绝此目标。将来显式选择的其他会话也须各有插件条目与身份，不能因为 `parentSession/origin` 而获得删除授权。批量及清空固定这些条目身份，不在重试或恢复时扩大集合。
 
@@ -158,7 +158,7 @@ Workspace 所有者在其队列内清除该生命周期的成员、archive/pin �
 
 ### 当前缺口与验证门槛
 
-`0.2.0-rc.2` 未提供上述统一入口、持久化 lifecycle token、活动/归档联合准入围栏、逐目标 writer/read/observer 屏障、JSONL retirement lease/全代际清单、共享引用释放、Workspace 删除确认、派生数据持久化防复活或 owner 操作回执。AgentLoop 内部 composite teardown 有等待 idle 和 writer close 的顺序，但它不构成跨所有者的公开删除屏障。逐项源码依据见[资源所有者缺口表](research/permanent-deletion.md#resource-owner-contract-gaps)。因此默认 Host 组合没有执行原生 purge 的资格；原 `prepare/execute` 仍仅接受 `bin/restore`，新增 Host 专用 `preparePurge/executePurge` 在此组合返回可查询的不支持拒绝。它们已通过测试资源 owner 驱动协议消费者，但尚不向 Remote/UI 暴露删除。
+`0.2.0-rc.2` 未提供上述统一入口、持久化 lifecycle token、活动/归档联合准入围栏、逐目标 writer/read/observer 屏障、JSONL retirement lease/全代际清单、共享引用释放、Workspace 删除确认、派生数据持久化防复活或 owner 操作回执。AgentLoop 内部 composite teardown 有等待 idle 和 writer close 的顺序，但它不构成跨所有者的公开删除屏障。逐项源码依据见[资源所有者缺口表](research/permanent-deletion.md#resource-owner-contract-gaps)。这仍是公共 SDK 的缺口。用户明确选择由插件自行实现，当前版本绑定冷 JSONL Adapter 通过具体 writer inode lease、受控实例准入、精确文件清单和原生 metadata/query owner 收敛补齐声明范围；不扩展成所有 native/optional provider 的保证。生产 `prepare/execute` 使用 `unarchive`，旧 v1 只保守查询/恢复；v2 `preparePurge/executePurge` 及单项严格 Remote/UI 已接通，未支持、未审计或显式禁用组合返回可查询拒绝。固定批量与明确范围清空复用单项协议，选定编排见 [ADR 0009](decisions/0009-fixed-purge-batches.md)，正式行为见[客户端接口](client-interface.md#固定批量永久删除与清空)；各平台的实际验收及生产资格仍独立记录。
 
 候选 owner 的临时数据验收必须覆盖：准备后生命周期/条目替换、native 活动切换和已准入工作、独立进程 writer 争用及稳定 lock inode、保留 reader/异步观察者、historical raw/zstd 全代际、未知/损坏资源、fork/子代理/spill/shared attachment 保留、晚到 cache/index 写回、每个 owner phase 的实际 SIGKILL 与重开、确认丢失、旧操作对新生命周期的拒绝，以及列表/搜索/Workspace/follow 的共同收敛。成功的准入缺口探针不替代这些删除与故障验收；只有 owner 实现通过独立验收后才将正式 Host 单项切片接到这一 seam。
 

@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Session Bin",
-    "description": "Manage Harness native archives with search, filters, and batch unarchive."
+    "description": "Manage native archives with search, filters, unarchive, and explicit permanent deletion."
   }
 }

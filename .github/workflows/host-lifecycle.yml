@@ -9,11 +9,49 @@ permissions:
 
 jobs:
   verify:
-    runs-on: macos-latest
+    name: ${{ matrix.os }} / ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            platform: win32
+            arch: x64
+          - os: macos-15
+            platform: darwin
+            arch: arm64
+          - os: macos-15-intel
+            platform: darwin
+            arch: x64
+          - os: ubuntu-24.04
+            platform: linux
+            arch: x64
+          - os: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+    env:
+      DSH_VERIFY_PLATFORM: ${{ matrix.platform }}
+      DSH_VERIFY_ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3
       - name: Install locked dependencies without lifecycle scripts
-        run: pnpm install --frozen-lockfile --ignore-scripts
-      - name: Check, build, test, and verify tarball
-        run: mise run verify
+        run: mise run install
+      - name: Check, build, test actual platform candidates, and verify tarball
+        run: mise run verify:platform
+      - name: Prepare pinned Chromium on the isolated runner
+        run: mise run verify:gui:browser
+      - name: Verify bilingual public CLI and browser lifecycle
+        run: mise run verify:gui
+      - name: Preserve native platform evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-${{ matrix.platform }}-${{ matrix.arch }}
+          if-no-files-found: error
+          path: |
+            .local/platform/**/verification.json
+            .local/lifecycle/package-*/verification.json
+            .local/gui/**/verification.json
+            .local/gui/**/artifacts/*.png

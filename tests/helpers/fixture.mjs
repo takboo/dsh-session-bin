@@ -11,6 +11,7 @@ import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
 import { WorkspaceRegistry } from '@deepseek-ai/dsh-workspace';
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry';
 import * as binPlugin from '../../dist/index.js';
+import { sessionBinPlugin } from './platform-fixture.mjs';
 
 export const workspaceRoot = fileURLToPath(new URL('../../', import.meta.url));
 export const ids = ['quiet', 'sibling', 'native-only', 'active', 'ungrouped', 'race', 'missing-later'];
@@ -26,7 +27,7 @@ export async function createScratch(prefix = 'lifecycle-') {
   return root;
 }
 
-export async function openFixture(root, { seed = false, plugin = true, observe = true, compression = 'none', legacy = true } = {}) {
+export async function openFixture(root, { seed = false, plugin = true, observe = true, compression = 'none', legacy = true, permanentDeletion = true } = {}) {
   root = await realpath(resolve(root));
   const rel = relative(await realpath(join(workspaceRoot, '.local', 'lifecycle')), root);
   assert(rel && rel !== '..' && !rel.startsWith(`..${sep}`), 'fixtures must use isolated workspace data');
@@ -110,7 +111,7 @@ export async function openFixture(root, { seed = false, plugin = true, observe =
         await bin.reconcile();
       } }, undefined);
     } else if (plugin) {
-      binFiber = await mount(binPlugin, { coordinationDirectory: join(root, 'coordination') });
+      binFiber = await mount(sessionBinPlugin(root), { coordinationDirectory: join(root, 'coordination'), permanentDeletion });
       bin = ctx.get('sessionBin');
       assert(bin);
     }

@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import * as bin from '../dist/index.js';
 import { createScratch, transcript, accounting } from './helpers/fixture.mjs';
 import { latch, multiParticipantOptions, openRetirementFixture, override } from './helpers/retirement-owner.mjs';
+import { assertCrashExit } from './helpers/platform-fixture.mjs';
 
 const workerPath = new URL('./helpers/retirement-owner-worker.mjs', import.meta.url);
 const grant = () => Promise.resolve({ authorized: true, authorizationId: randomUUID() });
@@ -43,8 +44,7 @@ async function killed(root, selected, request) {
   try {
     const [code, signal] = await once(worker, 'exit');
     assert.equal(timedOut, false, stderr);
-    assert.equal(code, null, stderr);
-    assert.equal(signal, 'SIGKILL', stderr);
+    assertCrashExit(root, selected, code, signal, stderr);
     assert.deepEqual(sent, request);
   } finally {
     clearTimeout(deadline);
