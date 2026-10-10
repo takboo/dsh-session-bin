@@ -43,6 +43,8 @@ jobs:
         run: mise run release:check
       - name: Install locked dependencies without lifecycle scripts
         run: mise run install
+      - name: Check dshmarket publication metadata
+        run: mise run verify:market
       - name: Check, build, test actual platform candidates, and verify tarball
         run: mise run verify:platform
       - name: Prepare pinned Chromium on the isolated runner

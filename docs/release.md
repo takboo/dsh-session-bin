@@ -92,11 +92,24 @@ npm publish ./dsh-session-bin.tgz --access public --registry=https://registry.np
 
 发布后用 `npm view @takboo/dsh-session-bin@0.1.0 version dist.integrity --registry=https://registry.npmjs.org` 确认公开版本；再在包 Settings 配置 trusted publisher。GitHub Release 与 npm Registry 各自的发布状态分别记录，不能将 Release 成功写成 npm 已发布。
 
-## dsh-market
+## dshmarket
 
-市场使用 [awesome-dsh-plugin 目录](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)。目录条目位于 `data/plugins/<owner>__<repo>.yml`，匹配实际仓库与已实现能力；会话整理插件使用相应的 `session` 分类。
+市场应用 [dshmarket](https://github.com/dsh-market/dsh-market)使用 [awesome-dsh-plugin 目录](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)，插件投稿应提交到目录仓库。规则重新核对日期为 2026-10-10，依据为[市场说明](https://github.com/dsh-market/dsh-market/blob/fd6e5c03e4af3232c456e5a1c90f0de440e473ba/README.md#submit-your-plugin)及[目录贡献指南](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/blob/dc8396d3c99e6f1c5de02570e1b3ddbb53856a4b/contributing.md)。
+
+本项目的投稿源为 [market/takboo__dsh-session-bin.yml](../market/takboo__dsh-session-bin.yml)。目录 PR 只添加同一份内容到 `data/plugins/takboo__dsh-session-bin.yml`，不提交其他插件条目、生成的 README 或站点文件。使用 `session` 分类、准确的中英文一句话描述及固定名称 tarball 回退。版本更新继续由现有 GitHub Release 与 npm 流程发布；不为每个版本重新投稿。
 
 收录需真实可用代码、`dsh.bundle`、仓库创建满一天、活跃维护，以及 `dsh-plugin` topic。已有参考项目被收录，维护者会评估功能重叠；新项目必须展示实际新增行为或维护改善，原生外观本身不保证通过。
+
+本项目直接管理原生 Archive，不提供第二个归档入口；删除固定对象和资源范围，保留共享附件及独立 fork，并通过持久化回执处理未知结果。投稿说明应链接当前源码、支持矩阵及已完成的五平台 CI，便于维护者核对行为与已有项目的区别。兼容性仍受 [README](../README.md#兼容性) 的实际验收范围约束。
+
+发布前运行 `mise run verify:market`。同一检查已接入常规 `verify` 和五平台 CI，校验投稿字段、npm repository 关联、bundle patch 存在性、固定 Release 文件名及 1–8 张项目内截图路径。它是离线元数据检查，不代替上游的仓库年龄、内容评审或市场可见性检查。
+
+首次投稿步骤：
+
+1. 确认正式 npm 包与 GitHub Release 可下载，仓库已添加 `dsh-plugin` topic。
+2. 从目录最新 `main` 创建投稿分支，只复制上述 YAML 文件，并以作者身份提交 PR。
+3. 检查目录 CI 的结果。仓库未满 24 小时是实际准入条件；当前[目录 gate](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/blob/dc8396d3c99e6f1c5de02570e1b3ddbb53856a4b/scripts/check-submission.mjs)会保留年龄阻塞并定期自动重检，无需空提交、关闭或重开 PR。
+4. 等待目录维护者审核和合并，再确认市场目录中出现本项目。合并后站点自动重建，市场通常在一天内采集；“已提交”“CI 通过”“已收录”“市场可见”分别确认，不能互相代替。
 
 npm 包的 `repository` 与目录仓库匹配时，由市场自动关联。条目不添加 `npm:` 字段，不通过修改生成的 README 投稿。npm 发布和市场收录是两个独立过程，合并和市场显示存在外部等待条件。
 
