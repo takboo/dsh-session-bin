@@ -69,29 +69,30 @@ function batchItemText(item: PurgeBatchItem, t: TranslateNS<typeof NS>): string 
   return reasonText(item.outcome?.reason ?? item.reason, t);
 }
 
-function PurgeBatchDetails({ batch, t }: { batch: PurgeBatchState; t: TranslateNS<typeof NS> }) {
+function PurgeBatchDetails({ batch, t, failuresOnly = false }: {
+  batch: PurgeBatchState; t: TranslateNS<typeof NS>; failuresOnly?: boolean;
+}) {
   const counts = batchCounts(batch);
+  const processed = batch.items.filter(item => ['settled', 'blocked', 'cancelled'].includes(item.state)).length;
+  const items = failuresOnly ? batch.items.filter(item => item.state !== 'ready'
+    && item.outcome?.status !== 'success' && item.state !== 'cancelled') : batch.items;
   return <>
-    {batch.phase === 'preparing' && <p className={styles.batchProgress} role="status">{t('batchPreparationProgress', {
-      prepared: counts.prepared, total: batch.frozenCount,
-    })}</p>}
-    <p className={styles.batchSummary}>{t('batchSummary', {
+    {['preparing', 'running'].includes(batch.phase) && <div className={styles.batchProgress} role="status">
+      <span>{batch.phase === 'preparing' ? t('batchPreparationProgress', { prepared: counts.prepared, total: batch.frozenCount })
+        : t('batchExecutionProgress', { completed: processed, total: batch.frozenCount })}</span>
+      <progress aria-label={t('batchProgressLabel')} max={batch.frozenCount}
+        value={batch.phase === 'preparing' ? counts.prepared : processed} />
+    </div>}
+    {batch.phase === 'confirming' && <><p className={styles.batchSummary}>{t('batchSummary', {
       total: batch.frozenCount, executable: counts.executable, blocked: counts.blocked,
-    })}</p>
-    <p className={styles.description}>{t('batchScope')}</p>
-    <dl className={styles.resourceCounts} aria-label={t('batchResources')}>
-      <div><dt>{t('resourceErase')}</dt><dd>{batch.resourceCounts.erase}</dd></div>
-      <div><dt>{t('resourceReleaseReference')}</dt><dd>{batch.resourceCounts.releaseReference}</dd></div>
-      <div><dt>{t('resourceRetainShared')}</dt><dd>{batch.resourceCounts.retainShared}</dd></div>
-      <div><dt>{t('resourceRetainCoordination')}</dt><dd>{batch.resourceCounts.retainCoordination}</dd></div>
-    </dl>
-    <p className={styles.description}>{t('batchRetainedCopies')}</p>
-    <ul className={styles.batchItems} aria-label={t('batchItems')}>
-      {batch.items.map((item, index) => <li key={`${item.target.entryId}-${index}`}>
+    })}</p><p className={styles.description}>{t('batchScope')}</p>
+      <p className={styles.description}>{t('batchRetainedCopies')}</p></>}
+    {items.length > 0 && <ul className={styles.batchItems} aria-label={t('batchItems')}>
+      {items.map((item, index) => <li key={`${item.target.entryId}-${index}`}>
         <span className={styles.batchItemTitle}>{item.target.title}</span>
         <span className={styles.batchItemStatus}>{batchItemText(item, t)}</span>
       </li>)}
-    </ul>
+    </ul>}
   </>;
 }
 
@@ -100,7 +101,7 @@ export function BinNotice({ useBin, model, t }: NoticeProps) {
   const notice = state.notice;
   const confirmation = state.purgeConfirmation;
   const batch = state.purgeBatch ?? null;
-  const batchModal = !confirmation && batch && ['preparing', 'confirming', 'running'].includes(batch.phase) ? batch : null;
+  const batchModal = !confirmation && batch && batch.phase === 'confirming' ? batch : null;
   const blocked = confirmation && (confirmation.plan.blockers.length > 0 || !confirmation.plan.binding || !confirmation.plan.manifest);
   const text = notice?.kind === 'unarchived' ? t('unarchived') : notice?.kind === 'deleted' ? t('deleted') : reasonText(notice?.reason ?? null, t);
   return <>
@@ -111,34 +112,26 @@ export function BinNotice({ useBin, model, t }: NoticeProps) {
       footer={<>
         <Button variant="outline" data-modal-autofocus onClick={() => model.cancelPurge()}>{t('cancelDeletion')}</Button>
         <Button variant="outline" style={{ color: 'var(--dsw-alias-state-error-primary)' }}
-          disabled={Boolean(blocked) || !confirmation.acknowledged || state.phase !== 'ready' || Boolean(state.purgeCacheBlocked)}
-          onClick={() => { void model.confirmPurge(); }}>{t('confirmDeletion')}</Button>
+          disabled={Boolean(blocked) || state.phase !== 'ready' || Boolean(state.purgeCacheBlocked)}
+          onClick={() => { model.acknowledgePurge(true); void model.confirmPurge(); }}>{t('confirmDeletion')}</Button>
       </>}>
       <p className={styles.description}>{t('deleteScope')}</p>
       {confirmation.plan.blockers.length > 0 && <ul aria-label={t('deletionBlockers')} role="alert">
         {confirmation.plan.blockers.map((blocker, index) => <li key={`${blocker.code}-${index}`}>{reasonText(blocker.code, t)}</li>)}
       </ul>}
-      <Checkbox label={t('deletionAcknowledge')} checked={confirmation.acknowledged}
-        disabled={Boolean(blocked) || Boolean(state.purgeCacheBlocked)}
-        onChange={checked => model.acknowledgePurge(checked)} />
     </Modal>}
     {batchModal && <Modal open
       title={t(batchModal.scope === 'selection' ? 'batchSelectionTitle' : 'batchAllTitle', { count: batchModal.frozenCount })}
-      closeLabel={t('closeBatchDeletion')} description={t(batchModal.phase === 'preparing' ? 'batchPreparingDescription'
-        : batchModal.phase === 'running' ? 'batchRunningDescription' : 'batchConfirmDescription')}
+      closeLabel={t('closeBatchDeletion')} description={t('batchConfirmDescription')}
       onClose={() => model.stopPurgeBatch()}
-      footer={batchModal.phase === 'confirming' ? <>
+      footer={<>
         <Button variant="outline" data-modal-autofocus onClick={() => model.stopPurgeBatch()}>{t('cancelDeletion')}</Button>
         <Button variant="outline" style={{ color: 'var(--dsw-alias-state-error-primary)' }}
-          disabled={!batchModal.acknowledged || batchCounts(batchModal).executable === 0 || state.phase !== 'ready' || Boolean(state.purgeCacheBlocked)}
-          onClick={() => { void model.runPurgeBatch(); }}>{t('confirmBatchDeletion')}</Button>
-      </> : <Button variant="outline" data-modal-autofocus
-        onClick={() => model.stopPurgeBatch()}>{t(batchModal.phase === 'running' ? 'stopBatchDeletion' : 'cancelDeletion')}</Button>}>
+          disabled={batchCounts(batchModal).executable === 0 || state.phase !== 'ready' || Boolean(state.purgeCacheBlocked)}
+          onClick={() => { model.acknowledgePurgeBatch(true); void model.runPurgeBatch(); }}>{t('confirmBatchDeletion')}</Button>
+      </>}>
       <div className={styles.batchModalBody}>
         <PurgeBatchDetails batch={batchModal} t={t} />
-        {batchModal.phase === 'confirming' && <Checkbox label={t('batchAcknowledge')} checked={batchModal.acknowledged}
-          disabled={batchCounts(batchModal).executable === 0 || Boolean(state.purgeCacheBlocked)}
-          onChange={checked => model.acknowledgePurgeBatch(checked)} />}
       </div>
     </Modal>}
   </>;
@@ -154,6 +147,7 @@ export function BinPanel({ useBin, useSessions, useWorkspaces, model, t }: Panel
   const [workspaceFilter, setWorkspaceFilter] = useState('all');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [batchBusy, setBatchBusy] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const ready = state.phase === 'ready';
   const unconfirmed = state.pending.filter(plan => !state.busy.includes(plan.sessionId));
   const legacyPending = unconfirmed.some(plan => plan.schemaVersion === 1);
@@ -173,6 +167,9 @@ export function BinPanel({ useBin, useSessions, useWorkspaces, model, t }: Panel
   }), [state.entries, sessions, workspaces, unnamed, ungrouped, unnamedWorkspace]);
   const visible = rows.filter(row => (workspaceFilter === 'all' || row.workspaceId === workspaceFilter)
     && `${row.title} ${row.workspaceTitle}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+  const groups = [...new Set(visible.map(row => row.workspaceId))].map(id => ({
+    id, title: visible.find(row => row.workspaceId === id)!.workspaceTitle, rows: visible.filter(row => row.workspaceId === id),
+  }));
   const targets = rows.filter(row => selected.has(row.entry.entryId));
   const allSelected = visible.length > 0 && visible.every(row => selected.has(row.entry.entryId));
   useEffect(() => {
@@ -211,9 +208,9 @@ export function BinPanel({ useBin, useSessions, useWorkspaces, model, t }: Panel
     } finally { setBatchBusy(false); }
   };
   const titlesBySessionId = () => Object.fromEntries(rows.map(row => [row.entry.sessionId, row.title]));
-  const prepareSelectedPurge = () => model.preparePurgeBatch(
+  const prepareSelectedPurge = () => model.requestPurgeBatch(
     { kind: 'selection', entryIds: targets.map(row => row.entry.entryId) }, titlesBySessionId());
-  const prepareAllPurge = () => model.preparePurgeBatch({ kind: 'all-archived' }, titlesBySessionId());
+  const prepareAllPurge = () => model.requestPurgeBatch({ kind: 'all-archived' }, titlesBySessionId());
   const newPurgeDisabled = !ready || activePurgeBatch || purgeCacheBlocked || Boolean(state.purgeConfirmation)
     || purgePending.length > 0 || state.busy.length > 0;
   return <section className={styles.panel} aria-label={t('title')}>
@@ -221,12 +218,19 @@ export function BinPanel({ useBin, useSessions, useWorkspaces, model, t }: Panel
       <div><p className={styles.count}>{t(state.entries.length === 1 ? 'countOne' : 'count', { count: state.entries.length })}</p>
         <h1 className={styles.title}>{t('title')}</h1><p className={styles.description}>{t('description')}</p></div>
       <div className={styles.headingActions}>
-        <Button variant="outline" size="sm" disabled={newPurgeDisabled || state.entries.length === 0}
+        <Button variant="ghost" size="sm" aria-expanded={settingsOpen}
+          onClick={() => setSettingsOpen(open => !open)}>{t('settings')}</Button>
+        <Button variant="ghost" className={styles.danger} size="sm" disabled={newPurgeDisabled || state.entries.length === 0}
           onClick={() => { void prepareAllPurge(); }}>{t('clearAllArchived', { count: state.entries.length })}</Button>
         <Button variant="ghost" size="sm" icon={<IconRefreshOutlineRegular size={16} />} disabled={activePurgeBatch}
           onClick={() => { void model.refresh(); }}>{t('refresh')}</Button>
       </div>
     </header>
+    {settingsOpen && <section className={styles.settings} aria-label={t('settings')}>
+      <Checkbox label={t('confirmDeletionSetting')} checked={state.confirmDeletion !== false}
+        onChange={checked => model.setConfirmDeletion(checked)} />
+      <p className={styles.description}>{t('confirmDeletionHint')}</p>
+    </section>}
     <div className={styles.toolbar}>
       <Input className={styles.search!} aria-label={t('search')} placeholder={t('search')} value={draft}
         onCompositionStart={() => { composing.current = true; }}
@@ -243,7 +247,8 @@ export function BinPanel({ useBin, useSessions, useWorkspaces, model, t }: Panel
       {(state.error !== 'purge-cache-capacity' || purgePending.length > 0) && <Button size="sm" onClick={() => { void (purgePending.length ? model.checkPurgePending() : state.pending.length ? model.checkPending() : model.refresh()); }}>{t(purgePending.length ? 'checkDeletion' : state.pending.length ? pendingLabel : 'retry')}</Button>}</div>}
     {unconfirmed.length > 0 && !state.error && <div className={styles.alert} role="status"><span>{t(unconfirmed.length === 1 ? 'pendingOne' : 'pending', { count: unconfirmed.length })}</span>
       <Button size="sm" onClick={() => { void model.checkPending(); }}>{t(pendingLabel)}</Button></div>}
-    {purgePending.map(plan => {
+    {purgePending.filter(plan => !purgeBatch?.items.some(item => item.state === 'running'
+      && item.plan?.operationId === plan.operationId)).map(plan => {
       const title = sessions.byId[plan.sessionId as SessionId]?.title || unnamed;
       const result = purgeResults.find(row => row.operationId === plan.operationId);
       const missing = result?.reason === 'deletion-result-missing';
@@ -267,8 +272,11 @@ export function BinPanel({ useBin, useSessions, useWorkspaces, model, t }: Panel
           <span className={styles.emptyIcon} aria-hidden="true"><IconTrashOutlineRegular size={32} /></span>
           <p className={styles.emptyTitle}>{t(rows.length === 0 ? 'empty' : 'noMatches')}</p>
           <p className={styles.emptyHint}>{t(rows.length === 0 ? 'emptyHint' : 'noMatchesHint')}</p>
-        </div> : <ul className={styles.list} aria-label={t('entries')}>
-          {visible.map(({ entry, title, workspaceTitle }) => {
+        </div> : <div aria-label={t('entries')}>
+          {groups.map(group => <section className={styles.workspaceGroup} key={group.id} aria-label={group.title}>
+            <h2 className={styles.workspaceHeading}>{group.title}<span>{group.rows.length}</span></h2>
+            <ul className={styles.list} aria-label={t('entries')}>
+          {group.rows.map(({ entry, title }) => {
             const disabled = !ready || batchBusy || activePurgeBatch || state.busy.includes(entry.sessionId) || Boolean(state.purgeConfirmation)
               || purgePending.some(plan => plan.sessionId === entry.sessionId)
               || state.pending.some(plan => plan.schemaVersion === 2 && plan.sessionId === entry.sessionId);
@@ -276,14 +284,15 @@ export function BinPanel({ useBin, useSessions, useWorkspaces, model, t }: Panel
               <Checkbox className={styles.rowCheck} label={t('select', { title })} checked={selected.has(entry.entryId)} disabled={disabled}
                 onChange={checked => toggle(entry.entryId, checked)} />
               <div className={styles.rowBody}><div className={styles.rowTitle} title={title}>{title}</div>
-                <div className={styles.meta}><span>{workspaceTitle}</span></div></div>
+</div>
               <Button variant="outline" size="sm" disabled={disabled}
                 onClick={() => { void model.unarchive(entry); }}>{t('unarchive')}</Button>
-              <Button variant="ghost" size="sm" disabled={disabled || purgeCacheBlocked} aria-label={t('deleteConversation', { title })}
-                onClick={() => { void model.preparePurge(entry, title); }}>{t('permanentDelete')}</Button>
+              <Button variant="ghost" className={styles.danger} size="sm" disabled={disabled || purgeCacheBlocked} aria-label={t('deleteConversation', { title })}
+                onClick={() => { void model.requestPurge(entry, title); }}>{t('permanentDelete')}</Button>
             </li>;
           })}
-        </ul>}
+        </ul></section>)}
+        </div>}
     </div>
     {state.results.length > 0 && state.results.some(result => result.status !== 'success') && <ul className={styles.results} aria-label={t('results')} aria-live="polite">
       {state.results.map(result => <li className={styles.result} key={result.sessionId}>
@@ -291,31 +300,35 @@ export function BinPanel({ useBin, useSessions, useWorkspaces, model, t }: Panel
         <span>{result.status === 'success' ? t('resultSuccess') : reasonText(result.reason, t)}</span></li>)}
     </ul>}
     {purgeResults.length > 0 && purgeResults.some(result => result.status !== 'success') && <ul className={styles.results} aria-label={t('deletionResults')} aria-live="polite">
-      {purgeResults.map(result => <li className={styles.result} key={result.operationId}>
+      {purgeResults.filter(result => result.status !== 'success' && !purgeBatch?.items.some(item => item.outcome?.operationId === result.operationId)
+        && !purgePending.some(plan => plan.operationId === result.operationId)).map(result => <li className={styles.result} key={result.operationId}>
         <span>{sessions.byId[result.sessionId as SessionId]?.title || unnamed}</span>
         <span>{result.status === 'success' ? t('deleted') : result.status === 'partial-failure' ? t('deletionPartial') : reasonText(result.reason, t)}</span>
       </li>)}
     </ul>}
-    {purgeBatch && ['paused', 'done', 'cancelled'].includes(purgeBatch.phase) && <section className={styles.batchStatus}
+    {purgeBatch && purgeBatch.phase !== 'confirming' && <section className={styles.batchStatus}
       aria-label={t('batchStatus')} aria-live="polite">
-      <h2>{t(purgeBatch.phase === 'paused' ? 'batchPausedTitle' : purgeBatch.phase === 'done' ? 'batchDoneTitle' : 'batchCancelledTitle')}</h2>
+      <h2>{t(purgeBatch.phase === 'preparing' ? 'batchPreparingTitle' : purgeBatch.phase === 'running' ? 'batchRunningTitle'
+        : purgeBatch.phase === 'paused' ? 'batchPausedTitle' : purgeBatch.phase === 'done' ? 'batchDoneTitle' : 'batchCancelledTitle')}</h2>
       {purgeBatch.phase === 'paused' && <p className={styles.description}>{t('batchPausedDescription')}</p>}
-      <PurgeBatchDetails batch={purgeBatch} t={t} />
-      <p className={styles.batchOutcome}>{t('batchOutcome', {
+      <div className={styles.batchModalBody}><PurgeBatchDetails batch={purgeBatch} t={t}
+        failuresOnly={['paused', 'done', 'cancelled'].includes(purgeBatch.phase)} /></div>
+      {!['preparing', 'running'].includes(purgeBatch.phase) && <p className={styles.batchOutcome}>{t('batchOutcome', {
         success: batchCounts(purgeBatch).completed, unresolved: batchCounts(purgeBatch).unresolved,
-      })}</p>
+      })}</p>}
       <div className={styles.batchActions}>
-        {purgeBatch.phase === 'paused' ? <>
+        {['preparing', 'running'].includes(purgeBatch.phase) ? <Button variant="outline" size="sm" onClick={() => model.stopPurgeBatch()}>{t('stopBatchDeletion')}</Button>
+        : purgeBatch.phase === 'paused' ? <>
           <Button size="sm" disabled={!ready || purgeCacheBlocked || purgePending.length > 0 || purgeBatch.stopRequested}
             onClick={() => { void model.runPurgeBatch(); }}>{t('continueBatchDeletion')}</Button>
           <Button variant="outline" size="sm" onClick={() => model.stopPurgeBatch()}>{t('stopBatchDeletion')}</Button>
         </> : <Button size="sm" onClick={() => model.dismissPurgeBatch?.()}>{t('dismissBatchDeletion')}</Button>}
       </div>
     </section>}
-    {targets.length > 0 && <footer className={styles.selection}>
+    {targets.length > 0 && !['preparing', 'running'].includes(purgeBatch?.phase ?? '') && <footer className={styles.selection}>
       <span>{t('selected', { count: targets.length })}</span><div className={styles.selectionActions}>
         <Button size="sm" disabled={batchBusy || activePurgeBatch} onClick={() => setSelected(new Set())}>{t('clearSelection')}</Button>
-        <Button variant="outline" size="sm" disabled={newPurgeDisabled}
+        <Button variant="ghost" className={styles.danger} size="sm" disabled={newPurgeDisabled}
           onClick={() => { void prepareSelectedPurge(); }}>{t('permanentlyDeleteSelected')}</Button>
         <Button variant="primary" size="sm" disabled={!ready || batchBusy || activePurgeBatch || state.busy.length > 0} onClick={() => { void unarchiveSelected(); }}>{t('unarchiveSelected')}</Button>
       </div></footer>}

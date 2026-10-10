@@ -2,6 +2,16 @@
 
 本文按代码基线记录客户端与真实 CLI/GUI 的运行证据。当前 dev.2 单项删除、固定批量、清空及恢复边界见下一节；较早 dev.0/dev.1 章节保留其原有范围。实现状态见 [README](../../README.md)。
 
+## 0.2.0 归档界面与删除确认验证
+
+日期：2026-10-10。版本 `0.2.0`，Linux x64、Node `24.18.1`、pnpm `11.23.0`、DSH `0.2.0-rc.2`。最终类型检查、构建与真实 Loader 打包加载通过；全量隔离回归共 377 项，371 项通过，6 项为当前系统不适用的 Windows 检查；单项和批量客户端回归覆盖默认确认、全局关闭后仅新鲜点击执行、阻止项拒绝、准备期间重连或重新开启确认、偏好保存与同源窗口同步、未知结果暂停及重载零重发。UI 回归验证工作区分组、一次确认按钮、完成后只保留失败项，以及运行中不展示误导性的未知结果续办按钮。
+
+[中文 GUI 报告](../../.local/gui/client-zh-rEh0Uq/verification.json)和[English GUI 报告](../../.local/gui/client-en-BV4scA/verification.json)各 17 项检查通过；两份报告及[Loader 报告](../../.local/lifecycle/package-H1l0AD/verification.json)使用同字节 tarball，SHA-256 `49cfe4aadeb4de4ce17aadf5caab07e07a49fbf5f629d8910fe0b9f1b8c8d16f`。console/pageErrors 为空，四次 Host 关闭均 code 0、signal null、未强制终止。
+
+真实 GUI 覆盖默认两个工作区的分组、搜索和筛选、语言切换、偏好关闭后重载不删除、取消时零发送；关闭全局确认后的清空仍准备点击时的完整隐藏归档范围并取得真实 owner 回执。运行中检查短暂暂停第一条 HTTP 发送以查看进度、日志和停止按钮，随后放行同一请求，实际删除仍严格串行且由真实 Host 完成。不是模拟 owner 成功，也不代替断线故障测试。成功完成后不保留逐项日志；Host 关闭并重开后复核四个测试会话及其派生记录已删除，其他成员保留。上一版打开历史、归档、取消准备、取消归档、重新打开再归档并删除的回归路径继续通过。
+
+真实截图：[浅色](../images/archives-light.png)、[深色](../images/archives-dark.png)、[批量确认](../images/batch-deletion.png)、[运行进度](../images/batch-progress.png)、[简短完成反馈](../images/batch-complete.png)。窄屏、键盘、合成中文 composition 和完整 bundle 的全新 CLI 安装/卸载同轮通过。此本地证据来自真实 Web profile；未运行原生桌面 shell，不宣称物理 OS 输入法验收。跨平台结果以该版本 CI 的真实 Windows/macOS/Linux runners 为准。
+
 ## 跨平台生产删除客户端验证
 
 日期：2026-10-09。实现基线 `978a6d016fdedf185f9105d17331ebc4bcc04886` 的 [PR CI run 37909476064](https://github.com/takboo/dsh-session-bin/actions/runs/37909476064) 和同提交 [push CI run 37909471038](https://github.com/takboo/dsh-session-bin/actions/runs/37909471038) 均在 Windows x64、macOS ARM64、macOS Intel x64、Linux ARM64 与 Linux x64 上通过，共 **10/10 平台任务成功**。固定环境为 Node `24.18.1`、libuv `1.52.1`、SDK `0.2.0-rc.2`；文件系统及源码摘要见[同轮 Host 证据](host-lifecycle.md#跨平台生产删除资格晋级验证)。本节是当前客户端发布矩阵；后续历史章节中 macOS-only 或其他平台 unsupported 的描述不适用于此基线。

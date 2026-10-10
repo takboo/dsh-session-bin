@@ -6,19 +6,19 @@
 
 ## 功能
 
-- 按会话名称及工作区元数据搜索，按工作区筛选。
+- 默认按工作区分组；按会话名称及工作区元数据搜索、筛选。
 - 单项或批量取消归档，让会话回到原生会话列表。
 - 单项永久删除、固定选择的批量永久删除，以及清空点击时的全部归档。
-- 删除前展示确认和阻止原因，删除后显示逐项结果；中断或断线后可查询结果并明确继续。
+- 简洁的删除确认，可在设置中全局关闭；批量操作显示进度和日志，完成后保留简短统计及失败项。中断或断线后可查询结果并明确继续。
 - 中英文界面，使用宿主控件、浅色和深色主题。
 
-当前版本为 `0.1.1`，包名为 `@takboo/dsh-session-bin`。GitHub Release 提供预编译 tarball；npm 通过 trusted publishing 自动发布同一份产物，dsh-market 收录另行提交。核心功能已完成跨平台验收；运行证据见 [Host 验证](docs/verification/host-lifecycle.md#跨平台生产删除资格晋级验证)和[客户端验证](docs/verification/client-interface.md#跨平台生产删除客户端验证)。
+当前版本为 `0.2.0`，包名为 `@takboo/dsh-session-bin`。GitHub Release 提供预编译 tarball；npm 通过 trusted publishing 自动发布同一份产物，dsh-market 收录另行提交。核心功能已完成跨平台验收；运行证据见 [Host 验证](docs/verification/host-lifecycle.md#跨平台生产删除资格晋级验证)和[客户端验证](docs/verification/client-interface.md#跨平台生产删除客户端验证)。
 
 ## 界面预览
 
-![原生归档管理与批量选择](https://raw.githubusercontent.com/takboo/dsh-session-bin/v0.1.0/docs/images/archives-light.png)
+![原生归档管理与批量选择](https://raw.githubusercontent.com/takboo/dsh-session-bin/v0.2.0/docs/images/archives-light.png)
 
-[深色界面](docs/images/archives-dark.png) · [批量永久删除确认](docs/images/batch-deletion.png)。截图来自 `0.1.0` 的真实安装验收，使用隔离测试会话。
+[深色界面](docs/images/archives-dark.png) · [批量永久删除确认](docs/images/batch-deletion.png)。截图来自 `0.2.0` 的真实安装验收，使用隔离测试会话。
 
 ## 兼容性
 
@@ -38,7 +38,7 @@
 
 ```sh
 mise exec -- pnpm exec npm pack --ignore-scripts
-dsh plugin --profile web add ./takboo-dsh-session-bin-0.1.1.tgz
+dsh plugin --profile web add ./takboo-dsh-session-bin-0.2.0.tgz
 ```
 
 以上命令使用已安装的 DSH `0.2.0-rc.2`，将完整插件 bundle 安装到 `web` profile；该路径已通过真实 CLI/GUI 验证。启动或重新启动该 profile 后，从侧栏打开“会话回收站”（Session Bin）。tarball 包含预编译 Host 和 Client，使用者安装时无需编译 TypeScript。
@@ -49,7 +49,7 @@ dsh plugin --profile web add ./takboo-dsh-session-bin-0.1.1.tgz
 dsh plugin --profile web remove @takboo/dsh-session-bin
 ```
 
-也可下载 [v0.1.1 Release](https://github.com/takboo/dsh-session-bin/releases/tag/v0.1.1) 中的 `dsh-session-bin.tgz`，通过同一个 `dsh plugin --profile web add` 命令安装。也可从 npm 安装：`dsh plugin --profile web add @takboo/dsh-session-bin@0.1.1`。
+也可下载 [v0.2.0 Release](https://github.com/takboo/dsh-session-bin/releases/tag/v0.2.0) 中的 `dsh-session-bin.tgz`，通过同一个 `dsh plugin --profile web add` 命令安装。也可从 npm 安装：`dsh plugin --profile web add @takboo/dsh-session-bin@0.2.0`。
 
 如安装过早期未加 scope 的开发包，先从同一 profile 卸载 `dsh-session-bin`，再安装 scoped 包，避免重复注册；原生归档和已有操作记录保留。分发契约见[发布文档](docs/release.md)。
 
@@ -63,8 +63,8 @@ dsh plugin --profile web remove @takboo/dsh-session-bin
 
 1. 使用 Harness 原生“归档会话”操作归档目标会话。
 2. 打开“会话回收站”，搜索或筛选已有归档；选择单项或多项取消归档。
-3. 永久删除时，先核对确认窗口中的对象、范围和阻止原因，再明确确认执行。
-4. 如出现部分失败或连接中断，查看逐项结果，检查操作状态后再决定是否继续。
+3. 永久删除时，核对确认窗口中的对象和阻止原因，再确认执行。设置中的“永久删除会话前进行确认”默认开启；关闭后，点击单项删除、删除所选或清空将直接开始永久删除。
+4. 批量操作期间查看进度和日志，完成后只保留统计及需要处理的项。如出现部分失败或连接中断，先检查操作状态，再决定是否继续。
 
 **“清空全部归档”包含点击时的全部归档，搜索和工作区筛选不会缩小其范围。** 批量删除固定开始时的对象，后来新增的归档不会加入。
 

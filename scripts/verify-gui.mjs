@@ -45,12 +45,13 @@ const copy = {
     selectAll: '选择当前显示的会话', entries: '已归档的会话',
     restored: '会话已取消归档', deleted: '会话已永久删除',
     deleteAction: title => `永久删除${title}`, deleteTitle: title => `永久删除“${title}”？`,
-    deleteAck: '我理解删除后无法恢复这个会话。', deleteConfirm: '确认永久删除', deleteCancel: '取消',
+    confirmSetting: '永久删除会话前进行确认', stopBatch: '停止剩余删除',
+    deleteConfirm: '确认永久删除', deleteCancel: '取消',
     deletionUnsupported: '当前宿主与存储组合暂不支持永久删除。',
     clearAllArchived: count => `清空全部归档（${count}）`, deleteSelected: '永久删除所选',
     batchSelectionTitle: count => `永久删除所选的 ${count} 个会话？`, batchAllTitle: count => `清空全部 ${count} 个归档会话？`,
     batchSummary: (total, executable, blocked) => `固定 ${total} 项 · 可执行 ${executable} 项 · 阻止 ${blocked} 项`,
-    batchItems: '固定删除对象', batchAck: '我理解可执行的会话删除后无法恢复。', batchConfirm: '删除可执行会话',
+    batchItems: '固定删除对象', batchConfirm: '删除可执行会话',
     batchCancelled: '批量删除已停止', batchDone: '批量删除已完成', dismissBatch: '关闭批次结果',
     count: count => `${count} 个会话`, selected: count => `已选 ${count} 项`, select: title => `选择 ${title}`,
     viewOptions: '视图选项', showArchived: '全部对话（显示已归档）', flat: '单列表',
@@ -68,12 +69,13 @@ const copy = {
     selectAll: 'Select visible conversations', entries: 'Archived conversations',
     restored: 'Conversation unarchived', deleted: 'Conversation permanently deleted',
     deleteAction: title => `Permanently delete ${title}`, deleteTitle: title => `Permanently delete “${title}”?`,
-    deleteAck: 'I understand that this conversation cannot be restored.', deleteConfirm: 'Delete permanently', deleteCancel: 'Cancel',
+    confirmSetting: 'Confirm before permanently deleting conversations', stopBatch: 'Stop remaining deletions',
+    deleteConfirm: 'Delete permanently', deleteCancel: 'Cancel',
     deletionUnsupported: 'Permanent deletion is not supported by this Host and storage combination.',
     clearAllArchived: count => `Clear all archived (${count})`, deleteSelected: 'Permanently delete selected',
     batchSelectionTitle: count => `Permanently delete ${count} selected conversations?`, batchAllTitle: count => `Clear all ${count} archived conversations?`,
     batchSummary: (total, executable, blocked) => `${total} fixed · ${executable} executable · ${blocked} blocked`,
-    batchItems: 'Fixed deletion targets', batchAck: 'I understand that executable conversations cannot be restored.', batchConfirm: 'Delete executable conversations',
+    batchItems: 'Fixed deletion targets', batchConfirm: 'Delete executable conversations',
     batchCancelled: 'Batch deletion stopped', batchDone: 'Batch deletion complete', dismissBatch: 'Dismiss batch results',
     count: count => `${count} ${count === 1 ? 'conversation' : 'conversations'}`,
     selected: count => `${count} selected`, select: title => `Select ${title}`,
@@ -674,7 +676,7 @@ async function assertPanelCopy(page, count, { visibleCount = count, selectedCoun
     await text(root, ui.noMatchesHint).waitFor({ state: 'visible' });
     assert.equal(await text(root, ui.empty).count(), 0);
   } else {
-    await root.getByRole('list', { name: ui.entries, exact: true }).waitFor({ state: 'visible' });
+    await root.getByRole('list', { name: ui.entries, exact: true }).first().waitFor({ state: 'visible' });
     await root.getByRole('checkbox', { name: ui.selectAll, exact: true }).waitFor({ state: 'visible' });
     await assertNoArchiveDate(root);
   }
@@ -690,7 +692,7 @@ async function assertPanelCopy(page, count, { visibleCount = count, selectedCoun
 }
 async function switchLanguage(page, target, report) {
   const before = language;
-  await button(page, ui.settings).click();
+  await page.locator('button[aria-haspopup="dialog"]').and(page.getByRole('button', { name: ui.settings, exact: true })).click();
   const currentDialog = page.getByRole('dialog', { name: ui.settings, exact: true });
   await currentDialog.waitFor({ state: 'visible' });
   await button(currentDialog, ui.general).click();
@@ -765,7 +767,7 @@ async function confirmingBatchDialog(page, scope, count) {
   const title = scope === 'selection' ? ui.batchSelectionTitle(count) : ui.batchAllTitle(count);
   const dialog = page.getByRole('dialog', { name: title, exact: true });
   await dialog.waitFor({ state: 'visible' });
-  await dialog.getByRole('checkbox', { name: ui.batchAck, exact: true }).waitFor({ state: 'visible' });
+  await dialog.getByRole('list', { name: ui.batchItems, exact: true }).waitFor({ state: 'visible' });
   return dialog;
 }
 async function assertBatchConfirmation(dialog, targets, { executable, blocked }) {
@@ -776,7 +778,7 @@ async function assertBatchConfirmation(dialog, targets, { executable, blocked })
   for (const target of targets) await text(list, target.title).waitFor({ state: 'visible' });
   await eventually(async () => assert(await button(dialog, ui.deleteCancel).evaluate(element => element === document.activeElement)),
     'Batch deletion initially focuses Cancel');
-  return dialog.getByRole('checkbox', { name: ui.batchAck, exact: true });
+  return button(dialog, ui.batchConfirm);
 }
 async function dismissBatchResult(page, title) {
   await text(page, title).waitFor({ state: 'visible' });
@@ -899,6 +901,9 @@ async function runGui(page, paths, report, beforePhysical) {
   await workspaceFilter.selectOption('all');
   await panelCount(root, 4);
   report.checks.push('Workspace filters use current native membership');
+  assert.equal(await root.getByRole('region', { name: fixtureWorkspaces.primary, exact: true }).getByRole('listitem').count(), 3);
+  assert.equal(await root.getByRole('region', { name: fixtureWorkspaces.secondary, exact: true }).getByRole('listitem').count(), 1);
+  report.coverage.push('default workspace grouping');
 
   const choose = async () => {
     for (const item of [quiet, sibling]) await panelEntry(root, item.title).getByRole('checkbox', { name: ui.select(item.title), exact: true }).check();
@@ -921,10 +926,20 @@ async function runGui(page, paths, report, beforePhysical) {
   report.coverage.push('language switch and stable selection', 'no old archive-state badge');
   const hostPreference = requestedLanguage === 'zh' ? 'en' : 'zh';
   await switchLanguage(page, hostPreference, report);
+  root = await panel(page);
+  await button(root, ui.settings).click();
+  await root.getByRole('checkbox', { name: ui.confirmSetting, exact: true }).uncheck();
+  const executionsBeforeReload = report.deletionExecutions.length;
   await page.reload();
   await assertDocumentLanguage(page);
   await skipModelSetup(page);
   root = await assertPanelCopy(page, 4);
+  await button(root, ui.settings).click();
+  assert.equal(await root.getByRole('checkbox', { name: ui.confirmSetting, exact: true }).isChecked(), false);
+  assert.equal(report.deletionExecutions.length, executionsBeforeReload, 'Persisted opt-out never deletes on reload');
+  await root.getByRole('checkbox', { name: ui.confirmSetting, exact: true }).check();
+  await button(root, ui.settings).click();
+  report.coverage.push('global confirmation preference persists across reload without deletion');
   report.preferenceReload = { browserLocale, hostPreference, renderedHtmlLanguage: await page.locator('html').getAttribute('lang') };
   await switchLanguage(page, requestedLanguage, report);
   root = await assertPanelCopy(page, 4);
@@ -967,8 +982,8 @@ async function runGui(page, paths, report, beforePhysical) {
   let deletion = page.getByRole('dialog', { name: ui.deleteTitle(nativeOnly.title), exact: true });
   await deletion.waitFor({ state: 'visible' });
   await eventually(async () => assert(await button(deletion, ui.deleteCancel).evaluate(element => element === document.activeElement)), 'Deletion initially focuses Cancel');
-  assert.equal(await button(deletion, ui.deleteConfirm).isEnabled(), false);
-  assert.equal(report.deletionExecutions.length, 0, 'Unacknowledged deletion never executes');
+  assert.equal(await button(deletion, ui.deleteConfirm).isEnabled(), report.deletionQualification === 'supported');
+  assert.equal(report.deletionExecutions.length, 0, 'Preparing a dialog never executes deletion');
   await button(deletion, ui.deleteCancel).click();
   await deletion.waitFor({ state: 'hidden' }); await panelCount(root, 1);
   assert.equal(report.deletionExecutions.length, 0, 'Cancel must never submit the destructive request');
@@ -983,16 +998,15 @@ async function runGui(page, paths, report, beforePhysical) {
   await button(panelEntry(root, nativeOnly.title), ui.deleteAction(nativeOnly.title)).click();
   deletion = page.getByRole('dialog', { name: ui.deleteTitle(nativeOnly.title), exact: true });
   await deletion.waitFor({ state: 'visible' });
-  const acknowledgement = deletion.getByRole('checkbox', { name: ui.deleteAck, exact: true });
+  const confirmButton = button(deletion, ui.deleteConfirm);
   await drainDiagnostics();
   assert.equal(report.deletionPrepares.length, 2, 'Cancelled and second dialogs prepare distinct explicit plans');
   assert.notEqual(report.deletionPrepares[0].operationId, report.deletionPrepares[1].operationId);
   if (report.deletionQualification === 'supported') {
-    assert.equal(await acknowledgement.isEnabled(), true, `Cold archived GUI target must be eligible: ${await deletion.innerText()}\n${JSON.stringify(report.deletionPrepares)}`);
+    assert.equal(await confirmButton.isEnabled(), true, `Cold archived GUI target must be eligible: ${await deletion.innerText()}\n${JSON.stringify(report.deletionPrepares)}`);
     assert(report.deletionPrepares.every(plan => plan.status === 'prepared' && plan.fixedRequestValid && plan.schemaVersion === 2
       && plan.sessionId === nativeOnly.id && plan.expectedEntryId && plan.bound && plan.frozen && plan.blockers.length === 0),
     'Both qualified preparations bind the observed target and frozen owner scope');
-    await acknowledgement.check();
     assert.equal(await button(deletion, ui.deleteConfirm).isEnabled(), true, await deletion.innerText());
     report.screenshots.deletion = await screenshot(page, paths, 'session-bin-permanent-delete');
     await button(deletion, ui.deleteConfirm).click();
@@ -1015,7 +1029,7 @@ async function runGui(page, paths, report, beforePhysical) {
       sessionIds: workspace.sessionIds.filter(id => id !== nativeOnly.id) }));
     assert.deepEqual(report.membershipAfterSingleDeletion, afterSingle,
       'Only the single fixed target leaves the complete runtime Workspace account');
-    report.checks.push('Qualified single deletion uses a frozen owner plan, explicit acknowledgement, Cancel focus and a complete owner receipt');
+    report.checks.push('Qualified single deletion uses a frozen owner plan, explicit confirmation, Cancel focus and a complete owner receipt');
     report.coverage.push('single: fixed request and owner receipt', 'single: Cancel executes zero', 'single: native row removal');
 
     for (const item of [quiet, sibling]) await archiveSession(page, item.id);
@@ -1028,16 +1042,15 @@ async function runGui(page, paths, report, beforePhysical) {
     const batchExecuteStart = report.deletionExecutions.length;
     await button(root, ui.deleteSelected).click();
     let batchDialog = await confirmingBatchDialog(page, 'selection', 2);
-    let batchAck = await assertBatchConfirmation(batchDialog, [quiet, sibling], { executable: 2, blocked: 0 });
+    await assertBatchConfirmation(batchDialog, [quiet, sibling], { executable: 2, blocked: 0 });
     await drainDiagnostics();
     let batchPlans = report.deletionPrepares.slice(batchPrepareStart);
     assert.equal(batchPlans.length, 2, 'The first selection modal prepares exactly its two fixed targets');
     assert.deepEqual(new Set(batchPlans.map(plan => plan.sessionId)), new Set([quiet.id, sibling.id]));
     assert(batchPlans.every(plan => plan.status === 'prepared' && plan.fixedRequestValid && plan.bound && plan.frozen
       && plan.blockers.length === 0), 'Each selected item must have a valid binding and frozen manifest');
-    assert.equal(await batchAck.isChecked(), false);
-    assert.equal(await button(batchDialog, ui.batchConfirm).isEnabled(), false, 'Unchecked batch confirmation stays disabled');
-    assert.equal(report.deletionExecutions.length, batchExecuteStart, 'Unchecked selection batch executes nothing');
+    assert.equal(await button(batchDialog, ui.batchConfirm).isEnabled(), true, 'Explicit confirmation is available after qualification');
+    assert.equal(report.deletionExecutions.length, batchExecuteStart, 'Unconfirmed selection batch executes nothing');
     await button(batchDialog, ui.deleteCancel).click();
     await batchDialog.waitFor({ state: 'hidden' });
     assert.equal(report.deletionExecutions.length, batchExecuteStart, 'Cancelled selection batch executes nothing');
@@ -1046,16 +1059,39 @@ async function runGui(page, paths, report, beforePhysical) {
     const confirmedBatchPrepareStart = report.deletionPrepares.length;
     await button(root, ui.deleteSelected).click();
     batchDialog = await confirmingBatchDialog(page, 'selection', 2);
-    batchAck = await assertBatchConfirmation(batchDialog, [quiet, sibling], { executable: 2, blocked: 0 });
+    await assertBatchConfirmation(batchDialog, [quiet, sibling], { executable: 2, blocked: 0 });
     await drainDiagnostics();
     batchPlans = report.deletionPrepares.slice(confirmedBatchPrepareStart);
     assert.equal(batchPlans.length, 2, 'The confirmed selection batch freshly prepares both fixed targets');
     assert(batchPlans.every(plan => plan.fixedRequestValid && plan.bound && plan.frozen && plan.blockers.length === 0));
-    await batchAck.check();
     assert.equal(await button(batchDialog, ui.batchConfirm).isEnabled(), true);
     report.screenshots.batchDeletion = await screenshot(page, paths, 'session-bin-batch-delete-confirmation');
-    await button(batchDialog, ui.batchConfirm).click();
+    const releaseExecution = Promise.withResolvers();
+    const firstExecutionFinished = Promise.withResolvers();
+    let firstExecution = true;
+    const holdFirstExecution = async route => {
+      if (!firstExecution) { await route.continue(); return; }
+      firstExecution = false;
+      await releaseExecution.promise;
+      try { await route.continue(); } finally { firstExecutionFinished.resolve(); }
+    };
+    await page.route('**/api/sessionBin/executePurge', holdFirstExecution);
+    try {
+      await button(batchDialog, ui.batchConfirm).click();
+      await eventually(async () => assert.equal(firstExecution, false), 'First batch request enters the progress inspection gate');
+      const progress = root.getByRole('region', { name: requestedLanguage === 'zh' ? '批量删除状态' : 'Batch deletion status', exact: true });
+      await progress.getByRole('progressbar').waitFor({ state: 'visible' });
+      await progress.getByRole('list', { name: ui.batchItems, exact: true }).waitFor({ state: 'visible' });
+      await button(progress, ui.stopBatch).waitFor({ state: 'visible' });
+      report.screenshots.batchProgress = await screenshot(page, paths, 'session-bin-batch-progress');
+      report.coverage.push('in-progress batch has bounded progress, target logs and stop control');
+    } finally {
+      releaseExecution.resolve();
+      if (!firstExecution) await firstExecutionFinished.promise;
+      await page.unroute('**/api/sessionBin/executePurge', holdFirstExecution);
+    }
     await text(page, ui.batchDone).waitFor({ state: 'visible' });
+    report.screenshots.batchComplete = await screenshot(page, paths, 'session-bin-batch-complete');
     root = await assertPanelCopy(page, 0);
     await drainDiagnostics();
     const batchExecutions = report.deletionExecutions.slice(batchExecuteStart);
@@ -1081,7 +1117,7 @@ async function runGui(page, paths, report, beforePhysical) {
     assert.deepEqual(report.membershipAfterBatchDeletion, afterBatch,
       'Selection batch removes only its explicit fixed targets and retains any Host-created session');
     report.checks.push('Qualified batch deletion fixes two prepared identities and runs two actual owner operations strictly serially');
-    report.coverage.push('batch: selection scope two', 'batch: Cancel and unchecked execute zero',
+    report.coverage.push('batch: selection scope two', 'batch: Cancel and unconfirmed execute zero',
       'batch: strict serial owner success', 'batch: unselected SHA unchanged');
 
     await archiveSession(page, prearchived.id);
@@ -1094,35 +1130,38 @@ async function runGui(page, paths, report, beforePhysical) {
     const clearExecuteStart = report.deletionExecutions.length;
     await button(root, ui.clearAllArchived(1)).click();
     let clearDialog = await confirmingBatchDialog(page, 'all-archived', 1);
-    let clearAck = await assertBatchConfirmation(clearDialog, [prearchived], { executable: 1, blocked: 0 });
+    await assertBatchConfirmation(clearDialog, [prearchived], { executable: 1, blocked: 0 });
     await drainDiagnostics();
     let clearPlans = report.deletionPrepares.slice(clearPrepareStart);
     assert.equal(clearPlans.length, 1);
     assert(clearPlans[0].fixedRequestValid && clearPlans[0].sessionId === prearchived.id
       && clearPlans[0].bound && clearPlans[0].frozen && clearPlans[0].blockers.length === 0,
     'Clear-all must prepare the complete hidden archive set, not only visible rows');
-    assert.equal(await clearAck.isChecked(), false);
-    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), false);
-    assert.equal(report.deletionExecutions.length, clearExecuteStart, 'Unchecked clear-all executes nothing');
+    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), report.deletionQualification === 'supported');
+    report.screenshots.clearAll = await screenshot(page, paths, 'session-bin-clear-all-confirmation');
+    assert.equal(report.deletionExecutions.length, clearExecuteStart, 'Unconfirmed clear-all executes nothing');
     await button(clearDialog, ui.deleteCancel).click();
     await clearDialog.waitFor({ state: 'hidden' });
     assert.equal(report.deletionExecutions.length, clearExecuteStart, 'Cancelled clear-all executes nothing');
     await dismissBatchResult(page, ui.batchCancelled);
 
     const confirmedClearPrepareStart = report.deletionPrepares.length;
+    await button(root, ui.settings).click();
+    await root.getByRole('checkbox', { name: ui.confirmSetting, exact: true }).uncheck();
+    await button(root, ui.settings).click();
     await button(root, ui.clearAllArchived(1)).click();
-    clearDialog = await confirmingBatchDialog(page, 'all-archived', 1);
-    clearAck = await assertBatchConfirmation(clearDialog, [prearchived], { executable: 1, blocked: 0 });
-    await drainDiagnostics();
+    await text(page, ui.batchDone).waitFor({ state: 'visible' });
+    assert.equal(await page.getByRole('dialog', { name: ui.batchAllTitle(1), exact: true }).count(), 0);
     clearPlans = report.deletionPrepares.slice(confirmedClearPrepareStart);
     assert.equal(clearPlans.length, 1);
     assert(clearPlans[0].fixedRequestValid && clearPlans[0].sessionId === prearchived.id
       && clearPlans[0].bound && clearPlans[0].frozen && clearPlans[0].blockers.length === 0);
-    await clearAck.check();
-    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), true);
-    report.screenshots.clearAll = await screenshot(page, paths, 'session-bin-clear-all-confirmation');
-    await button(clearDialog, ui.batchConfirm).click();
-    await text(page, ui.batchDone).waitFor({ state: 'visible' });
+    const compactResult = root.getByRole('region', { name: requestedLanguage === 'zh' ? '批量删除状态' : 'Batch deletion status', exact: true });
+    assert.equal(await compactResult.getByRole('listitem').count(), 0, 'Successful completion does not keep a full target log');
+    await button(root, ui.settings).click();
+    await root.getByRole('checkbox', { name: ui.confirmSetting, exact: true }).check();
+    await button(root, ui.settings).click();
+    report.coverage.push('global opt-out deletes the prepared clear-all scope only on a fresh click', 'compact completion omits successful target logs');
     await drainDiagnostics();
     const clearExecutions = report.deletionExecutions.slice(clearExecuteStart);
     assert.equal(clearExecutions.length, 1, 'Confirmed clear-all submits its one complete hidden target');
@@ -1149,7 +1188,7 @@ async function runGui(page, paths, report, beforePhysical) {
       'Every destructive request must carry the fixed plan through a complete owner receipt');
     assert.equal(report.deletionSerial.completedResponses, report.deletionExecutions.length,
       'Every destructive request must receive exactly one observed response');
-    report.checks.push('Qualified clear-all freezes the complete archive set despite hidden filters and erases only after a second explicit confirmation');
+    report.checks.push('Qualified clear-all freezes the complete archive set despite hidden filters and erases after an explicit click with global confirmation disabled');
     report.coverage.push('clear: all-archived full set under visible zero', 'clear: Cancel executes zero',
       'clear: confirmed owner success', 'clear: unrelated Host membership retained');
   } else {
@@ -1158,12 +1197,12 @@ async function runGui(page, paths, report, beforePhysical) {
       && plan.sessionId === nativeOnly.id && plan.expectedEntryId && plan.blockers.includes('permanent-deletion-unsupported')),
     'Each unqualified single preparation must explicitly report permanent-deletion-unsupported for the fixed observation');
     await text(deletion, ui.deletionUnsupported).waitFor({ state: 'visible' });
-    assert.equal(await acknowledgement.isEnabled(), false, 'Unsupported deletion acknowledgement must stay disabled');
+    assert.equal(await confirmButton.isEnabled(), false, 'Unsupported deletion confirmation must stay disabled');
     assert.equal(await button(deletion, ui.deleteConfirm).isEnabled(), false, 'Unsupported deletion execution must stay disabled');
     assert.equal(report.deletionExecutions.length, 0, 'Unsupported deletion must execute zero purge requests');
     report.screenshots.deletionUnsupported = await screenshot(page, paths, 'session-bin-deletion-unsupported');
     report.unsupportedModal = { blocker: 'permanent-deletion-unsupported', cancelInitiallyFocused: true,
-      checkboxDisabled: true, confirmDisabled: true, executeCount: 0 };
+      confirmDisabled: true, executeCount: 0 };
     await button(deletion, ui.deleteCancel).click();
     await deletion.waitFor({ state: 'hidden' });
     await button(panelEntry(root, nativeOnly.title), ui.restore).click();
@@ -1181,14 +1220,14 @@ async function runGui(page, paths, report, beforePhysical) {
     const batchPrepareStart = report.deletionPrepares.length;
     await button(root, ui.deleteSelected).click();
     let batchDialog = await confirmingBatchDialog(page, 'selection', 2);
-    const batchAck = await assertBatchConfirmation(batchDialog, [quiet, sibling], { executable: 0, blocked: 2 });
+    const batchConfirmButton = await assertBatchConfirmation(batchDialog, [quiet, sibling], { executable: 0, blocked: 2 });
     await drainDiagnostics();
     const batchPlans = report.deletionPrepares.slice(batchPrepareStart);
     assert.equal(batchPlans.length, 2);
     assert(batchPlans.every(plan => plan.status === 'prepared' && plan.fixedRequestValid
       && plan.blockers.includes('permanent-deletion-unsupported')),
     'Unsupported selection must prepare both fixed targets as blocked M0 items');
-    assert.equal(await batchAck.isEnabled(), false);
+    assert.equal(await batchConfirmButton.isEnabled(), false);
     assert.equal(await button(batchDialog, ui.batchConfirm).isEnabled(), false);
     assert.equal(report.deletionExecutions.length, 0);
     await button(batchDialog, ui.deleteCancel).click();
@@ -1199,7 +1238,7 @@ async function runGui(page, paths, report, beforePhysical) {
     await button(root, ui.clearSelection).click();
     root = await assertPanelCopy(page, 2);
     report.checks.push('Unqualified batch renders a fixed two-item M0 scope and Cancel sends no purge request');
-    report.coverage.push('batch unsupported: scope two, M0, disabled acknowledgement and zero execute');
+    report.coverage.push('batch unsupported: scope two, M0, disabled confirmation and zero execute');
 
     await archiveSession(page, prearchived.id);
     root = await assertPanelCopy(page, 3);
@@ -1210,15 +1249,15 @@ async function runGui(page, paths, report, beforePhysical) {
     const clearPrepareStart = report.deletionPrepares.length;
     await button(root, ui.clearAllArchived(3)).click();
     const clearDialog = await confirmingBatchDialog(page, 'all-archived', 3);
-    const clearAck = await assertBatchConfirmation(clearDialog, [quiet, sibling, prearchived], { executable: 0, blocked: 3 });
+    const clearConfirmButton = await assertBatchConfirmation(clearDialog, [quiet, sibling, prearchived], { executable: 0, blocked: 3 });
     await drainDiagnostics();
     const clearPlans = report.deletionPrepares.slice(clearPrepareStart);
     assert.equal(clearPlans.length, 3, 'Unsupported clear-all must still prepare the complete hidden collection');
     assert.deepEqual(new Set(clearPlans.map(plan => plan.sessionId)), new Set([quiet.id, sibling.id, prearchived.id]));
     assert(clearPlans.every(plan => plan.status === 'prepared' && plan.fixedRequestValid
       && plan.blockers.includes('permanent-deletion-unsupported')));
-    assert.equal(await clearAck.isEnabled(), false);
-    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), false);
+    assert.equal(await clearConfirmButton.isEnabled(), false);
+    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), report.deletionQualification === 'supported');
     assert.equal(report.deletionExecutions.length, 0);
     await button(clearDialog, ui.deleteCancel).click();
     await clearDialog.waitFor({ state: 'hidden' });

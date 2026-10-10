@@ -1,6 +1,10 @@
 import type { LocaleDictOf } from '@deepseek-ai/dsh-client-ui-slots';
 export const NS = 'dshSessionBin';
 export const en = {
+  settings: 'Settings', confirmDeletionSetting: 'Confirm before permanently deleting conversations',
+  confirmDeletionHint: 'Applies to single deletion, selected conversations, and clear all in this browser profile for this Host. When off, clicking Delete starts permanent deletion immediately.',
+  batchPreparingTitle: 'Checking conversations', batchRunningTitle: 'Deleting conversations',
+  batchExecutionProgress: 'Processed {completed} of {total}', batchProgressLabel: 'Deletion progress',
   title: 'Session Bin', count: '{count} conversations', countOne: '{count} conversation', description: 'Manage native archives with search, filters, unarchive, and explicit permanent deletion.',
   unarchive: 'Unarchive', unarchiveSelected: 'Unarchive selected', refresh: 'Refresh',
   search: 'Search archives', workspace: 'Workspace filter', allWorkspaces: 'All workspaces', ungrouped: 'Ungrouped', unnamedWorkspace: 'Untitled workspace',
@@ -19,7 +23,7 @@ export const en = {
   retry: 'Try again',
   permanentDelete: 'Permanent delete', deleteConversation: 'Permanently delete {title}',
   deleteTitle: 'Permanently delete “{title}”?', deleteDescription: 'Delete this one conversation’s logs and its session metadata and indexes. This cannot be undone.',
-  deleteScope: 'Shared attachments, independent forks, and copies in external tools are kept. Loaded conversations, retained readers, unknown files, and active writers can block deletion.',
+  deleteScope: 'Shared attachments, independent forks, and copies in external tools are kept.',
   deletionAcknowledge: 'I understand that this conversation cannot be restored.', cancelDeletion: 'Cancel', confirmDeletion: 'Delete permanently',
   closeDeletion: 'Close confirmation', discardMissingDeletion: 'Discard missing request',
   deletionBlockers: 'Reasons deletion is blocked', deletionResults: 'Permanent deletion results', deleted: 'Conversation permanently deleted',
@@ -38,12 +42,12 @@ export const en = {
   clearAllArchived: 'Clear all archived ({count})', permanentlyDeleteSelected: 'Permanently delete selected',
   batchSelectionTitle: 'Permanently delete {count} selected conversations?', batchAllTitle: 'Clear all {count} archived conversations?',
   batchPreparingDescription: 'Preparing and checking each fixed target. Closing stops targets that have not started preparation.',
-  batchConfirmDescription: 'Review the fixed targets and resource scope before starting this irreversible batch.',
+  batchConfirmDescription: 'These conversations will be permanently deleted and cannot be restored.',
   batchRunningDescription: 'Deletion runs one conversation at a time. Stop prevents unsent conversations; the current operation still finishes and remains protected.',
   closeBatchDeletion: 'Close batch deletion', confirmBatchDeletion: 'Delete executable conversations', stopBatchDeletion: 'Stop remaining deletions',
   batchSummary: '{total} fixed · {executable} executable · {blocked} blocked',
   batchPreparationProgress: 'Checked {prepared} of {total}',
-  batchScope: 'Executable conversations lose their logs, session metadata, and indexes permanently. Blocked conversations are not sent for deletion.',
+  batchScope: 'Blocked conversations will be skipped.',
   batchResources: 'Combined resource scope', resourceErase: 'Erase', resourceReleaseReference: 'Release references',
   resourceRetainShared: 'Keep shared', resourceRetainCoordination: 'Keep coordination records',
   batchRetainedCopies: 'Shared attachments, independent forks, and copies in external tools remain available.',
@@ -53,7 +57,7 @@ export const en = {
   batchStatus: 'Batch deletion status', batchPausedTitle: 'Batch deletion paused',
   batchPausedDescription: 'Review or handle the current operation first, then continue the remaining conversations.',
   batchDoneTitle: 'Batch deletion complete', batchCancelledTitle: 'Batch deletion stopped',
-  batchOutcome: '{success} deleted · {unresolved} still needs attention', continueBatchDeletion: 'Continue remaining',
+  batchOutcome: '{success} deleted · {unresolved} not deleted', continueBatchDeletion: 'Continue remaining',
   dismissBatchDeletion: 'Dismiss batch results',
 } as const;
 export type BinLocaleKey = keyof typeof en;
@@ -61,6 +65,10 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap { dshSessionBin: BinLocaleKey }
 }
 export const zh: LocaleDictOf<typeof NS> = {
+  settings: '设置', confirmDeletionSetting: '永久删除会话前进行确认',
+  confirmDeletionHint: '适用于当前浏览器配置中此宿主的单项删除、删除所选和清空全部。关闭后，点击删除将立即开始永久删除。',
+  batchPreparingTitle: '正在核对会话', batchRunningTitle: '正在删除会话',
+  batchExecutionProgress: '已处理 {completed}/{total} 项', batchProgressLabel: '删除进度',
   title: '会话回收站', count: '{count} 个会话', countOne: '{count} 个会话', description: '管理原生归档，支持搜索、筛选、取消归档与明确确认的永久删除。',
   unarchive: '取消归档', unarchiveSelected: '取消归档所选', refresh: '刷新',
   search: '搜索归档', workspace: '工作区筛选', allWorkspaces: '所有工作区', ungrouped: '未分组', unnamedWorkspace: '未命名工作区',
@@ -79,7 +87,7 @@ export const zh: LocaleDictOf<typeof NS> = {
   retry: '重试',
   permanentDelete: '永久删除', deleteConversation: '永久删除{title}',
   deleteTitle: '永久删除“{title}”？', deleteDescription: '删除这一个会话的日志及其会话元数据和索引。此操作无法撤销。',
-  deleteScope: '共享附件、独立 fork 会话及外部工具中的副本会保留。宿主仍加载的会话、未释放的读取引用、未知文件和活动写入者可能阻止删除。',
+  deleteScope: '共享附件、独立 fork 会话及外部工具中的副本会保留。',
   deletionAcknowledge: '我理解删除后无法恢复这个会话。', cancelDeletion: '取消', confirmDeletion: '确认永久删除',
   closeDeletion: '关闭确认', discardMissingDeletion: '放弃缺失的请求',
   deletionBlockers: '无法删除的原因', deletionResults: '永久删除结果', deleted: '会话已永久删除',
@@ -98,12 +106,12 @@ export const zh: LocaleDictOf<typeof NS> = {
   clearAllArchived: '清空全部归档（{count}）', permanentlyDeleteSelected: '永久删除所选',
   batchSelectionTitle: '永久删除所选的 {count} 个会话？', batchAllTitle: '清空全部 {count} 个归档会话？',
   batchPreparingDescription: '正在准备并逐项核对固定对象。关闭后会停止尚未开始准备的对象。',
-  batchConfirmDescription: '开始这个不可逆批次前，请核对固定对象与资源范围。',
+  batchConfirmDescription: '以下会话将被永久删除，无法恢复。',
   batchRunningDescription: '删除会逐个串行执行。停止只阻止尚未发送的会话；当前操作仍会完成并继续受保护。',
   closeBatchDeletion: '关闭批量删除', confirmBatchDeletion: '删除可执行会话', stopBatchDeletion: '停止剩余删除',
   batchSummary: '固定 {total} 项 · 可执行 {executable} 项 · 阻止 {blocked} 项',
   batchPreparationProgress: '已核对 {prepared}/{total} 项',
-  batchScope: '可执行会话的日志、会话元数据和索引将被永久删除。被阻止的会话不会发送删除请求。',
+  batchScope: '被阻止的会话会跳过，不会删除。',
   batchResources: '合并资源范围', resourceErase: '清除', resourceReleaseReference: '解除引用',
   resourceRetainShared: '保留共享资源', resourceRetainCoordination: '保留协调记录',
   batchRetainedCopies: '共享附件、独立 fork 会话及外部工具中的副本仍会保留。',
@@ -113,6 +121,6 @@ export const zh: LocaleDictOf<typeof NS> = {
   batchStatus: '批量删除状态', batchPausedTitle: '批量删除已暂停',
   batchPausedDescription: '请先核对或处理当前项，再继续剩余会话。',
   batchDoneTitle: '批量删除已完成', batchCancelledTitle: '批量删除已停止',
-  batchOutcome: '已删除 {success} 项 · 仍需处理 {unresolved} 项', continueBatchDeletion: '继续剩余项',
+  batchOutcome: '已删除 {success} 项 · 未删除 {unresolved} 项', continueBatchDeletion: '继续剩余项',
   dismissBatchDeletion: '关闭批次结果',
 };

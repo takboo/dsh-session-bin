@@ -4,7 +4,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client';
 import type {} from '@deepseek-ai/dsh-api-gateway/client';
 import type { SessionBinRemoteApi } from '../remote/contracts.js';
 import { sessionBinRemoteContribution } from '../remote/contracts.js';
-import { SessionBinClientModel, browserPendingCache } from './model.js';
+import { SessionBinClientModel, browserPendingCache, browserDeletionPreferences } from './model.js';
 import { BinPanel, BinIcon, BinNotice } from './components.js';
 import type { BinInjected } from './components.js';
 import { NS, en, zh } from './locales.js';
@@ -27,11 +27,13 @@ async function initialize(ctx: Context): Promise<void> {
   }, 'session-bin.styles');
   let cache;
   try { cache = browserPendingCache(window.sessionStorage); } catch { /* Storage can be withheld by the browser. */ }
+  let preferences;
+  try { preferences = browserDeletionPreferences(window.localStorage, window); } catch { /* Default to confirmation. */ }
   const model = new SessionBinClientModel(ctx.remote.sessionBin, () => ctx.remote.$stream({
     name: 'sessionBin.follow',
     open: signal => ctx.remote.sessionBin.follow(signal),
     ended: () => new Error('Session Bin snapshot stream ended.'),
-  }), cache);
+  }), cache, preferences);
   ctx.effect(() => () => model.dispose(), 'session-bin.model');
   const face = (): BinInjected => ({
     hooks: { bin: model }, model,
