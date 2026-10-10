@@ -54,8 +54,8 @@ async function sources() {
       else if (entry.isFile()) files.push(child);
     }
   }
-  for (const path of ['src', 'tests', 'scripts', '.github']) await walk(join(root, path));
-  for (const path of ['package.json', 'pnpm-lock.yaml', 'mise.toml', 'tsconfig.json', 'tsconfig.client.json']) files.push(join(root, path));
+  for (const path of ['src', 'tests', 'scripts', '.github', 'market']) await walk(join(root, path));
+  for (const path of ['package.json', 'pnpm-lock.yaml', 'mise.toml', 'tsconfig.json', 'tsconfig.client.json', 'screenshots.json']) files.push(join(root, path));
   const inventory = [];
   for (const path of files.sort()) inventory.push({ path: relative(root, path).replaceAll('\\', '/'), sha256: createHash('sha256').update(await readFile(path)).digest('hex') });
   inventory.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);

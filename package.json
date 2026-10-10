@@ -53,12 +53,13 @@
     "build": "tsc --emitDeclarationOnly && tsc --project tsconfig.client.json --emitDeclarationOnly && node scripts/build.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
     "verify:package": "node scripts/verify-package.mjs",
+    "verify:market": "node scripts/verify-market.mjs",
     "verify:gui:browser": "playwright-core install --with-deps chromium",
     "verify:gui": "node scripts/verify-gui-locales.mjs",
     "verify:gui:locale": "node scripts/verify-gui.mjs",
     "verify:linux": "node scripts/verify-linux.mjs",
     "verify:platform": "node scripts/verify-platform.mjs",
-    "verify": "pnpm run check && pnpm run build && pnpm run test && pnpm run verify:package"
+    "verify": "pnpm run verify:market && pnpm run check && pnpm run build && pnpm run test && pnpm run verify:package"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.0.4",

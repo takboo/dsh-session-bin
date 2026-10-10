@@ -46,6 +46,10 @@ run = "pnpm run verify:package"
 description = "Check, build, test, and verify the Host and Client tarball"
 run = "pnpm run verify"
 
+[tasks."verify:market"]
+description = "Check the dshmarket entry, npm repository, bundle, and screenshot paths offline"
+run = "pnpm run verify:market"
+
 [tasks."verify:linux"]
 description = "Verify Linux in an isolated pinned Node container and preserve native evidence"
 run = "pnpm run verify:linux"

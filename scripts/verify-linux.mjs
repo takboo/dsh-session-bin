@@ -16,8 +16,8 @@ const program = `
 import { cp, readdir, readFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
-const rootFiles = ${JSON.stringify(['.gitignore', '.editorconfig', 'LICENSE', 'cordis.patch.yml', 'tsconfig.client.json', 'tsconfig.json', 'CONTRIBUTING.md', 'AGENTS.md', 'README.md', 'pnpm-lock.yaml', 'package.json', 'mise.toml'])};
-for (const path of [...rootFiles, 'src', 'tests', 'scripts', 'docs', 'locale', '.github']) await cp(join('/source', path), join('/work', path), { recursive: true });
+const rootFiles = ${JSON.stringify(['.gitignore', '.editorconfig', 'LICENSE', 'cordis.patch.yml', 'tsconfig.client.json', 'tsconfig.json', 'CONTRIBUTING.md', 'AGENTS.md', 'README.md', 'pnpm-lock.yaml', 'package.json', 'mise.toml', 'screenshots.json'])};
+for (const path of [...rootFiles, 'src', 'tests', 'scripts', 'docs', 'locale', '.github', 'market']) await cp(join('/source', path), join('/work', path), { recursive: true });
 const config = await readFile('/work/mise.toml', 'utf8');
 const install = /\\[tasks\\.install\\]([\\s\\S]*?)(?=\\n\\[|$)/.exec(config)?.[1];
 const command = /^run = \"([^\"]+)\"$/m.exec(install ?? '')?.[1];
