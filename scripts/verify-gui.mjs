@@ -699,7 +699,19 @@ async function switchLanguage(page, target, report) {
   // The shipped Language row uses the self-described catalog label as its
   // native menu anchor. The menu is portaled outside the Settings dialog.
   await button(currentDialog, ui.languageLabel).click();
-  await menuItem(page, copy[target].languageLabel).click();
+  // LocaleRuntime publishes optimistically before ConfigFormController's
+  // serialized Host write settles. A visible translated label is not a durable
+  // preference receipt; await the actual locale mutation before any reload.
+  const [saved] = await Promise.all([
+    page.waitForResponse(response => {
+      if (new URL(response.url()).pathname !== '/api/settings/mutate') return false;
+      try { return Object.values(response.request().postDataJSON()?.payload?.args ?? {}).includes('locale'); }
+      catch { return false; }
+    }),
+    menuItem(page, copy[target].languageLabel).click(),
+  ]);
+  const acknowledgement = await saved.json();
+  assert.equal(acknowledgement.result?.ok, true, 'Host must acknowledge the language preference before reload');
   language = target;
   ui = copy[language];
   await assertDocumentLanguage(page);

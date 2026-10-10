@@ -6,7 +6,9 @@
 
 日期：2026-10-10。版本 `0.2.0`，Linux x64、Node `24.18.1`、pnpm `11.23.0`、DSH `0.2.0-rc.2`。最终类型检查、构建与真实 Loader 打包加载通过；全量隔离回归共 377 项，371 项通过，6 项为当前系统不适用的 Windows 检查；单项和批量客户端回归覆盖默认确认、全局关闭后仅新鲜点击执行、阻止项拒绝、准备期间重连或重新开启确认、偏好保存与同源窗口同步、未知结果暂停及重载零重发。UI 回归验证工作区分组、一次确认按钮、完成后只保留失败项，以及运行中不展示误导性的未知结果续办按钮。
 
-[中文 GUI 报告](../../.local/gui/client-zh-rEh0Uq/verification.json)和[English GUI 报告](../../.local/gui/client-en-BV4scA/verification.json)各 17 项检查通过；两份报告及[Loader 报告](../../.local/lifecycle/package-H1l0AD/verification.json)使用同字节 tarball，SHA-256 `49cfe4aadeb4de4ce17aadf5caab07e07a49fbf5f629d8910fe0b9f1b8c8d16f`。console/pageErrors 为空，四次 Host 关闭均 code 0、signal null、未强制终止。
+[中文 GUI 报告](../../.local/gui/client-zh-4793LZ/verification.json)和[English GUI 报告](../../.local/gui/client-en-1AprXi/verification.json)各 17 项检查通过；两份报告及[Loader 报告](../../.local/lifecycle/package-H1l0AD/verification.json)使用同字节 tarball，SHA-256 `49cfe4aadeb4de4ce17aadf5caab07e07a49fbf5f629d8910fe0b9f1b8c8d16f`。console/pageErrors 为空，四次 Host 关闭均 code 0、signal null、未强制终止。
+
+原生 LocaleRuntime 先更新画面，再经 ConfigFormController 串行保存 Host 偏好；语言重载验证等待对应 `settings/mutate` 的 locale 写入成功回执，而非仅等待翻译后的标签。
 
 真实 GUI 覆盖默认两个工作区的分组、搜索和筛选、语言切换、偏好关闭后重载不删除、取消时零发送；关闭全局确认后的清空仍准备点击时的完整隐藏归档范围并取得真实 owner 回执。运行中检查短暂暂停第一条 HTTP 发送以查看进度、日志和停止按钮，随后放行同一请求，实际删除仍严格串行且由真实 Host 完成。不是模拟 owner 成功，也不代替断线故障测试。成功完成后不保留逐项日志；Host 关闭并重开后复核四个测试会话及其派生记录已删除，其他成员保留。上一版打开历史、归档、取消准备、取消归档、重新打开再归档并删除的回归路径继续通过。
 
