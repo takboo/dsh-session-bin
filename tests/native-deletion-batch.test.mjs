@@ -514,3 +514,18 @@ test('an active batch rejects single preparation and any second batch', { timeou
     assert.equal(h.state.prepares.length, 2); model.stopPurgeBatch();
   } finally { await model.dispose(); }
 });
+
+test('opt-out prepares the fixed batch, skips blocked targets, and pauses on an unknown result without replay', { timeout: 15000 }, async t => {
+  const a = makeEntry('A'); const b = makeEntry('B'); const c = makeEntry('C');
+  const h = controlled([a, b, c]); const model = h.model();
+  h.state.blockers.set('A', [{ code: 'jsonl/writer-active' }]); h.state.modes.set('B', 'pending-recovery');
+  try {
+    await ready(model, t.signal); model.setConfirmDeletion(false);
+    await model.requestPurgeBatch({ kind: 'all-archived' });
+    assert.deepEqual(h.state.prepares.map(row => row.sessionId), ['A', 'B', 'C']);
+    assert.deepEqual(h.state.executes.map(row => row.sessionId), ['B']);
+    assert.equal(model.getSnapshot().purgeBatch.phase, 'paused');
+    await model.checkPurgePending(); assert.equal(h.state.executes.length, 1);
+    assert.equal(model.getSnapshot().purgeBatch.items[2].state, 'ready');
+  } finally { await model.dispose(); }
+});

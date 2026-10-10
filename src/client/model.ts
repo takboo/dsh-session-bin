@@ -31,6 +31,11 @@ export interface BinNotice {
   reason: string | null;
 }
 export interface PurgeConfirmation { plan: PurgePlan; title: string; acknowledged: boolean }
+export interface DeletionPreferences {
+  load(): boolean;
+  save(confirm: boolean): void;
+  subscribe?(listener: (confirm: boolean) => void): () => void;
+}
 export interface BinClientState {
   phase: 'loading' | 'ready' | 'error';
   entries: readonly ArchiveEntry[];
@@ -45,6 +50,7 @@ export interface BinClientState {
   purgeBatch: PurgeBatchState | null;
   purgeBatchOperationIds: readonly string[];
   purgeCacheBlocked: boolean;
+  confirmDeletion: boolean;
 }
 export interface PurgeGrantSnapshot { operationId: string; authorizationId: string }
 export interface PurgeGrantObservationSnapshot { operationId: string }
@@ -144,7 +150,7 @@ interface PrivatePurgeConfirmation extends PurgeConfirmation {
 export class SessionBinClientModel {
   private state: BinClientState = {
     phase: 'loading', entries: [], busy: [], pending: [], results: [], error: null, notice: null,
-    purgeConfirmation: null, purgePending: [], purgeResults: [], purgeBatch: null, purgeBatchOperationIds: [], purgeCacheBlocked: false,
+    purgeConfirmation: null, purgePending: [], purgeResults: [], purgeBatch: null, purgeBatchOperationIds: [], purgeCacheBlocked: false, confirmDeletion: true,
   };
   private snapshot: BinClientState = structuredClone(this.state);
   private readonly listeners = new Set<() => void>();
@@ -166,9 +172,10 @@ export class SessionBinClientModel {
   private purgeBatch: PurgeBatchState | null = null;
   private purgeBatchRun: Promise<PurgeBatchState | undefined> | null = null;
   private purgePreparationEpoch = 0;
+  private stopPreferences: (() => void) | undefined;
 
   constructor(private readonly api: SessionBinRemoteApi,
-    private readonly createStream: () => RemoteStream<BinSnapshot>, private readonly cache?: PendingCache) {
+    private readonly createStream: () => RemoteStream<BinSnapshot>, private readonly cache?: PendingCache, private readonly preferences?: DeletionPreferences) {
     try { this.state = { ...this.state, pending: pendingPlans(cache?.load()) }; }
     catch { /* A withheld cache does not prevent the page from connecting. */ }
     let purgePending: PurgePlan[] = [];
@@ -216,7 +223,13 @@ export class SessionBinClientModel {
     const purgeCacheBlocked = Boolean(cache?.isPurgeCacheBlocked?.())
       || purgeCacheOverflow(rawPurgePlans, rawPurgeGrants, rawPurgeObservations, rawPurgeBatchOperations);
     this.state = { ...this.state, purgeCacheBlocked };
+    try { this.state.confirmDeletion = preferences?.load() !== false; } catch { /* Confirmation stays on when storage is withheld. */ }
     this.snapshot = structuredClone(this.state);
+    this.stopPreferences = preferences?.subscribe?.(confirmDeletion => this.publish({ confirmDeletion }));
+  }
+  setConfirmDeletion(confirmDeletion: boolean): void {
+    try { this.preferences?.save(confirmDeletion); } catch { /* This page can still use the explicit preference. */ }
+    this.publish({ confirmDeletion });
   }
   getSnapshot = (): BinClientState => this.snapshot;
   subscribe = (listener: () => void): (() => void) => {
@@ -259,6 +272,7 @@ export class SessionBinClientModel {
     })();
   }
   async dispose(): Promise<void> {
+    this.stopPreferences?.();
     this.lifetime.abort();
     ++this.epoch;
     await this.stream?.dispose();
@@ -401,6 +415,27 @@ export class SessionBinClientModel {
       }
       return { plan: nativePurgePlanSchema.parse(plan), reason: null };
     } catch { return { plan: null, reason: 'connection-failed' }; }
+  }
+  /** Only a fresh user click can opt out of the presentation confirmation. */
+  async requestPurge(entry: Pick<ArchiveEntry, 'sessionId' | 'entryId'>, title: string): Promise<void> {
+    const skip = !this.state.confirmDeletion;
+    const epoch = this.epoch;
+    const plan = await this.preparePurge(entry, title);
+    if (skip && !this.state.confirmDeletion && epoch === this.epoch && plan
+      && this.confirmation?.plan.operationId === plan.operationId) {
+      this.acknowledgePurge(true);
+      await this.confirmPurge();
+    }
+  }
+  async requestPurgeBatch(scope: PurgeBatchScope, titles: Readonly<Record<string, string>> = {}): Promise<void> {
+    const skip = !this.state.confirmDeletion;
+    const epoch = this.epoch;
+    const batch = await this.preparePurgeBatch(scope, titles);
+    if (skip && !this.state.confirmDeletion && epoch === this.epoch && batch?.phase === 'confirming'
+      && this.purgeBatch?.batchId === batch.batchId && batch.items.some(item => item.state === 'ready')) {
+      this.acknowledgePurgeBatch(true);
+      await this.runPurgeBatch();
+    }
   }
   async preparePurge(entry: Pick<ArchiveEntry, 'sessionId' | 'entryId'>, title: string): Promise<PurgePlan | null> {
     const target = { sessionId: entry.sessionId, entryId: entry.entryId, title };
@@ -1041,5 +1076,27 @@ export function browserPendingCache(storage: Storage): PendingCache {
     },
     loadPurgeBatchOperations: () => readPurgeEnvelope().batchOperations,
     isPurgeCacheBlocked: () => { readPurgeEnvelope(); return purgeCacheBlocked; },
+  };
+}
+
+/** Browser profile/Host-wide presentation preference; independent of deletion journals. */
+export function browserDeletionPreferences(storage: Pick<Storage, 'getItem' | 'setItem'>,
+  events?: Pick<Window, 'addEventListener' | 'removeEventListener'>): DeletionPreferences {
+  const key = 'dsh-session-bin.preferences.v1';
+  const parse = (raw: string | null): boolean => {
+    try { const value = JSON.parse(raw ?? 'null'); return !(value?.schemaVersion === 1 && value.confirmDeletion === false); }
+    catch { return true; }
+  };
+  return {
+    load: () => parse(storage.getItem(key)),
+    save: confirmDeletion => storage.setItem(key, JSON.stringify({ schemaVersion: 1, confirmDeletion })),
+    subscribe: listener => {
+      const changed = (event: Event) => {
+        const update = event as StorageEvent;
+        if (update.storageArea === storage && (update.key === key || update.key === null)) listener(parse(update.newValue));
+      };
+      events?.addEventListener('storage', changed);
+      return () => events?.removeEventListener('storage', changed);
+    },
   };
 }

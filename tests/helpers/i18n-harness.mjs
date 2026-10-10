@@ -85,17 +85,18 @@ export async function createI18nHarness() {
   const removeDictionary = locale.register(components.NS, { en: components.en, zh: components.zh });
   const t = locale.bind(components.NS);
   const baseState = { phase: 'ready', entries: [], busy: [], pending: [], results: [], error: null, notice: null,
-    purgeConfirmation: null, purgePending: [], purgeResults: [], purgeBatch: null, purgeCacheBlocked: false, purgeBatchOperationIds: [] };
+    purgeConfirmation: null, purgePending: [], purgeResults: [], purgeBatch: null, purgeCacheBlocked: false, purgeBatchOperationIds: [], confirmDeletion: true };
   const bin = mutable(baseState);
   const sessions = mutable({ byId: {} });
   const workspaces = mutable({ items: [] });
   const calls = [];
   const model = {
+    setConfirmDeletion: confirmDeletion => { calls.push(['setConfirmDeletion', confirmDeletion]); bin.set({ ...bin.getSnapshot(), confirmDeletion }); },
     refresh: async () => { calls.push(['refresh']); },
     unarchive: async entry => { calls.push(['unarchive', entry]); return { sessionId: entry.sessionId, entryId: entry.entryId, status: 'success', reason: null }; },
     unarchiveMany: async entries => { calls.push(['unarchiveMany', entries]); return entries.map(entry => ({ sessionId: entry.sessionId, entryId: entry.entryId, status: 'success', reason: null })); },
     checkPending: async () => { calls.push(['checkPending']); },
-    preparePurge: async (entry, title) => { calls.push(['preparePurge', entry, title]); },
+    requestPurge: async (entry, title) => { calls.push(['preparePurge', entry, title]); },
     cancelPurge: () => { calls.push(['cancelPurge']); bin.set({ ...bin.getSnapshot(), purgeConfirmation: null }); },
     acknowledgePurge: acknowledged => { calls.push(['acknowledgePurge', acknowledged]); const state = bin.getSnapshot();
       if (state.purgeConfirmation) bin.set({ ...state, purgeConfirmation: { ...state.purgeConfirmation, acknowledged } }); },
@@ -104,7 +105,7 @@ export async function createI18nHarness() {
     retryPurge: async operationId => { calls.push(['retryPurge', operationId]); },
     discardMissingPurge: async operationId => { calls.push(['discardMissingPurge', operationId]); },
     preparePurgeAgain: async (operationId, title) => { calls.push(['preparePurgeAgain', operationId, title]); },
-    preparePurgeBatch: async (scope, titles) => { calls.push(['preparePurgeBatch', scope, titles]); },
+    requestPurgeBatch: async (scope, titles) => { calls.push(['preparePurgeBatch', scope, titles]); },
     acknowledgePurgeBatch: acknowledged => { calls.push(['acknowledgePurgeBatch', acknowledged]); const state = bin.getSnapshot();
       if (state.purgeBatch) bin.set({ ...state, purgeBatch: { ...state.purgeBatch, acknowledged } }); },
     runPurgeBatch: async () => { calls.push(['runPurgeBatch']); },

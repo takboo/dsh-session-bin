@@ -64,7 +64,7 @@ function createModel(h) {
     unarchive: async entry => { calls.push(['unarchive', entry]); },
     unarchiveMany: async targets => { calls.push(['unarchiveMany', targets]); return []; },
     checkPending: async () => { calls.push(['checkPending']); },
-    preparePurge: async (entry, title) => { calls.push(['preparePurge', entry, title]); },
+    requestPurge: async (entry, title) => { calls.push(['preparePurge', entry, title]); },
     cancelPurge: () => { calls.push(['cancelPurge']); },
     acknowledgePurge: value => { calls.push(['acknowledgePurge', value]); },
     confirmPurge: async () => { calls.push(['confirmPurge']); },
@@ -73,7 +73,7 @@ function createModel(h) {
     discardMissingPurge: async operationId => { calls.push(['discardMissingPurge', operationId]); },
     preparePurgeAgain: async (operationId, title) => { calls.push(['preparePurgeAgain', operationId, title]); },
     dismissNotice: () => { calls.push(['dismissNotice']); },
-    preparePurgeBatch: async (scope, titles) => { calls.push(['preparePurgeBatch', scope, titles]); },
+    requestPurgeBatch: async (scope, titles) => { calls.push(['preparePurgeBatch', scope, titles]); },
     acknowledgePurgeBatch: acknowledged => {
       calls.push(['acknowledgePurgeBatch', acknowledged]);
       const state = h.bin.getSnapshot();
@@ -122,7 +122,7 @@ test('selection and clear-all prepare distinct frozen scopes while filtering onl
   } finally { await h.close(); }
 });
 
-test('native batch modal focuses cancel, requires acknowledgement, blocks M0, and preserves user titles across locale changes', { timeout: 30000 }, async () => {
+test('native batch modal focuses cancel, confirms with one button, blocks M0, and preserves user titles across locale changes', { timeout: 30000 }, async () => {
   const h = await createI18nHarness();
   try {
     const { calls, model } = createModel(h);
@@ -138,17 +138,17 @@ test('native batch modal focuses cancel, requires acknowledgement, blocks M0, an
     assert(h.text().includes('用户标题 1 / User title 1'));
     assert(h.text().includes(h.t('deletionWriter')));
     assert(!h.text().includes('Host rejected'));
-    for (const key of ['resourceErase', 'resourceReleaseReference', 'resourceRetainShared', 'resourceRetainCoordination', 'batchRetainedCopies']) {
+    for (const key of ['batchRetainedCopies']) {
       assert(h.text().includes(h.t(key)));
     }
 
     const cancel = button(h, h.t('cancelDeletion'));
     assert(cancel.hasAttribute('data-modal-autofocus'));
     assert.equal(h.document.activeElement, cancel);
-    assert.equal(button(h, h.t('confirmBatchDeletion')).disabled, true);
-    await h.click(checkbox(h, h.t('batchAcknowledge')));
-    assert.deepEqual(calls.at(-1), ['acknowledgePurgeBatch', true]);
+    assert.equal(h.document.querySelector('input[type="checkbox"]'), null);
     assert.equal(button(h, h.t('confirmBatchDeletion')).disabled, false);
+    await h.click(button(h, h.t('confirmBatchDeletion')));
+    assert.deepEqual(calls.slice(-2), [['acknowledgePurgeBatch', true], ['runPurgeBatch']]);
 
     await h.language('en');
     assert(h.text().includes('用户标题 1 / User title 1'), 'locale changes do not translate user titles');
@@ -156,12 +156,14 @@ test('native batch modal focuses cancel, requires acknowledgement, blocks M0, an
 
     const noneExecutable = batch('confirming', [item(0, 'blocked'), item(1, 'blocked')], { acknowledged: true });
     await h.state({ purgeBatch: noneExecutable });
-    assert.equal(checkbox(h, h.t('batchAcknowledge')).disabled, true);
     assert.equal(button(h, h.t('confirmBatchDeletion')).disabled, true);
 
+    await h.render('panel', { model });
     await h.state({ purgeBatch: batch('preparing', [item(0, 'preparing'), item(1, 'preparing')]) });
-    await h.flush(() => h.document.dispatchEvent(new h.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
-    assert.equal(calls.at(-1)[0], 'stopPurgeBatch', 'Escape stops targets that have not started');
+    assert.equal(h.document.querySelector('[role="dialog"]'), null);
+    assert(h.document.querySelector('progress'));
+    await h.click(button(h, h.t('stopBatchDeletion')));
+    assert.equal(calls.at(-1)[0], 'stopPurgeBatch');
   } finally { await h.close(); }
 });
 
@@ -255,4 +257,45 @@ test('batch modal and selection controls have bounded scrolling and narrow wrapp
   assert.match(css, /\.selectionActions\s*\{[^}]*flex-wrap:\s*wrap/s);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.batchItems li\s*\{\s*grid-template-columns:\s*1fr/);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.heading\s*\{[^}]*flex-wrap:\s*wrap/);
+});
+
+test('workspace groups, global setting, and compact completed results retain only failures', { timeout: 30000 }, async () => {
+  const h = await createI18nHarness();
+  try {
+    await h.language('en'); await installMetadata(h);
+    await h.flush(() => h.workspaces.set({ items: [
+      { workspaceId: 'alpha', title: 'Alpha workspace', sessionIds: ['session-1'] },
+      { workspaceId: 'beta', title: 'Beta workspace', sessionIds: ['session-2'] },
+    ] }));
+    await h.state({ entries: entries.slice(0, 3) });
+    const headings = [...h.document.querySelectorAll('h2')].map(node => node.textContent);
+    assert.deepEqual(headings, ['Alpha workspace1', 'Beta workspace1', `${h.t('ungrouped')}1`]);
+    await h.click(button(h, h.t('settings')));
+    await h.click(checkbox(h, h.t('confirmDeletionSetting')));
+    assert.deepEqual(h.calls.at(-1), ['setConfirmDeletion', false]);
+    const success = item(0, 'settled', { outcome: { operationId: 'op-0', status: 'success', reason: null } });
+    await h.state({ purgeBatch: batch('done', [success]) });
+    const status = h.document.querySelector(`section[aria-label="${h.t('batchStatus')}"]`);
+    assert(status); assert.equal(status.querySelector('ul'), null); assert.equal(status.querySelector('dl'), null);
+    await h.state({ purgeBatch: batch('done', [success, item(1, 'blocked')]) });
+    assert.equal(status.querySelectorAll('li').length, 1);
+    assert(status.textContent.includes(h.t('deletionWriter'))); assert(!status.textContent.includes(success.target.title));
+  } finally { await h.close(); }
+});
+
+
+test('in-flight batch shows progress without a misleading unknown-result continuation', { timeout: 30000 }, async () => {
+  const h = await createI18nHarness();
+  try {
+    await h.language('en'); await installMetadata(h);
+    const running = item(0, 'running');
+    await h.state({ entries: entries.slice(0, 2), purgeBatch: batch('running', [running, item(1, 'ready')]),
+      purgePending: [{ operationId: 'op-0', sessionId: 'session-1', expectedEntryId: 'entry-1' }] });
+    assert(h.document.querySelector('progress'));
+    assert.equal([...h.document.querySelectorAll('button')].some(node => node.textContent.trim() === h.t('continueDeletion')), false);
+    const pending = { ...running, state: 'settled', outcome: { operationId: 'op-0', status: 'pending', reason: 'deletion-pending' } };
+    await h.state({ purgeBatch: batch('paused', [pending, item(1, 'ready')]) });
+    assert(button(h, h.t('continueDeletion')));
+    assert(button(h, h.t('continueBatchDeletion')).disabled);
+  } finally { await h.close(); }
 });

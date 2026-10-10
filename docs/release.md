@@ -59,17 +59,19 @@ npm trusted publisher 的公开配置为：GitHub owner `takboo`、repository `d
 
 优先选择 [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/)；具体启用条件与账户配置在包身份确定后核对。发布前准备可审阅的版本、产物及 release 内容，使用项目授权身份并遵守仓库发布规则。
 
-### 首发账户与认证准备
+### 首发账户与认证准备（历史流程）
+
+`0.1.0` 已由账号所有者首发，`0.1.1` 已通过 [OIDC 发布任务](https://github.com/takboo/dsh-session-bin/actions/runs/37951536412) 发布并验证 provenance；后续版本使用上文的版本 tag 流程，不再需要本地登录或提供 Token。本节保留首发步骤。
 
 目标 npm 用户为 `takboo`，公开包为 `@takboo/dsh-session-bin`，源码仓库为 `takboo/dsh-session-bin`。公开 scoped 包发布需使用 `--access public`；公开发布无需 npm 付费订阅。
 
 项目所有者需准备：
 
 1. 可登录的 npm 账户，已验证邮箱，具有 `@takboo` scope 的发布权限；本地交互首发使用已启用的 2FA。
-2. 首次发布的认证方式。当前目标包尚未建立，官方 trusted publisher 配置入口位于已有包的 Settings；按本地 `npm login`、发布已验收 tarball、建立包后配置 trusted publisher 的路径准备。首发认证由账号所有者完成，不将密码、验证码或 Token 写入聊天、Git 或文档。
-3. 后续 trusted publisher 配置：GitHub owner `takboo`、repository `dsh-session-bin`、实际发布 workflow 文件名，以及 workflow 使用的 environment 名（若有）。npm OIDC 发布 workflow 尚待接入；现有 `host-lifecycle.yml` 负责 GitHub tarball Release。npm publisher 的文件名和 environment 必须与最终发布 job 精确一致。
+2. 首次发布的认证方式。首发时目标包尚未建立，官方 trusted publisher 配置入口位于已有包的 Settings；按本地 `npm login`、发布已验收 tarball、建立包后配置 trusted publisher 的路径准备。首发认证由账号所有者完成，不将密码、验证码或 Token 写入聊天、Git 或文档。
+3. 后续 trusted publisher 配置：GitHub owner `takboo`、repository `dsh-session-bin`、实际发布 workflow 文件名，以及 workflow 使用的 environment 名（若有）。现已接入 `host-lifecycle.yml` 的独立 npm job；Environment 留空，与已配置的 publisher 一致。npm publisher 的文件名和 environment 必须与最终发布 job 精确一致。
 
-核对日期：2026-10-09。官方文档要求 trusted publishing 使用 npm CLI `11.5.1` 以上及 Node `22.14.0` 以上，GitHub-hosted runner 和 `id-token: write` 权限。新建 publisher 配置需允许实际采用的发布动作；使用 `npm publish` 时须启用相应权限。当前规则还要求新配置在两天内完成首次成功发布以验证绑定，因此在产物和 workflow 就绪后再配置。后续发布通过 OIDC，无需持久化 npm 发布 Token。
+核对日期：2026-10-10。官方文档要求 trusted publishing 使用 npm CLI `11.5.1` 以上及 Node `22.14.0` 以上，GitHub-hosted runner 和 `id-token: write` 权限。新建 publisher 配置需允许实际采用的发布动作；使用 `npm publish` 时须启用相应权限。当前规则还要求新配置在两天内完成首次成功发布以验证绑定，因此在产物和 workflow 就绪后再配置。后续发布通过 OIDC，无需持久化 npm 发布 Token。
 
 账户准备依据：[公开 scoped 包](https://docs.npmjs.com/creating-and-publishing-scoped-public-packages)、[npm 2FA](https://docs.npmjs.com/about-two-factor-authentication)、[trusted publishing](https://docs.npmjs.com/trusted-publishers/)。实际发布前再次核对规则。
 

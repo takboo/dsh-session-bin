@@ -1,5 +1,7 @@
 [
   "docs/images/archives-light.png",
   "docs/images/archives-dark.png",
-  "docs/images/batch-deletion.png"
+  "docs/images/batch-deletion.png",
+  "docs/images/batch-progress.png",
+  "docs/images/batch-complete.png"
 ]

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { SessionId } from '@deepseek-ai/dsh-session';
-import { SessionBinClientModel, browserPendingCache, retirementManifestDigest } from '../dist/client-model.js';
+import { SessionBinClientModel, browserPendingCache, browserDeletionPreferences, retirementManifestDigest } from '../dist/client-model.js';
 import { retirementManifestDigest as hostRetirementManifestDigest } from '../dist/index.js';
 import { nativePurgePlanSchema } from '../dist/remote.js';
 import { openRemoteFixture, within } from './helpers/remote-fixture.mjs';
@@ -551,7 +551,7 @@ function button(h, label) {
   const node = [...h.document.querySelectorAll('button')].find(node => node.textContent.trim() === label);
   assert(node, label); return node;
 }
-test('single deletion UI is bilingual, focuses cancel, keeps blockers disabled, and requires native acknowledgement', { timeout: 30000 }, async () => {
+test('single deletion UI is bilingual, focuses cancel, keeps blockers disabled, and confirms with one explicit button', { timeout: 30000 }, async () => {
   const h = await createI18nHarness();
   try {
     const title = '用户会话 Alpha';
@@ -564,13 +564,63 @@ test('single deletion UI is bilingual, focuses cancel, keeps blockers disabled, 
       const dialog = h.document.querySelector('[role="dialog"]'); assert(dialog); assert.equal(dialog.getAttribute('aria-label'), h.t('deleteTitle', { title }));
       const cancel = button(h, h.t('cancelDeletion')); assert(cancel.hasAttribute('data-modal-autofocus'));
       assert.equal(h.document.activeElement, cancel, 'native modal starts at cancellation');
-      assert(button(h, h.t('confirmDeletion')).disabled); assert(h.text().includes(h.t('deleteScope')));
-      const checkbox = dialog.querySelector('input[type="checkbox"]'); await h.click(checkbox);
+      assert.equal(button(h, h.t('confirmDeletion')).disabled, false); assert(h.text().includes(h.t('deleteScope')));
+      assert.equal(dialog.querySelector('input[type="checkbox"]'), null);
       assert.equal(button(h, h.t('confirmDeletion')).disabled, false);
       await h.click(button(h, h.t('cancelDeletion'))); assert.equal(h.calls.at(-1)[0], 'cancelPurge'); assert.equal(h.document.querySelector('[role="dialog"]'), null);
       await h.state({ purgeConfirmation: { plan: { ...plan, blockers: [{ code: 'jsonl/writer-active' }] }, title, acknowledged: true } });
       assert(h.text().includes(h.t('deletionWriter'))); assert(button(h, h.t('confirmDeletion')).disabled);
       await h.click(button(h, h.t('cancelDeletion')));
+      await h.state({ purgeConfirmation: { plan, title, acknowledged: false } });
+      await h.click(button(h, h.t('confirmDeletion')));
+      assert.deepEqual(h.calls.slice(-2), [['acknowledgePurge', true], ['confirmPurge']]);
     }
   } finally { await h.close(); }
+});
+
+test('global opt-out persists, only a fresh delete click executes, and reload never replays pending work', { timeout: 15000 }, async t => {
+  const h = controlled(); const storage = memoryStorage(); const preferences = browserDeletionPreferences(storage);
+  let model = new SessionBinClientModel(h.api, h.stream, h.cache, preferences);
+  try {
+    await ready(model, t.signal); assert.equal(model.getSnapshot().confirmDeletion, true);
+    model.setConfirmDeletion(false); assert.equal(preferences.load(), false); assert.equal(h.state.executes.length, 0);
+    h.state.mode = 'pending-recovery'; await model.requestPurge(entry, 'Explicit click');
+    assert.equal(h.state.executes.length, 1); assert.equal(model.getSnapshot().purgeConfirmation, null);
+    assert.equal(model.getSnapshot().purgePending.length, 1);
+    await model.dispose(); model = new SessionBinClientModel(h.api, h.stream, h.cache, preferences);
+    await ready(model, t.signal); await model.checkPurgePending();
+    assert.equal(model.getSnapshot().confirmDeletion, false); assert.equal(h.state.executes.length, 1);
+    assert.equal(model.getSnapshot().purgePending.length, 1);
+    model.setConfirmDeletion(true); assert.equal(preferences.load(), true);
+  } finally { await model.dispose(); }
+});
+
+test('opt-out never bypasses blockers or a reconnect during preparation', { timeout: 15000 }, async t => {
+  for (const mode of ['blocked', 'reconnect', 'enable-confirmation']) {
+    const h = controlled(); const gate = Promise.withResolvers(); const entered = Promise.withResolvers();
+    const prepare = h.api.preparePurge;
+    h.api.preparePurge = async request => { entered.resolve(); await gate.promise;
+      const response = await prepare(request); if (mode === 'blocked') response.value.blockers = [{ code: 'jsonl/writer-active' }]; return response; };
+    const model = h.model();
+    try {
+      await ready(model, t.signal); model.setConfirmDeletion(false);
+      const click = model.requestPurge(entry, mode); await within(entered.promise, t.signal);
+      if (mode === 'reconnect') await ready(model, t.signal);
+      if (mode === 'enable-confirmation') model.setConfirmDeletion(true);
+      gate.resolve(); await click;
+      assert.equal(h.state.executes.length, 0); assert(model.getSnapshot().purgeConfirmation);
+      model.cancelPurge();
+    } finally { gate.resolve(); await model.dispose(); }
+  }
+});
+
+test('invalid or unavailable preference storage defaults to confirmation; other pages receive global changes', () => {
+  for (const raw of ['broken', '{"schemaVersion":2,"confirmDeletion":false}', '{"schemaVersion":1,"confirmDeletion":"false"}']) {
+    assert.equal(browserDeletionPreferences(memoryStorage({ 'dsh-session-bin.preferences.v1': raw })).load(), true);
+  }
+  const storage = memoryStorage(); const events = new EventTarget(); const preferences = browserDeletionPreferences(storage, events);
+  const values = []; const off = preferences.subscribe(value => values.push(value));
+  const event = new Event('storage'); Object.assign(event, { storageArea: storage, key: 'dsh-session-bin.preferences.v1',
+    newValue: '{"schemaVersion":1,"confirmDeletion":false}' }); events.dispatchEvent(event);
+  off(); events.dispatchEvent(event); assert.deepEqual(values, [false]);
 });
