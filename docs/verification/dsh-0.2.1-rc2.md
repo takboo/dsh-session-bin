@@ -17,6 +17,22 @@ pnpm frozen lockfile 安装禁用生命周期脚本；release-age 例外仅包�
 
 本地平台只证明本机组合，其他平台以独立 runner 的实际验收为准，candidate 通过不自动授予生产资格。
 
+## 五平台生产资格
+
+实现提交 `48bc4256e6c8199fdd6d81f0bb5382364e785778` 的 [PR CI run 39029189891](https://github.com/takboo/dsh-session-bin/actions/runs/39029189891) 全部通过；workflow 实际 checkout 的 PR merge commit 为 `d59a6376d887dbae0e175aa3610b57eb9dd012aa`。下载并逐份核对 20 份平台/Loader/双语 GUI 报告，全部为精确 DSH `0.2.1-rc.2`、Node `24.18.1` / libuv `1.52.1`；平台源码前后稳定，Loader 均为 `productionDeletionQualified: true`，GUI 均为 `supported` 并实际执行删除。
+
+| 实际 runner | 架构 | 文件系统 | 平台/Loader/中文/English |
+| --- | --- | --- | --- |
+| Windows Server 2025 | x64 | NTFS，type `0x0` | 全部通过 |
+| macOS 15 | ARM64 | APFS，type `0x1a` | 全部通过 |
+| macOS 15 Intel | x64 | APFS，type `0x1a` | 全部通过 |
+| Ubuntu 24.04 | ARM64 | ext2/ext3/ext4，type `0xef53` | 全部通过 |
+| Ubuntu 24.04 | x64 | ext2/ext3/ext4，type `0xef53` | 全部通过 |
+
+POSIX 源码清单 SHA-256 为 `00550264bc37c5690589c1a7ce4ea2b032d6b4aa56b549253da98f5ac728c25d`；Windows checkout 行尾对应清单为 `aff06f1cb6d8c3fc83cf7b63586ddc119a89889d7237dde4a8bdd6c7c8a56626`。各平台内部的 Loader 与双语 GUI tarball 摘要一致：POSIX 为 `a2f61b561878c649b3bef9c194baad5940d29511abeea98e29c5535576ddb848`，Windows 为 `8771cc7831a67d974d6301d3fc1a8d9b01821719ac9c4ebe99a1bee1a55b2ade`。每种语言各 17 项，console/pageErrors 为空；20 次 Host 关闭全部正常，未强制终止。Windows 使用隔离 IPC 投递 SDK SIGTERM handler，POSIX 使用 OS 信号。
+
+上述独立运行授予 rc.2 对应生产组合资格，未扩展到 Windows ARM64、其他运行时或文件系统。正式发布仍由最终 tag workflow 重跑同一矩阵，仅发布该轮 Linux x64 同字节 Loader/双语 GUI 验证产物；实际分发摘要以 Release 的 `SHA256SUMS` 和 `release.json` 为准。
+
 ## 本地双语 CLI/GUI
 
 `mise run verify:gui` 的[中文](../../.local/gui/client-zh-oMNhgk/verification.json)与[English](../../.local/gui/client-en-f8dRKZ/verification.json)各 17 项全部通过，均为 `deletionQualification: supported`。与上节 Loader 使用同字节 tarball；console/pageErrors 均为空，安装后及卸载后的四次 Host 关闭均 code 0、signal null、forced false。
