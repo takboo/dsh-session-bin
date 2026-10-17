@@ -5,13 +5,14 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { zstdDecompressSync } from 'node:zlib';
-import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
+import { SessionPersistence } from '@deepseek-ai/dsh-session-persistence';
 import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session';
 import type { SessionHeader } from '@deepseek-ai/dsh-session';
 import { sessionFormatCatalog } from '@deepseek-ai/dsh-session-format-catalog';
 import { tryLockExclusive } from '@deepseek-ai/node-addon-system/flock';
 import { acquireWindowsSemaphore, nativePlatformCandidate, openRegularFile, RegularFileRefusal, syncDirectory, windowsSemaphoreName } from './platform-files.js';
 import { z } from 'zod';
+import { nativeServiceInstance } from './native-retirement-persistence.js';
 
 const integer = z.string().regex(/^\d+$/);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
@@ -186,20 +187,26 @@ function leaseStamp(inventory: NativeJsonlInventory): string {
 /** Exact file erasure; platform kernel leases share the audited JSONL writer namespace. */
 export class NativeJsonlFiles {
   private readonly leases = new Map<string, HeldFileLease>();
-  private constructor(private readonly provider: Jsonl, readonly root: string, readonly compression: Encoding,
+  private constructor(private readonly provider: SessionPersistence & { config: { root: string; compression?: Encoding } }, readonly root: string, readonly compression: Encoding,
     private readonly rootIdentity: NodeIdentity) {}
 
   static async open(provider: unknown): Promise<NativeJsonlFiles | undefined> {
     if (!nativePlatformCandidate()) return;
-    if (!(provider instanceof Jsonl) || provider.name !== 'session-persistence-jsonl' || SESSION_FORMAT_VERSION !== 4) return;
-    const internals = provider as unknown as { root?: unknown; compression?: unknown };
+    if (!(provider instanceof SessionPersistence) || provider.constructor.name !== 'JsonlSessionPersistence'
+      || provider.name !== 'session-persistence-jsonl' || SESSION_FORMAT_VERSION !== 4) return;
+    // rc.1 keeps the concrete class private. Verify its complete official npm
+    // implementation instead of accepting a provider by a class-name match.
+    if (createHash('sha256').update(Function.prototype.toString.call(nativeServiceInstance(provider).constructor)).digest('hex')
+      !== 'bb0e12b14bd21adec58c51934f00014e482380102f09aa5e935536c57c0d6e1e') return;
+    const internals = provider as unknown as { root?: unknown; compression?: unknown; config?: { root?: unknown; compression?: unknown } };
+    const config = internals.config;
     if (typeof internals.root !== 'string' || !isAbsolute(internals.root)
       || (internals.compression !== 'none' && internals.compression !== 'zstd')
-      || typeof provider.config.root !== 'string' || resolve(provider.config.root) !== internals.root
-      || (provider.config.compression ?? 'zstd') !== internals.compression) return;
+      || typeof config?.root !== 'string' || resolve(config.root) !== internals.root
+      || (config.compression ?? 'zstd') !== internals.compression) return;
     const require = createRequire(import.meta.url);
     const metadata: unknown = require('@deepseek-ai/dsh-session-persistence-jsonl/package.json');
-    if ((metadata as { version?: unknown }).version !== '0.2.0-rc.2') return;
+    if ((metadata as { version?: unknown }).version !== '0.2.1-rc.1') return;
     let root: string;
     try { root = await realpath(internals.root); }
     catch (error) { if (missing(error)) return; throw error; }
@@ -207,7 +214,7 @@ export class NativeJsonlFiles {
     const identity = await lstat(root, { bigint: true });
     if (!identity.isDirectory()) refuse('jsonl/root-invalid', 'The configured root must be an existing directory.');
     if (identity.ino <= 0n || identity.birthtimeNs <= 0n) return;
-    return new NativeJsonlFiles(provider, root, internals.compression, nodeIdentity(identity));
+    return new NativeJsonlFiles(provider as SessionPersistence & { config: { root: string; compression?: Encoding } }, root, internals.compression, nodeIdentity(identity));
   }
 
   async inspect(sessionId: string, header: SessionHeader): Promise<NativeJsonlInventory> {

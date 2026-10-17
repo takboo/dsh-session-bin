@@ -1,5 +1,7 @@
 # 客户端与 Remote 接口
 
+当前 `0.2.1` 使用精确 DSH `0.2.1-rc.1`；实际兼容性与升级证据见[新版验证](verification/dsh-0.2.1-rc1.md)。
+
 本文说明客户端交互、严格 Remote 合约和插件生命周期。实际验证结果见[客户端验证](verification/client-interface.md)，实现状态见 [README](../README.md)。
 
 `0.1.0` 的 bundle、客户端 Module Loader、样式归属及 Typert contribution 使用 npm 身份 `@takboo/dsh-session-bin`。面板、存储域和 pending 缓存保持原有稳定身份；scoped 包安装前先卸载未加 scope 的开发包。

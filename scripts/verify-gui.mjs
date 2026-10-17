@@ -10,7 +10,7 @@ import Storage from '@deepseek-ai/dsh-storage';
 import * as storageJson from '@deepseek-ai/dsh-storage-json';
 import * as storageDomain from '@deepseek-ai/dsh-storage-domain';
 import { SessionStore, SessionId } from '@deepseek-ai/dsh-session';
-import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
+import * as Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
 import { WorkspaceRegistry, workspaceDomainSpec, workspaceDomainState, workspaceRecord } from '@deepseek-ai/dsh-workspace';
 import { chromium } from 'playwright-core';
 import { nativePlatformVerified, windowsSemaphoreName } from '../dist/index.js';
@@ -22,7 +22,7 @@ import { workflowError } from './ci-diagnostics.mjs';
 const require = createRequire(import.meta.url);
 const workspace = fileURLToPath(new URL('../', import.meta.url));
 const guiHostWorker = fileURLToPath(new URL('./gui-host-worker.mjs', import.meta.url));
-const expectedSdk = '0.2.0-rc.2';
+const expectedSdk = '0.2.1-rc.1';
 const fixtures = [
   { id: 'gui-quiet', title: '待整理的设计讨论', workspace: 'primary' },
   { id: 'gui-sibling', title: '接口实现记录', workspace: 'primary' },

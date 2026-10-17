@@ -148,6 +148,25 @@ test('native metadata convergence removes only frozen target membership/global/i
   } finally { await f.close(); }
 });
 
+test('rc.1 missing-workdir candidates keep sibling membership while erasure clears every target path index', async () => {
+  const f = await fixture();
+  try {
+    const registry = f.ctx.workspaceRegistry;
+    for (const id of ['quiet', 'sibling']) {
+      registry.sessionPaths.delete(id);
+      registry.missingSessionPaths.add(id);
+    }
+    const snapshot = await f.adapter.capture('quiet');
+    const workspace = registry.list()[0];
+    retire(f);
+    assert.equal(await f.adapter.converge(snapshot, expected, request), true);
+    assert(!workspace.sessionIds.includes('quiet'));
+    assert(workspace.sessionIds.includes('sibling'));
+    assert(!registry.missingSessionPaths.has('quiet'));
+    assert(registry.missingSessionPaths.has('sibling'));
+  } finally { await f.close(); }
+});
+
 test('native archive mutation queued before fencing rechecks admission in its real queue slot', { timeout: 15000 }, async () => {
   const f = await fixture(); const gate = latch(); let blocker; let mutation;
   try {
@@ -470,7 +489,8 @@ function installControlledApi(ctx) {
   };
   class ApiSessionAgentController {
     resumeObserved(id) { return ctx.agents.resume({ resumeSessionId: id }); }
-    createOrAdopt(id) { return ctx.agents.create({ sessionId: id }); }
+    claim(id) { return ctx.agents.resume({ resumeSessionId: id }); }
+    createAgent(id) { return ctx.agents.create({ sessionId: id }); }
   }
   class SessionController {
     agents = new ApiSessionAgentController();
@@ -481,11 +501,11 @@ function installControlledApi(ctx) {
   return { handles, disposed, summaries };
 }
 
-test('explicit idle release closes only the API-owned archived target and keeps the durable log', async () => {
+for (const entry of ['resumeObserved', 'claim', 'createAgent']) test(`explicit idle release through ${entry} closes only the API-owned archived target and keeps the durable log`, async () => {
   const f = await fixture({ controller: true, realAdmission: true });
   try {
     const api = f.ctx.get('sessionController').agents;
-    await api.resumeObserved('quiet'); await api.createOrAdopt('sibling');
+    await api[entry]('quiet'); await api.createAgent('sibling');
     const before = await f.ctx.sessionPersistence.stat(SessionId('quiet'));
     const release = await f.a.acquire('quiet');
     try { await f.adapter.releaseIdle('quiet'); await f.a.drain('quiet'); }

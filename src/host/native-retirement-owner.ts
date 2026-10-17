@@ -8,7 +8,7 @@ import type { Domain } from '@deepseek-ai/dsh-storage-domain';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import { z } from 'zod';
 import { nativePlatformCandidate, nativePlatformVerified } from './platform-files.js';
-import { nativeRetirementSdkFingerprint } from './native-retirement-sdk.js';
+import { legacyDurableHostContract, nativeRetirementSdkFingerprint } from './native-retirement-sdk.js';
 import { NativeJsonlFiles, NativeJsonlRefusal, nativeJsonlInventorySchema } from './native-jsonl-files.js';
 import type { NativeJsonlInventory } from './native-jsonl-files.js';
 import { NativeMetadataAdapter, NativeMetadataRefusal, nativeMetadataSnapshotSchema } from './native-retirement-metadata.js';
@@ -81,7 +81,7 @@ export class NativeRetirementOwner implements SessionRetirementOwnerV1 {
     this.originalProvider = nativeServiceInstance(ctx.sessionPersistence);
     this.provider = new NativePersistenceAdapter(ctx.sessionPersistence, admission);
     this.descriptor = retirementCapabilitiesSchema.parse({ protocolVersion: 1, ownerId: 'session-bin-native-jsonl-owner',
-      hostVersion: '0.2.0-rc.2', providerId: 'jsonl-session-records-v1', storeId: domain.global.get().storeId,
+      hostVersion: legacyDurableHostContract, providerId: 'jsonl-session-records-v1', storeId: domain.global.get().storeId,
       participants: [{ id: 'native-jsonl-files', version: fingerprint }, { id: 'native-metadata', version: fingerprint }] });
     for (const record of journal.operations()) if (!['rejected', 'conflict'].includes(record.state.phase)) admission.markRetired(record.state.request.expected.sessionId);
     const guardedStore: RetirementOwnerStore = {

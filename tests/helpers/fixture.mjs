@@ -7,7 +7,7 @@ import Storage from '@deepseek-ai/dsh-storage';
 import * as storageJson from '@deepseek-ai/dsh-storage-json';
 import * as storageDomain from '@deepseek-ai/dsh-storage-domain';
 import { SessionStore, SessionId } from '@deepseek-ai/dsh-session';
-import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
+import * as Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
 import { WorkspaceRegistry } from '@deepseek-ai/dsh-workspace';
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry';
 import * as binPlugin from '../../dist/index.js';
