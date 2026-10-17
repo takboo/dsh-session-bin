@@ -12,7 +12,7 @@
 - 简洁的删除确认，可在设置中全局关闭；批量操作显示进度和日志，完成后保留简短统计及失败项。中断或断线后可查询结果并明确继续。
 - 中英文界面，使用宿主控件、浅色和深色主题。
 
-当前版本为 `0.2.0`，包名为 `@takboo/dsh-session-bin`。GitHub Release 提供预编译 tarball；npm 通过 trusted publishing 自动发布同一份产物。[dshmarket 收录流程](docs/release.md#dshmarket)独立于 npm 发布，须经目录检查与维护者审核。核心功能已完成跨平台验收；运行证据见 [Host 验证](docs/verification/host-lifecycle.md#跨平台生产删除资格晋级验证)和[客户端验证](docs/verification/client-interface.md#跨平台生产删除客户端验证)。
+当前版本为 `0.2.1`，包名为 `@takboo/dsh-session-bin`。GitHub Release 提供预编译 tarball；npm 通过 trusted publishing 自动发布同一份产物。[dshmarket 收录流程](docs/release.md#dshmarket)独立于 npm 发布，须经目录检查与维护者审核。核心功能的分平台运行证据见[当前兼容性验证](docs/verification/dsh-0.2.1-rc1.md)。
 
 ## 界面预览
 
@@ -22,7 +22,9 @@
 
 ## 兼容性
 
-永久删除绑定 DSH `0.2.0-rc.2`、Node `24.18.1` / libuv `1.52.1`，使用单 Host 和已验证的 JSONL raw/zstd 存储组合。
+本版适配 DSH `0.2.1-rc.1`，修复 JSONL 插件入口及 API Session 生命周期的兼容性；详细证据见[兼容性验证](docs/verification/dsh-0.2.1-rc1.md)。使用旧宿主 `0.2.0-rc.2` 时请保留插件 `0.2.0`。
+
+永久删除绑定 DSH `0.2.1-rc.1`、Node `24.18.1` / libuv `1.52.1`，使用单 Host 和已验证的 JSONL raw/zstd 存储组合。
 
 | 已验收环境 | CPU 架构 | 文件系统 |
 | --- | --- | --- |
@@ -37,10 +39,10 @@
 从 npm 安装已发布的预编译包：
 
 ```sh
-dsh plugin --profile web add @takboo/dsh-session-bin@0.2.0
+dsh plugin --profile web add @takboo/dsh-session-bin@0.2.1
 ```
 
-以上命令使用已安装的 DSH `0.2.0-rc.2`，将完整插件 bundle 安装到 `web` profile。桌面版请在其对应 profile 的插件管理页面安装同一个 npm 包。启动或重新启动该 profile 后，从侧栏打开“会话回收站”（Session Bin）。发布包包含预编译 Host 和 Client，使用者安装时无需编译 TypeScript；其 tarball 已通过真实 CLI/GUI 验证。
+以上命令使用已安装的 DSH `0.2.1-rc.1`，将完整插件 bundle 安装到 `web` profile。桌面版请在其对应 profile 的插件管理页面安装同一个 npm 包。启动或重新启动该 profile 后，从侧栏打开“会话回收站”（Session Bin）。发布包包含预编译 Host 和 Client，使用者安装时无需编译 TypeScript；其 tarball 已通过真实 CLI/GUI 验证。
 
 卸载同一 profile 中的插件：
 
@@ -48,7 +50,7 @@ dsh plugin --profile web add @takboo/dsh-session-bin@0.2.0
 dsh plugin --profile web remove @takboo/dsh-session-bin
 ```
 
-也可下载 [v0.2.0 Release](https://github.com/takboo/dsh-session-bin/releases/tag/v0.2.0) 中的三个附件，核对 `SHA256SUMS` 后运行 `dsh plugin --profile web add ./dsh-session-bin.tgz`。自行构建时，先完成下方[开发入门](#开发入门)，再运行 `mise exec -- pnpm exec npm pack --ignore-scripts`。
+也可下载 [v0.2.1 Release](https://github.com/takboo/dsh-session-bin/releases/tag/v0.2.1) 中的三个附件，核对 `SHA256SUMS` 后运行 `dsh plugin --profile web add ./dsh-session-bin.tgz`。自行构建时，先完成下方[开发入门](#开发入门)，再运行 `mise exec -- pnpm exec npm pack --ignore-scripts`。
 
 如安装过早期未加 scope 的开发包，先从同一 profile 卸载 `dsh-session-bin`，再安装 scoped 包，避免重复注册；原生归档和已有操作记录保留。分发契约见[发布文档](docs/release.md)。
 

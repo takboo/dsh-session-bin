@@ -1,29 +1,16 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { webcrypto } from 'node:crypto';
-import vm from 'node:vm';
 import * as cordis from '@deepseek-ai/cordis';
 import { TypertRegistry } from '@deepseek-ai/dsh-typert-registry';
 import { TypertGatewayService } from '@deepseek-ai/dsh-api-gateway';
+import { RemoteAccessService } from '@deepseek-ai/dsh-api-remote-access';
 import { HostConnectionService } from '@deepseek-ai/dsh-client-connection';
 import { createScratch, openFixture } from './fixture.mjs';
 import { sessionBinRemoteContribution } from '../../dist/remote.js';
 
-const require = createRequire(import.meta.url);
 async function clientExports(id) {
-  let registration;
-  const window = { __ModuleLoader__: { load(value) { registration = value; } } };
-  const sandbox = { window, console, URL, Request, Response, Headers, Blob, FormData, AbortController, AbortSignal,
-    TextEncoder, TextDecoder, ArrayBuffer, Uint8Array, crypto: webcrypto, queueMicrotask,
-    setTimeout, clearTimeout, setInterval, clearInterval };
-  vm.runInNewContext(await readFile(require.resolve(`${id}/client`), 'utf8'), sandbox, { filename: `${id}/client` });
-  assert.equal(registration.id, id);
-  return registration.factory(request => {
-    assert.equal(request, '@deepseek-ai/cordis', `unexpected external in ${id}`);
-    return cordis;
-  });
+  return import(`${id}/client`);
 }
+
 function untilAbort(signal) {
   if (signal.aborted) return Promise.resolve();
   return new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }));
@@ -45,6 +32,7 @@ export async function openRemoteFixture({ seed = true } = {}) {
         authorizeIndex: () => true,
       });
     } });
+    await fixture.mount(RemoteAccessService);
     await fixture.mount(TypertGatewayService);
     assert(fixture.ctx.typertGateway);
     disposeEvents = fixture.ctx.typertGateway.registerRemoteEvents(async function* (signal) {
@@ -56,19 +44,19 @@ export async function openRemoteFixture({ seed = true } = {}) {
     const gatewayClient = await clientExports('@deepseek-ai/dsh-api-gateway');
     await client.plugin(TypertRegistry);
     await client.plugin({ name: 'remote-test-client-connection', apply(ctx) {
-      connectionClient.installConnection(ctx, { transport: {
+      connectionClient.installConnection(ctx, { interactions: 'answer', transport: {
         ownsHost: true,
         async fetch(input, init) {
           const request = new Request(new URL(String(input), 'http://fixture.invalid/'), init);
           requests.push({ path: new URL(request.url).pathname, body: JSON.parse(init.body) });
-          return shared.fetch(request);
+          return shared.fetch(request, fixture.ctx.connection.browserPeer);
         },
         async *openStream(endpoint, payload, signal, uplink) {
           // Physical JSON serialization reconstructs a Host-realm plain object.
           // RpcStreamOpen returns an iterable immediately; Gateway.open is async.
           const wire = JSON.parse(JSON.stringify(payload));
           const source = await fixture.ctx.typertGateway.wireStream.open(endpoint, wire, uplink,
-            fixture.ctx.connection.operator, signal);
+            fixture.ctx.connection.browserPeer, signal);
           yield* source;
         },
       } });

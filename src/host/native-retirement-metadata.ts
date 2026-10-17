@@ -112,6 +112,7 @@ export class NativeMetadataAdapter {
     if (!workspace || !sessions || workspace.constructor.name !== 'WorkspaceRegistry' || sessions.constructor.name !== 'SessionStore'
       || !methods(workspace, ['list', 'requireTable', 'requireState', 'setState', 'enqueueOperation', 'indexHeader', 'readSessionHeader'])
       || ![workspace.headers, workspace.sessionPaths, workspace.invalidSessionPaths].every(map => map instanceof Map)
+      || !(workspace.missingSessionPaths instanceof Set)
       || !methods(sessions, ['get', 'prepare', 'enter', 'announce'])) return undefined;
     if (cache && (cache.constructor.name !== 'SessionProjectionCache' || !(cache.dirty instanceof Map)
       || !methods(cache, ['put', 'requireTable', 'write', 'coldSnapshot', 'hydratePrepared', 'cachedSnapshot', 'cachedPredecessorTitle']))) return undefined;
@@ -136,7 +137,7 @@ export class NativeMetadataAdapter {
     if (controller && (controller.constructor.name !== 'SessionController' || !(controller.history?.closeFollowers instanceof Set)
       || !methods(controller.history, ['page', 'follow', 'sourceFor'])
       || controller.agents?.constructor.name !== 'ApiSessionAgentController'
-      || !methods(controller.agents, ['resumeObserved', 'createOrAdopt'])
+      || !methods(controller.agents, ['resumeObserved', 'claim', 'createAgent'])
       || !methods(controller.listState ?? {}, ['summarizeCold'])
       || !methods(this.get(ctx, 'agents') ?? {}, ['create', 'resume', 'get']))) return undefined;
     return new NativeMetadataAdapter(ctx, admission, workspace, sessions, cache, query, controller);
@@ -220,7 +221,7 @@ export class NativeMetadataAdapter {
       // Disposal checkpoints projections asynchronously. Join its actual put
       // operations and the durable table queue before taking the cold snapshot.
       if (this.cache) await this.cache.requireTable().host.enqueue(async () => undefined);
-      const summary = this.controller!.listState.summarizeCold(agent.session.header);
+      const summary = this.controller!.listState.summarizeCold({ header: agent.session.header });
       this.admission.withoutBypass(() => (this.ctx.emit as Method)('api-session/added', summary));
     });
     this.apiHandles.delete(id);
@@ -393,7 +394,8 @@ export class NativeMetadataAdapter {
     for (const [workspaceId, raw] of this.workspace.requireTable().entries()) {
       const record = workspaceRecord.parse(raw);
       if (!record.sessionIds.some(id => id === sessionId)) continue;
-      if (record.sessionIds.some(id => id !== sessionId && this.workspace.sessionPaths.get(id) !== record.path)) {
+      if (record.sessionIds.some(id => id !== sessionId && this.workspace.sessionPaths.get(id) !== record.path
+        && !this.workspace.missingSessionPaths.has(id))) {
         this.refuse('native/workspace-pruning-required', 'Target removal would prune an unrelated Workspace candidate.');
       }
       workspaces.push({ workspaceId, record });
@@ -514,7 +516,7 @@ export class NativeMetadataAdapter {
         const adapter = this;
         // API Session drops the returned AgentHandle after activation. Retain
         // that exact disposal capability only inside its matching target call.
-        for (const name of ['resumeObserved', 'createOrAdopt']) {
+        for (const name of ['resumeObserved', 'claim', 'createAgent']) {
           this.wrap(this.controller.agents, name, original => (id: string, ...args: unknown[]) =>
             this.tracked(id, () => this.activationTarget.run(id, async () => original(id, ...args))));
         }
@@ -602,7 +604,8 @@ export class NativeMetadataAdapter {
         for (const [workspaceId, raw] of this.workspace.requireTable().entries()) {
           const record = workspaceRecord.parse(raw);
           if (!record.sessionIds.some(sessionId => sessionId === id)) continue;
-          if (!frozenIds.has(workspaceId) || record.sessionIds.some(other => other !== id && this.workspace.sessionPaths.get(other) !== record.path)) return false;
+          if (!frozenIds.has(workspaceId) || record.sessionIds.some(other => other !== id
+            && this.workspace.sessionPaths.get(other) !== record.path && !this.workspace.missingSessionPaths.has(other))) return false;
           const entity = this.workspace.get(workspaceId);
           if (!entity) throw new Error('Native Workspace account lost its runtime entity.');
           await entity.detachSession(id);
@@ -614,6 +617,7 @@ export class NativeMetadataAdapter {
             pinnedSessionIds: state.pinnedSessionIds.filter(other => other !== id) });
         }
         this.workspace.headers.delete(id); this.workspace.sessionPaths.delete(id); this.workspace.invalidSessionPaths.delete(id);
+        this.workspace.missingSessionPaths.delete(id);
         return true;
       };
       if (!await this.workspace.enqueueOperation(convergeWorkspace)) return false;

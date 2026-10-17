@@ -18,6 +18,7 @@ const Projection = (await load('@deepseek-ai/dsh-session-projection')).default;
 const Cache = (await load('@deepseek-ai/dsh-session-projection-cache')).default;
 const Query = (await load('@deepseek-ai/dsh-session-query-sqlite')).default;
 const { SessionHistoryController } = await import(pathToFileURL(join(dirname(sdkRequire.resolve('@deepseek-ai/dsh-api-session-controller/package.json')), 'lib/types/history.js')).href);
+const { ApiSessionList } = await import(pathToFileURL(join(dirname(sdkRequire.resolve('@deepseek-ai/dsh-api-session-controller/package.json')), 'lib/types/list.js')).href);
 const artifactRoot = await createScratch('native-metadata-module-');
 const compiled = await build({ entryPoints: [join(workspaceRoot, 'src/host/native-retirement-metadata.ts')], bundle: true,
   packages: 'external', platform: 'node', format: 'esm', write: false });
@@ -63,7 +64,8 @@ async function fixture({ cache = false, query = false, realAdmission = false, qu
   const root = await createScratch('native-metadata-');
   const f = await openFixture(root, { seed: true, plugin: false });
   try {
-    if (cache) { await f.mount(Projection); await f.mount(Cache, { writeEveryEvents: 16, writeIntervalMs: 1000 }); }
+    if (cache || controller) await f.mount(Projection);
+    if (cache) await f.mount(Cache, { writeEveryEvents: 16, writeIntervalMs: 1000 });
     if (query) await f.mount(Query, { path: queryPath ?? join(root, 'query.sqlite'), openAt: queryOpenAt });
     await f.ctx.workspaceRegistry.archiveSession(SessionId('quiet'));
     const runtime = controller ? installControlledApi(f.ctx) : undefined;
@@ -145,6 +147,25 @@ test('native metadata convergence removes only frozen target membership/global/i
     assert.equal(await f.adapter.converge(snapshot, expected, request), true, 'same saved snapshot recovery is idempotent');
     await assert.rejects(async () => f.ctx.workspaceRegistry.unarchiveSession(SessionId('quiet')), /fenced/);
     assert.throws(() => f.ctx.sessions.prepare(SessionId('quiet')), /fenced/);
+  } finally { await f.close(); }
+});
+
+test('rc.1 missing-workdir candidates keep sibling membership while erasure clears every target path index', async () => {
+  const f = await fixture();
+  try {
+    const registry = f.ctx.workspaceRegistry;
+    for (const id of ['quiet', 'sibling']) {
+      registry.sessionPaths.delete(id);
+      registry.missingSessionPaths.add(id);
+    }
+    const snapshot = await f.adapter.capture('quiet');
+    const workspace = registry.list()[0];
+    retire(f);
+    assert.equal(await f.adapter.converge(snapshot, expected, request), true);
+    assert(!workspace.sessionIds.includes('quiet'));
+    assert(workspace.sessionIds.includes('sibling'));
+    assert(!registry.missingSessionPaths.has('quiet'));
+    assert(registry.missingSessionPaths.has('sibling'));
   } finally { await f.close(); }
 });
 
@@ -470,22 +491,29 @@ function installControlledApi(ctx) {
   };
   class ApiSessionAgentController {
     resumeObserved(id) { return ctx.agents.resume({ resumeSessionId: id }); }
-    createOrAdopt(id) { return ctx.agents.create({ sessionId: id }); }
+    claim(id) { return ctx.agents.resume({ resumeSessionId: id }); }
+    createAgent(id) { return ctx.agents.create({ sessionId: id }); }
   }
   class SessionController {
     agents = new ApiSessionAgentController();
     history = new SessionHistoryController(ctx, observation => observation[Symbol.dispose]());
-    listState = { summarizeCold(header) { summaries.push(header.id); return { sessionId: header.id, agentAvailable: false }; } };
+    listState = new ApiSessionList(ctx, 8);
+    constructor() {
+      const summarize = this.listState.summarizeCold.bind(this.listState);
+      this.listState.summarizeCold = record => {
+        const summary = summarize(record); summaries.push(summary.sessionId); return summary;
+      };
+    }
   }
   ctx.provide('agents', registry); ctx.provide('sessionController', new SessionController());
   return { handles, disposed, summaries };
 }
 
-test('explicit idle release closes only the API-owned archived target and keeps the durable log', async () => {
+for (const entry of ['resumeObserved', 'claim', 'createAgent']) test(`explicit idle release through ${entry} closes only the API-owned archived target and keeps the durable log`, async () => {
   const f = await fixture({ controller: true, realAdmission: true });
   try {
     const api = f.ctx.get('sessionController').agents;
-    await api.resumeObserved('quiet'); await api.createOrAdopt('sibling');
+    await api[entry]('quiet'); await api.createAgent('sibling');
     const before = await f.ctx.sessionPersistence.stat(SessionId('quiet'));
     const release = await f.a.acquire('quiet');
     try { await f.adapter.releaseIdle('quiet'); await f.a.drain('quiet'); }

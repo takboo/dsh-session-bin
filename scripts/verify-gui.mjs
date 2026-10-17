@@ -10,7 +10,7 @@ import Storage from '@deepseek-ai/dsh-storage';
 import * as storageJson from '@deepseek-ai/dsh-storage-json';
 import * as storageDomain from '@deepseek-ai/dsh-storage-domain';
 import { SessionStore, SessionId } from '@deepseek-ai/dsh-session';
-import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
+import * as Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
 import { WorkspaceRegistry, workspaceDomainSpec, workspaceDomainState, workspaceRecord } from '@deepseek-ai/dsh-workspace';
 import { chromium } from 'playwright-core';
 import { nativePlatformVerified, windowsSemaphoreName } from '../dist/index.js';
@@ -22,7 +22,7 @@ import { workflowError } from './ci-diagnostics.mjs';
 const require = createRequire(import.meta.url);
 const workspace = fileURLToPath(new URL('../', import.meta.url));
 const guiHostWorker = fileURLToPath(new URL('./gui-host-worker.mjs', import.meta.url));
-const expectedSdk = '0.2.0-rc.2';
+const expectedSdk = '0.2.1-rc.1';
 const fixtures = [
   { id: 'gui-quiet', title: '待整理的设计讨论', workspace: 'primary' },
   { id: 'gui-sibling', title: '接口实现记录', workspace: 'primary' },
@@ -55,8 +55,8 @@ const copy = {
     batchCancelled: '批量删除已停止', batchDone: '批量删除已完成', dismissBatch: '关闭批次结果',
     count: count => `${count} 个会话`, selected: count => `已选 ${count} 项`, select: title => `选择 ${title}`,
     viewOptions: '视图选项', showArchived: '全部对话（显示已归档）', flat: '单列表',
-    preview: '预览版说明', continue: '继续', keySetup: '添加一个 API Key 开始使用', configureLater: '稍后配置',
-    settings: '设置', general: '通用设置', settingsClose: '关闭', languageLabel: '中文', htmlLanguage: 'zh-CN',
+    preview: '预览版说明', continue: '继续', keySetup: '开始使用',
+    settings: '设置', accountMenu: '账号菜单', general: '通用设置', settingsClose: '关闭', languageLabel: '中文', htmlLanguage: 'zh-CN',
     plugins: '插件', openDetail: title => `查看 ${title}`,
     packageDescription: '管理原生归档，支持搜索、筛选、取消归档与明确确认的永久删除。',
   },
@@ -80,8 +80,8 @@ const copy = {
     count: count => `${count} ${count === 1 ? 'conversation' : 'conversations'}`,
     selected: count => `${count} selected`, select: title => `Select ${title}`,
     viewOptions: 'View options', showArchived: 'All conversations (show archived)', flat: 'In one list',
-    preview: 'Preview Notice', continue: 'Continue', keySetup: 'Add an API key to get started', configureLater: 'Configure later',
-    settings: 'Settings', general: 'General', settingsClose: 'Close', languageLabel: 'English', htmlLanguage: 'en',
+    preview: 'Preview Notice', continue: 'Continue', keySetup: 'Get started',
+    settings: 'Settings', accountMenu: 'Account menu', general: 'General', settingsClose: 'Close', languageLabel: 'English', htmlLanguage: 'en',
     plugins: 'Plugins', openDetail: title => `View ${title}`,
     packageDescription: 'Manage native archives with search, filters, unarchive, and explicit permanent deletion.',
   },
@@ -612,11 +612,11 @@ async function archiveSession(page, id) {
     'Native Archive updates the native row');
 }
 async function skipOptionalModelSetup(page) {
-  const later = button(page, ui.configureLater);
-  if (await later.waitFor({ state: 'visible', timeout: 3000 }).then(() => true, error => {
+  const dialog = page.getByRole('dialog', { name: ui.keySetup, exact: true });
+  if (await dialog.waitFor({ state: 'visible', timeout: 3000 }).then(() => true, error => {
     if (error.name === 'TimeoutError') return false;
     throw error;
-  })) await later.click();
+  })) await button(dialog, ui.settingsClose).click();
 }
 async function panel(page) {
   const search = textbox(page, ui.search);
@@ -642,7 +642,7 @@ async function assertDocumentLanguage(page) {
 async function skipModelSetup(page) {
   const dialog = page.getByRole('dialog', { name: ui.keySetup, exact: true });
   await dialog.waitFor({ state: 'visible', timeout: 10000 });
-  await button(dialog, ui.configureLater).click();
+  await button(dialog, ui.settingsClose).click();
   await dialog.waitFor({ state: 'hidden' });
 }
 async function assertNoArchiveDate(root) {
@@ -692,7 +692,8 @@ async function assertPanelCopy(page, count, { visibleCount = count, selectedCoun
 }
 async function switchLanguage(page, target, report) {
   const before = language;
-  await page.locator('button[aria-haspopup="dialog"]').and(page.getByRole('button', { name: ui.settings, exact: true })).click();
+  await button(page, ui.accountMenu).click();
+  await menuItem(page, ui.settings).click();
   const currentDialog = page.getByRole('dialog', { name: ui.settings, exact: true });
   await currentDialog.waitFor({ state: 'visible' });
   await button(currentDialog, ui.general).click();
@@ -1497,6 +1498,10 @@ async function main() {
         }
       } catch {}
     }
+    // Preserve the actual failure before asynchronous browser/Host teardown;
+    // a stalled provider cleanup must not hide the diagnostic evidence.
+    await writeFile(join(scratch, 'verification.json'), JSON.stringify(report, null, 2) + '\n');
+    if (activeHost) await writeFile(join(scratch, activeHost.logName), activeHost.log);
     throw error;
   } finally {
     try { await browserContext?.close(); } catch {}

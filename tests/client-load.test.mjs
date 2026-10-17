@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
@@ -32,6 +33,12 @@ const menuSeat = 'sidebar.workspaces.session.menu.item';
  * Native CSS is deliberately discarded: this tier verifies code/lifecycle,
  * not native visual styling, layout, or accessibility.
  */
+function browserEntry(id) {
+  const meta = require(`${id}/package.json`);
+  const entry = meta.exports['./client'];
+  return join(dirname(require.resolve(`${id}/package.json`)), typeof entry === 'string' ? entry : entry.default);
+}
+
 async function nativeSeed(context, seed) {
   const result = await build({
     absWorkingDir: workspaceRoot,
@@ -103,14 +110,14 @@ test('the built lazy Client factory registers real components and cleans up ever
       seed[PRIMITIVES] = await nativeSeed(context, seed);
       const facade = { mode: 'queue', pendingQueue: [], load(registration) { this.pendingQueue.push(registration); } };
       dom.window.__ModuleLoader__ = facade;
-      run(await readFile(require.resolve(`${MODULES}/client`), 'utf8'), `${MODULES}/client`);
+      run(await readFile(browserEntry(MODULES), 'utf8'), `${MODULES}/client`);
       assert.equal(facade.pendingQueue.length, 1);
       const registration = facade.pendingQueue.shift();
       assert.equal(registration.id, MODULES);
       const bootstrap = registration.factory(request => { throw new Error(`unexpected bootstrap request ${request}`); });
       const sourcePaths = {
-        [RENDERER]: require.resolve(`${RENDERER}/client`),
-        [LOCALE]: require.resolve(`${LOCALE}/client`),
+        [RENDERER]: browserEntry(RENDERER),
+        [LOCALE]: browserEntry(LOCALE),
         [PRODUCT]: new URL('../dist/client.js', import.meta.url),
       };
       const entries = Object.keys(sourcePaths).map(id => ({ id, url: `plugins/??${id}/client.js&rev=artifact`, rev: 'artifact' }));

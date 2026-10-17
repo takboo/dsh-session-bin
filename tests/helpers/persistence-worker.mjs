@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { Context } from '@deepseek-ai/cordis';
 import { SessionId, SessionStore } from '@deepseek-ai/dsh-session';
 import { SessionAlreadyOwnedError } from '@deepseek-ai/dsh-session-persistence';
-import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
+import * as Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
 
 const [inputRoot, compression, rawId] = process.argv.slice(2);
 const root = await realpath(inputRoot);

@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { zstdCompressSync } from 'node:zlib';
 import { Context } from '@deepseek-ai/cordis';
 import { SessionId, SessionStore, SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session';
-import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
+import * as Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
 import { createScratch, openFixture, transcript } from './helpers/fixture.mjs';
 import { assertStableSessionLock } from './helpers/platform-fixture.mjs';
 
