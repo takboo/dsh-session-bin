@@ -194,7 +194,7 @@ export class NativeJsonlFiles {
     if (!nativePlatformCandidate()) return;
     if (!(provider instanceof SessionPersistence) || provider.constructor.name !== 'JsonlSessionPersistence'
       || provider.name !== 'session-persistence-jsonl' || SESSION_FORMAT_VERSION !== 4) return;
-    // rc.1 keeps the concrete class private. Verify its complete official npm
+    // The pinned SDK keeps the concrete class private. Verify its complete official npm
     // implementation instead of accepting a provider by a class-name match.
     if (createHash('sha256').update(Function.prototype.toString.call(nativeServiceInstance(provider).constructor)).digest('hex')
       !== 'bb0e12b14bd21adec58c51934f00014e482380102f09aa5e935536c57c0d6e1e') return;
@@ -206,7 +206,7 @@ export class NativeJsonlFiles {
       || (config.compression ?? 'zstd') !== internals.compression) return;
     const require = createRequire(import.meta.url);
     const metadata: unknown = require('@deepseek-ai/dsh-session-persistence-jsonl/package.json');
-    if ((metadata as { version?: unknown }).version !== '0.2.1-rc.1') return;
+    if ((metadata as { version?: unknown }).version !== '0.2.1-rc.2') return;
     let root: string;
     try { root = await realpath(internals.root); }
     catch (error) { if (missing(error)) return; throw error; }

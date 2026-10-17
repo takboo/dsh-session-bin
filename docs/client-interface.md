@@ -1,6 +1,6 @@
 # 客户端与 Remote 接口
 
-当前 `0.2.1` 使用精确 DSH `0.2.1-rc.1`；实际兼容性与升级证据见[新版验证](verification/dsh-0.2.1-rc1.md)。
+当前 `0.2.2` 使用精确 DSH `0.2.1-rc.2`；实际兼容性与升级证据见[新版验证](verification/dsh-0.2.1-rc2.md)。
 
 本文说明客户端交互、严格 Remote 合约和插件生命周期。实际验证结果见[客户端验证](verification/client-interface.md)，实现状态见 [README](../README.md)。
 
