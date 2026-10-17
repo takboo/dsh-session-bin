@@ -18,6 +18,7 @@ const Projection = (await load('@deepseek-ai/dsh-session-projection')).default;
 const Cache = (await load('@deepseek-ai/dsh-session-projection-cache')).default;
 const Query = (await load('@deepseek-ai/dsh-session-query-sqlite')).default;
 const { SessionHistoryController } = await import(pathToFileURL(join(dirname(sdkRequire.resolve('@deepseek-ai/dsh-api-session-controller/package.json')), 'lib/types/history.js')).href);
+const { ApiSessionList } = await import(pathToFileURL(join(dirname(sdkRequire.resolve('@deepseek-ai/dsh-api-session-controller/package.json')), 'lib/types/list.js')).href);
 const artifactRoot = await createScratch('native-metadata-module-');
 const compiled = await build({ entryPoints: [join(workspaceRoot, 'src/host/native-retirement-metadata.ts')], bundle: true,
   packages: 'external', platform: 'node', format: 'esm', write: false });
@@ -63,7 +64,8 @@ async function fixture({ cache = false, query = false, realAdmission = false, qu
   const root = await createScratch('native-metadata-');
   const f = await openFixture(root, { seed: true, plugin: false });
   try {
-    if (cache) { await f.mount(Projection); await f.mount(Cache, { writeEveryEvents: 16, writeIntervalMs: 1000 }); }
+    if (cache || controller) await f.mount(Projection);
+    if (cache) await f.mount(Cache, { writeEveryEvents: 16, writeIntervalMs: 1000 });
     if (query) await f.mount(Query, { path: queryPath ?? join(root, 'query.sqlite'), openAt: queryOpenAt });
     await f.ctx.workspaceRegistry.archiveSession(SessionId('quiet'));
     const runtime = controller ? installControlledApi(f.ctx) : undefined;
@@ -495,7 +497,13 @@ function installControlledApi(ctx) {
   class SessionController {
     agents = new ApiSessionAgentController();
     history = new SessionHistoryController(ctx, observation => observation[Symbol.dispose]());
-    listState = { summarizeCold(header) { summaries.push(header.id); return { sessionId: header.id, agentAvailable: false }; } };
+    listState = new ApiSessionList(ctx, 8);
+    constructor() {
+      const summarize = this.listState.summarizeCold.bind(this.listState);
+      this.listState.summarizeCold = record => {
+        const summary = summarize(record); summaries.push(summary.sessionId); return summary;
+      };
+    }
   }
   ctx.provide('agents', registry); ctx.provide('sessionController', new SessionController());
   return { handles, disposed, summaries };

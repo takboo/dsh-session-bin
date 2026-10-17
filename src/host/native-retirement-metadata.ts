@@ -221,7 +221,7 @@ export class NativeMetadataAdapter {
       // Disposal checkpoints projections asynchronously. Join its actual put
       // operations and the durable table queue before taking the cold snapshot.
       if (this.cache) await this.cache.requireTable().host.enqueue(async () => undefined);
-      const summary = this.controller!.listState.summarizeCold(agent.session.header);
+      const summary = this.controller!.listState.summarizeCold({ header: agent.session.header });
       this.admission.withoutBypass(() => (this.ctx.emit as Method)('api-session/added', summary));
     });
     this.apiHandles.delete(id);

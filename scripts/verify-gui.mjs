@@ -1498,6 +1498,10 @@ async function main() {
         }
       } catch {}
     }
+    // Preserve the actual failure before asynchronous browser/Host teardown;
+    // a stalled provider cleanup must not hide the diagnostic evidence.
+    await writeFile(join(scratch, 'verification.json'), JSON.stringify(report, null, 2) + '\n');
+    if (activeHost) await writeFile(join(scratch, activeHost.logName), activeHost.log);
     throw error;
   } finally {
     try { await browserContext?.close(); } catch {}
