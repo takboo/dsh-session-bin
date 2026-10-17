@@ -12,7 +12,7 @@
 - 简洁的删除确认，可在设置中全局关闭；批量操作显示进度和日志，完成后保留简短统计及失败项。中断或断线后可查询结果并明确继续。
 - 中英文界面，使用宿主控件、浅色和深色主题。
 
-当前版本为 `0.2.1`，包名为 `@takboo/dsh-session-bin`。GitHub Release 提供预编译 tarball；npm 通过 trusted publishing 自动发布同一份产物。[dshmarket 收录流程](docs/release.md#dshmarket)独立于 npm 发布，须经目录检查与维护者审核。核心功能已完成跨平台验收；运行证据见 [Host 验证](docs/verification/host-lifecycle.md#跨平台生产删除资格晋级验证)和[客户端验证](docs/verification/client-interface.md#跨平台生产删除客户端验证)。
+当前版本为 `0.2.1`，包名为 `@takboo/dsh-session-bin`。GitHub Release 提供预编译 tarball；npm 通过 trusted publishing 自动发布同一份产物。[dshmarket 收录流程](docs/release.md#dshmarket)独立于 npm 发布，须经目录检查与维护者审核。核心功能的分平台运行证据见[当前兼容性验证](docs/verification/dsh-0.2.1-rc1.md)。
 
 ## 界面预览
 
