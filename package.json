@@ -1,6 +1,6 @@
 {
   "name": "@takboo/dsh-session-bin",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "type": "module",
   "description": "Manage native archives with search, filters, unarchive, and explicit permanent deletion.",
   "license": "MIT",
