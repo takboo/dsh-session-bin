@@ -83,3 +83,13 @@ run = "node scripts/release.mjs prepare"
 [tasks."release:verify"]
 description = "Verify a downloaded release payload against its tag and commit"
 run = "node scripts/release.mjs check-artifact"
+
+[tasks."verify:desktop"]
+description = "Verify the installed macOS ARM64 Electron runtime and real ASAR Host SDK on isolated sessions"
+depends = ["build"]
+run = "pnpm run verify:desktop"
+
+[tasks."verify:desktop:gui"]
+description = "Verify bilingual isolated Web profiles on the installed Desktop Electron carrier"
+depends = ["build"]
+run = "pnpm run verify:desktop:gui"

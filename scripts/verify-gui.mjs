@@ -16,7 +16,7 @@ import { chromium } from 'playwright-core';
 import { nativePlatformVerified, windowsSemaphoreName } from '../dist/index.js';
 import { discoverBrowserExecutable } from './browser-executable.mjs';
 import { shutdownMessage } from './gui-host-worker.mjs';
-import { configuredPackageManager } from './package-manager.mjs';
+import { configuredPackageManager, nodeRuntimeArgs } from './package-manager.mjs';
 import { workflowError } from './ci-diagnostics.mjs';
 
 const require = createRequire(import.meta.url);
@@ -326,7 +326,7 @@ async function startHost(cli, environment, cwd, logName) {
   const args = ['web', '--no-open', '--host', '127.0.0.1', '--port', '0'];
   const child = process.platform === 'win32'
     ? managedGuiHostWorker(cli, args, { cwd, env: environment })
-    : managedSpawn(process.execPath, [cli, ...args], { cwd, env: environment });
+    : managedSpawn(process.execPath, [...nodeRuntimeArgs(), cli, ...args], { cwd, env: environment });
   const host = { child, authenticatedUrl: undefined, cleanUrl: undefined, log: '', logName,
     shutdownDelivery: process.platform === 'win32' ? 'IPC delivered inside worker to SDK SIGTERM handler' : 'POSIX SIGTERM to isolated process group' };
   activeHost = host;
@@ -1357,7 +1357,7 @@ async function main() {
   const pageErrors = [];
   const deletionQualification = nativePlatformVerified() ? 'supported' : 'unsupported';
   const report = {
-    status: 'running', sdk: expectedSdk, node: process.version, platform: process.platform, arch: process.arch,
+    status: 'running', sdk: expectedSdk, node: process.version, electron: process.versions.electron ?? null, platform: process.platform, arch: process.arch,
     scratch, locale: browserLocale, requestedLanguage,
     deletionQualification,
     browserExecutable: browserSelection, isolatedTemporaryEnvironment: { TMPDIR: paths.tmp, TMP: paths.tmp, TEMP: paths.tmp },
@@ -1391,7 +1391,7 @@ async function main() {
     report.sha256 = createHash('sha256').update(await readFile(tarball)).digest('hex');
     const store = join(workspace, '.local', 'pnpm-store');
     const cache = join(workspace, '.local', 'pnpm-cache');
-    await runCommand(process.execPath, [cli, 'plugin', '--profile', 'web', 'add', tarball,
+    await runCommand(process.execPath, [...nodeRuntimeArgs(), cli, 'plugin', '--profile', 'web', 'add', tarball,
       '--ignore-scripts', '--prefer-offline', `--store-dir=${store}`, `--cache-dir=${cache}`], {
       cwd: paths.primary, env: environment,
     }, 'Installing the tarball through dsh plugin');
@@ -1451,7 +1451,7 @@ async function main() {
       const archived = after.ctx.workspaceRegistry.archivedSessionIds;
       assert.deepEqual(archived, [], 'Explicit unarchives and any qualified selected deletion remain durable after restart');
     } finally { await after.close(); }
-    await runCommand(process.execPath, [cli, 'plugin', '--profile', 'web', 'remove', '@takboo/dsh-session-bin',
+    await runCommand(process.execPath, [...nodeRuntimeArgs(), cli, 'plugin', '--profile', 'web', 'remove', '@takboo/dsh-session-bin',
       `--store-dir=${store}`, `--cache-dir=${cache}`], { cwd: paths.primary, env: environment }, 'Uninstalling the test bundle');
     const removed = JSON.parse(await readFile(profilePath, 'utf8'));
     assert(!removed.dsh.profile.bundles.includes('@takboo/dsh-session-bin'));

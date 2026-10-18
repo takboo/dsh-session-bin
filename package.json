@@ -1,12 +1,12 @@
 {
   "name": "@takboo/dsh-session-bin",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "type": "module",
   "description": "Manage native archives with search, filters, unarchive, and explicit permanent deletion.",
   "license": "MIT",
   "packageManager": "pnpm@11.23.0",
   "engines": {
-    "node": "24.18.1",
+    "node": "24.18.1 || 24.21.0",
     "dsh": "0.2.1-rc.2"
   },
   "main": "./dist/index.js",
@@ -59,7 +59,9 @@
     "verify:gui:locale": "node scripts/verify-gui.mjs",
     "verify:linux": "node scripts/verify-linux.mjs",
     "verify:platform": "node scripts/verify-platform.mjs",
-    "verify": "pnpm run verify:market && pnpm run check && pnpm run build && pnpm run test && pnpm run verify:package"
+    "verify": "pnpm run verify:market && pnpm run check && pnpm run build && pnpm run test && pnpm run verify:package",
+    "verify:desktop": "node scripts/verify-desktop.mjs",
+    "verify:desktop:gui": "node scripts/verify-desktop.mjs --gui"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.0.5",

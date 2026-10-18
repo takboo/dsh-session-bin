@@ -1,15 +1,15 @@
-import { configuredPackageManager } from './package-manager.mjs';
+import { captureSources } from './verification-sources.mjs';
+import { configuredNodeVersion, configuredPackageManager } from './package-manager.mjs';
 import { workflowError, workflowNotice } from './ci-diagnostics.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, readdir, statfs, writeFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { mkdir, mkdtemp, readFile, statfs, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
-assert.equal(process.versions.node, manifest.engines.node, 'Platform verification must use the configured Node version.');
+assert.equal(process.versions.node, await configuredNodeVersion(root), 'Platform verification must use the configured Node build version.');
 assert(process.env.npm_execpath, 'Run platform verification through its configured mise/pnpm task.');
 assert(['win32', 'darwin', 'linux'].includes(process.platform), 'An actual supported OS runner is required.');
 if (process.env.DSH_VERIFY_PLATFORM) assert.equal(process.platform, process.env.DSH_VERIFY_PLATFORM);
@@ -45,23 +45,7 @@ async function filesystemEvidence(path) {
   return { name, type, blockSize: stats.bsize.toString() };
 }
 
-async function sources() {
-  const files = [];
-  async function walk(path) {
-    for (const entry of await readdir(path, { withFileTypes: true })) {
-      const child = join(path, entry.name);
-      if (entry.isDirectory()) await walk(child);
-      else if (entry.isFile()) files.push(child);
-    }
-  }
-  for (const path of ['src', 'tests', 'scripts', '.github', 'market']) await walk(join(root, path));
-  for (const path of ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'mise.toml', 'tsconfig.json', 'tsconfig.client.json', 'screenshots.json']) files.push(join(root, path));
-  const inventory = [];
-  for (const path of files.sort()) inventory.push({ path: relative(root, path).replaceAll('\\', '/'), sha256: createHash('sha256').update(await readFile(path)).digest('hex') });
-  inventory.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
-  return { inventory, sha256: createHash('sha256').update(JSON.stringify(inventory)).digest('hex') };
-}
-const baseline = await sources();
+const baseline = await captureSources(root);
 const command = await configuredPackageManager(['run', 'verify']);
 let output = '';
 const exitCode = await new Promise((resolve, reject) => {
@@ -82,7 +66,7 @@ if (exitCode !== 0) {
     workflowError('Platform verification failed', details);
   }
 }
-const final = await sources();
+const final = await captureSources(root);
 const stable = baseline.sha256 === final.sha256;
 const filesystem = await filesystemEvidence(scratch);
 const report = { status: exitCode === 0 && stable ? 'passed' : 'failed', platform: process.platform, arch: process.arch,

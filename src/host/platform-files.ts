@@ -8,9 +8,14 @@ export type NativePlatform = 'darwin' | 'linux' | 'win32';
 export function nativePlatformCandidate(platform = process.platform, arch = process.arch): boolean {
   return ['darwin', 'linux', 'win32'].includes(platform) && ['arm64', 'x64'].includes(arch);
 }
+/** Audited runtime carriers; production OS qualification remains independent. */
+export function nativeRuntimeCandidate(node = process.versions.node, uv = process.versions.uv, electron = process.versions.electron): boolean {
+  return uv === '1.52.1' && ((node === '24.18.1' && !electron) || (node === '24.21.0' && electron === '44.7.0'));
+}
 /** Actual erasure evidence is promoted separately from an implemented Adapter. */
-export function nativePlatformVerified(platform = process.platform, arch = process.arch, node = process.versions.node, uv = process.versions.uv): boolean {
-  if (node !== '24.18.1' || uv !== '1.52.1') return false;
+export function nativePlatformVerified(platform = process.platform, arch = process.arch, node = process.versions.node, uv = process.versions.uv, electron = process.versions.electron): boolean {
+  if (node === '24.21.0' && uv === '1.52.1' && electron === '44.7.0') return platform === 'darwin' && arch === 'arm64';
+  if (node !== '24.18.1' || uv !== '1.52.1' || electron) return false;
   return new Set(['darwin/arm64', 'darwin/x64', 'linux/arm64', 'linux/x64', 'win32/x64']).has(`${platform}/${arch}`);
 }
 

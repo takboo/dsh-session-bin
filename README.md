@@ -12,7 +12,7 @@
 - 简洁的删除确认，可在设置中全局关闭；批量操作显示进度和日志，完成后保留简短统计及失败项。中断或断线后可查询结果并明确继续。
 - 中英文界面，使用宿主控件、浅色和深色主题。
 
-当前版本为 `0.2.2`，包名为 `@takboo/dsh-session-bin`。GitHub Release 提供预编译 tarball；npm 通过 trusted publishing 自动发布同一份产物。[dshmarket 收录流程](docs/release.md#dshmarket)独立于 npm 发布，须经目录检查与维护者审核。核心功能的分平台运行证据见[当前兼容性验证](docs/verification/dsh-0.2.1-rc2.md)。
+当前版本为 `0.2.3`，包名为 `@takboo/dsh-session-bin`。GitHub Release 提供预编译 tarball；npm 通过 trusted publishing 自动发布同一份产物。[dshmarket 收录流程](docs/release.md#dshmarket)独立于 npm 发布，须经目录检查与维护者审核。核心功能的分平台运行证据见[当前桌面兼容性验证](docs/verification/desktop-runtime.md)。
 
 ## 界面预览
 
@@ -22,27 +22,28 @@
 
 ## 兼容性
 
-本版适配 DSH `0.2.1-rc.2`，已核对本插件使用的接口及存储实现，并更新精确版本准入；详细证据见[兼容性验证](docs/verification/dsh-0.2.1-rc2.md)。使用 DSH `0.2.1-rc.1` 时请保留插件 `0.2.1`；旧宿主 `0.2.0-rc.2` 对应插件 `0.2.0`。
+本版适配 DSH `0.2.1-rc.2`，修复 macOS ARM64 桌面版内置运行时被拒绝永久删除的问题，见[桌面兼容性验证](docs/verification/desktop-runtime.md)。此前 CLI/Web 的 SDK 适配证据见[rc.2 验证](docs/verification/dsh-0.2.1-rc2.md)。使用 DSH `0.2.1-rc.1` 时请保留插件 `0.2.1`；旧宿主 `0.2.0-rc.2` 对应插件 `0.2.0`。
 
-永久删除绑定 DSH `0.2.1-rc.2`、Node `24.18.1` / libuv `1.52.1`，使用单 Host 和已验证的 JSONL raw/zstd 存储组合。
+永久删除仅对以下精确运行时及环境启用，使用单 Host 和已验证的 JSONL raw/zstd 存储组合：
 
-| 已验收环境 | CPU 架构 | 文件系统 |
-| --- | --- | --- |
-| Windows Server 2025 | x64 | NTFS |
-| macOS 15 | Apple Silicon ARM64、Intel x64 | APFS |
-| Ubuntu 24.04 | ARM64、x64 | ext2/ext3/ext4 family（type `0xef53`） |
+| 宿主运行时 | 已验收环境 | CPU 架构 | 文件系统 |
+| --- | --- | --- | --- |
+| 独立 Node `24.18.1` / libuv `1.52.1` | Windows Server 2025 | x64 | NTFS |
+| 独立 Node `24.18.1` / libuv `1.52.1` | macOS 15 | Apple Silicon ARM64、Intel x64 | APFS |
+| 独立 Node `24.18.1` / libuv `1.52.1` | Ubuntu 24.04 | ARM64、x64 | ext2/ext3/ext4 family（type `0xef53`） |
+| Electron `44.7.0` / Node `24.21.0` / libuv `1.52.1` | macOS 15 桌面运行时 | Apple Silicon ARM64 | APFS |
 
-表格记录实际验收环境，不代表所有 Windows、macOS 或 Linux 版本均已验证。Windows ARM64、其他运行时及未验证的存储组合不在支持范围内。永久删除还会检查宿主源码、资源身份和当前状态；不满足条件时明确拒绝。完整准入与限制见 [Host 生命周期](docs/host-lifecycle.md)。
+表格记录实际验收环境，不代表所有 Windows、macOS 或 Linux 版本均已验证。Windows ARM64、其他桌面架构/版本、普通 Node `24.21.0` 及未验证的存储组合不在永久删除支持范围内。永久删除还会检查宿主源码、资源身份和当前状态；不满足条件时明确拒绝。完整准入与限制见 [Host 生命周期](docs/host-lifecycle.md)。
 
 ## 安装
 
 从 npm 安装已发布的预编译包：
 
 ```sh
-dsh plugin --profile web add @takboo/dsh-session-bin@0.2.2
+dsh plugin --profile web add @takboo/dsh-session-bin@0.2.3
 ```
 
-以上命令使用已安装的 DSH `0.2.1-rc.2`，将完整插件 bundle 安装到 `web` profile。桌面版请在其对应 profile 的插件管理页面安装同一个 npm 包。启动或重新启动该 profile 后，从侧栏打开“会话回收站”（Session Bin）。发布包包含预编译 Host 和 Client，使用者安装时无需编译 TypeScript；其 tarball 已通过真实 CLI/GUI 验证。
+以上命令使用已安装的 DSH `0.2.1-rc.2`，将完整插件 bundle 安装到 `web` profile。已验证的 macOS ARM64 桌面版请在 `desktop` profile 的插件管理页面安装同一个 npm 包，并重新启动该 profile 的宿主。启动或重新启动该 profile 后，从侧栏打开“会话回收站”（Session Bin）。发布包包含预编译 Host 和 Client，使用者安装时无需编译 TypeScript；其 tarball 已通过真实 CLI/GUI 验证。
 
 卸载同一 profile 中的插件：
 
@@ -50,7 +51,7 @@ dsh plugin --profile web add @takboo/dsh-session-bin@0.2.2
 dsh plugin --profile web remove @takboo/dsh-session-bin
 ```
 
-也可下载 [v0.2.2 Release](https://github.com/takboo/dsh-session-bin/releases/tag/v0.2.2) 中的三个附件，核对 `SHA256SUMS` 后运行 `dsh plugin --profile web add ./dsh-session-bin.tgz`。自行构建时，先完成下方[开发入门](#开发入门)，再运行 `mise exec -- pnpm exec npm pack --ignore-scripts`。
+也可下载 [v0.2.3 Release](https://github.com/takboo/dsh-session-bin/releases/tag/v0.2.3) 中的三个附件，核对 `SHA256SUMS` 后运行 `dsh plugin --profile web add ./dsh-session-bin.tgz`。自行构建时，先完成下方[开发入门](#开发入门)，再运行 `mise exec -- pnpm exec npm pack --ignore-scripts`。
 
 如安装过早期未加 scope 的开发包，先从同一 profile 卸载 `dsh-session-bin`，再安装 scoped 包，避免重复注册；原生归档和已有操作记录保留。分发契约见[发布文档](docs/release.md)。
 
@@ -93,6 +94,8 @@ mise run verify
 | `mise run build` | 生成预编译产物和类型声明 |
 | `mise run verify` | 完整本地行为与打包验证 |
 | `mise run verify:gui` | 隔离 Web profile 中的双语 CLI/GUI 验证 |
+| `mise run verify:desktop` | 已安装桌面 Electron 与真实 ASAR Host 的隔离完整回归 |
+| `mise run verify:desktop:gui` | 在已安装桌面 Electron 上运行隔离 Web 双语 CLI/GUI |
 | `mise run verify:platform` | 记录实际操作系统的候选组合验收证据 |
 | `mise run verify:linux` | 在固定 Node 的 Linux 容器内验证，需要 Docker |
 

@@ -40,7 +40,9 @@ export async function prepareRelease({ root, output, commit, ref, repository }) 
   assert.equal(platform.sourcesStable, true);
   assert.equal(platform.exitCode, 0);
   assert.equal(platform.sdk, manifest.engines.dsh);
-  assert.equal(platform.node, manifest.engines.node);
+  const supportedNodes = manifest.engines.node.split(/\s*\|\|\s*/);
+  assert(supportedNodes.every(version => /^\d+\.\d+\.\d+$/.test(version)), 'Release engines must enumerate exact Node runtimes.');
+  assert(supportedNodes.includes(platform.node), 'Platform runtime must match an accepted Node engine.');
 
   const loader = await singleReport(root, 'lifecycle', 'package-');
   assert.equal(loader.productionDeletionQualified, true, 'Release requires real production deletion verification.');
@@ -53,7 +55,7 @@ export async function prepareRelease({ root, output, commit, ref, repository }) 
     reports.push(report);
   }
   for (const report of reports) {
-    assert.equal(report.node.replace(/^v/, ''), manifest.engines.node);
+    assert.equal(report.node.replace(/^v/, ''), platform.node, 'Every payload report must use the same platform runtime.');
     const hash = digest(await readFile(report.tarball));
     assert.equal(hash, report.sha256, 'Tested tarball bytes changed after verification.');
     assert.equal(hash, loader.sha256, 'Loader and both GUI locales must verify identical tarball bytes.');

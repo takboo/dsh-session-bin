@@ -11,11 +11,23 @@ test('implemented OS candidates remain independent from production platform qual
   assert.equal(nativePlatformCandidate('freebsd', 'x64'), false);
   assert.equal(nativePlatformCandidate('win32', 'ia32'), false);
   for (const [platform, arch] of [['darwin', 'arm64'], ['darwin', 'x64'], ['linux', 'arm64'], ['linux', 'x64'], ['win32', 'x64']]) {
-    assert.equal(nativePlatformVerified(platform, arch, '24.18.1'), true, 'Every promoted combination has independent erasure evidence.');
+    assert.equal(nativePlatformVerified(platform, arch, '24.18.1', '1.52.1', ''), true, 'Every promoted combination has independent erasure evidence.');
   }
   assert.equal(nativePlatformVerified('win32', 'arm64', '24.18.1'), false, 'An implemented candidate without a matching runner remains unverified.');
   assert.equal(nativePlatformVerified('darwin', 'arm64', '26.0.0'), false);
   assert.equal(nativePlatformVerified('darwin', 'arm64', '24.18.1', '1.49.0'), false);
+});
+
+test('desktop carrier requires its independently verified exact runtime and architecture', () => {
+  assert.equal(nativePlatformVerified('darwin', 'arm64', '24.21.0', '1.52.1', '44.7.0'), true);
+  for (const [platform, arch] of [['darwin', 'x64'], ['win32', 'x64'], ['win32', 'arm64'], ['linux', 'x64'], ['linux', 'arm64']]) {
+    assert.equal(nativePlatformVerified(platform, arch, '24.21.0', '1.52.1', '44.7.0'), false);
+  }
+  assert.equal(nativePlatformVerified('darwin', 'arm64', '24.21.0', '1.52.1', ''), false);
+  assert.equal(nativePlatformVerified('darwin', 'arm64', '24.21.0', '1.52.1', '44.7.1'), false);
+  assert.equal(nativePlatformVerified('darwin', 'arm64', '24.21.1', '1.52.1', '44.7.0'), false);
+  assert.equal(nativePlatformVerified('darwin', 'arm64', '24.21.0', '1.53.0', '44.7.0'), false);
+  assert.equal(nativePlatformVerified('darwin', 'arm64', '24.18.1', '1.52.1', '44.0.0'), false);
 });
 
 test('Windows session kernel naming exactly matches the audited writer and plugin ownership is independent', () => {

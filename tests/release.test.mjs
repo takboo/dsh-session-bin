@@ -65,6 +65,17 @@ test('the release payload preserves tested bytes and carries verifiable commit m
   assert.equal((await verifyRelease({ ...options, manifest })).prerelease, true);
 });
 
+test('supported Node ranges do not mix evidence from different runtimes', async t => {
+  const f = await fixture(t);
+  await writeFile(join(f.options.root, 'package.json'), JSON.stringify({
+    ...manifest, engines: { ...manifest.engines, node: '24.18.1 || 24.21.0' },
+  }));
+  await prepareRelease(f.options);
+  f.records.en.node = 'v24.21.0';
+  await writeFile(f.paths.en, JSON.stringify(f.records.en));
+  await assert.rejects(prepareRelease(f.options), /runtime/i);
+});
+
 test('failed, unsupported, stale, or mismatched evidence cannot produce release assets', async t => {
   for (const [name, mutate] of [
     ['failed GUI', f => { f.records.zh.status = 'failed'; }],
