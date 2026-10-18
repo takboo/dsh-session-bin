@@ -5,11 +5,12 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as product from '../../dist/index.js';
 
-const exactNode = '24.18.1';
+const desktopVerification = process.env.DSH_SESSION_BIN_DESKTOP_VERIFY === '1';
+const exactNode = desktopVerification ? '24.21.0' : '24.18.1';
 const workspaceRoot = fileURLToPath(new URL('../../', import.meta.url));
 const fixtureParent = join(workspaceRoot, '.local', 'lifecycle');
 
-export const platformVerification = process.env.DSH_SESSION_BIN_PLATFORM_VERIFY === '1';
+export const platformVerification = desktopVerification || process.env.DSH_SESSION_BIN_PLATFORM_VERIFY === '1';
 
 const crashProofName = 'crash-checkpoint.json';
 const crashFailureName = 'crash-not-forced.json';
@@ -38,6 +39,12 @@ export function candidatePlatformQualification(root) {
 export function nativeOwnerOptions(root, options = {}) {
   if (!platformVerification) return options;
   assert.equal(process.versions.node, exactNode, 'candidate platform verification is pinned to the audited Node runtime');
+  if (desktopVerification) {
+    assert.equal(process.versions.electron, '44.7.0');
+    assert.equal(process.platform, 'darwin');
+    assert.equal(process.arch, 'arm64');
+    assert.equal(process.versions.uv, '1.52.1');
+  }
   assert(product.nativePlatformCandidate(), 'candidate platform verification requires an implemented OS/architecture pair');
   assertIsolatedRoot(root);
   return { ...options, platformQualification: candidatePlatformQualification(root) };

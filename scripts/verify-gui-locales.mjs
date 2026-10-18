@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { nodeRuntimeArgs } from './package-manager.mjs';
 
 const script = fileURLToPath(new URL('./verify-gui.mjs', import.meta.url));
 let active;
@@ -13,7 +14,7 @@ process.once('SIGTERM', () => stop('SIGTERM'));
 for (const locale of ['zh-CN', 'en-US']) {
   if (stopped) break;
   console.log(`Verify real Session Bin UI: ${locale}`);
-  active = spawn(process.execPath, [script], {
+  active = spawn(process.execPath, [...nodeRuntimeArgs(), script], {
     cwd: process.cwd(), env: { ...process.env, DSH_GUI_LOCALE: locale }, stdio: 'inherit',
   });
   const status = await new Promise((resolve, reject) => {

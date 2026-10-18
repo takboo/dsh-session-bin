@@ -7,7 +7,7 @@ import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain';
 import type { Domain } from '@deepseek-ai/dsh-storage-domain';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import { z } from 'zod';
-import { nativePlatformCandidate, nativePlatformVerified } from './platform-files.js';
+import { nativePlatformCandidate, nativePlatformVerified, nativeRuntimeCandidate } from './platform-files.js';
 import { legacyDurableHostContract, nativeRetirementSdkFingerprint } from './native-retirement-sdk.js';
 import { NativeJsonlFiles, NativeJsonlRefusal, nativeJsonlInventorySchema } from './native-jsonl-files.js';
 import type { NativeJsonlInventory } from './native-jsonl-files.js';
@@ -102,7 +102,7 @@ export class NativeRetirementOwner implements SessionRetirementOwnerV1 {
   static async open(ctx: Context, options: NativeRetirementOptions = {}): Promise<NativeRetirementOwner | undefined> {
     // An implemented candidate is not production evidence. Never derive this
     // composition callback from permanentDeletion:true or client input.
-    if (process.versions.node !== '24.18.1' || process.versions.uv !== '1.52.1' || !nativePlatformCandidate()) return;
+    if (!nativeRuntimeCandidate() || !nativePlatformCandidate()) return;
     if (!nativePlatformVerified() && !options.platformQualification?.({
       platform: process.platform, arch: process.arch, node: process.versions.node,
     })) return;

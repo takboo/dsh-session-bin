@@ -1,17 +1,18 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { configuredNodeVersion } from './package-manager.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
-assert.equal(process.versions.node, manifest.engines.node);
+const nodeVersion = await configuredNodeVersion(root);
+assert.equal(process.versions.node, nodeVersion);
 const parent = join(root, '.local', 'platform');
 await mkdir(parent, { recursive: true });
 const artifacts = await mkdtemp(join(parent, 'linux-container-'));
-const image = `node:${manifest.engines.node}-bookworm`;
+const image = `node:${nodeVersion}-bookworm`;
 const program = `
 import { cp, readdir, readFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';

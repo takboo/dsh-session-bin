@@ -1,5 +1,20 @@
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { delimiter, isAbsolute, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/** Build tools stay fixed by mise even when package engines accept more carriers. */
+export async function configuredNodeVersion(root = fileURLToPath(new URL('../', import.meta.url))) {
+  const config = await readFile(join(root, 'mise.toml'), 'utf8');
+  const tools = /\[tools\]\s*\n([\s\S]*?)(?=\n\[|$)/.exec(config)?.[1];
+  const version = /^node\s*=\s*"(\d+\.\d+\.\d+)"$/m.exec(tools ?? '')?.[1];
+  if (!version) throw new Error('mise must declare an exact Node build version.');
+  return version;
+}
+
+/** Match the official Desktop Host's Electron Node invocation. */
+export function nodeRuntimeArgs() {
+  return process.versions.electron ? ['--expose-internals'] : [];
+}
 
 /** mise supplies a standalone executable; Corepack supplies a JavaScript CLI.
  * Execute both directly without assuming npm_execpath is a Node script or
@@ -8,7 +23,7 @@ export async function configuredPackageManager(args) {
   const entry = process.env.npm_execpath;
   if (entry && isAbsolute(entry) && /\.(?:cjs|mjs|js)$/i.test(entry)) {
     await access(entry);
-    return { file: process.execPath, args: [entry, ...args] };
+    return { file: process.execPath, args: [...nodeRuntimeArgs(), entry, ...args] };
   }
   if (entry && isAbsolute(entry) && !/\.(?:cmd|bat)$/i.test(entry)) {
     await access(entry);

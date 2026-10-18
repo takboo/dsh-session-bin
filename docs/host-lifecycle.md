@@ -43,7 +43,7 @@
 
 ## 真实冷 JSONL 单项删除 Adapter
 
-`NativeRetirementOwner` 自行拥有被明确 adoption 的会话记录删除生命周期。当前默认生产资格限已实际验收的 DSH `0.2.1-rc.2`、Node `24.18.1` / libuv `1.52.1`、Windows x64、macOS ARM64/Intel、Linux ARM64/x64、单 Host，以及独立验证通过的 JSONL raw/zstd、已知 Workspace/JSON domain、已启用 SQLite 查询与投影 cache 组合；确认没有相应 optional provider 的最小组合也可使用。未验收的平台/架构（包括 Windows ARM64）不因 Adapter 存在或 Host 配置 true 自动获得生产资格。正在初始化的 provider 会先等待，unknown/disabled/path 或实例漂移不伪称不存在。SDK 所有参与包版本与源码 SHA-256 固定于 `native-retirement-sdk`；变更组合需独立验收。支持的是会话日志和声明的会话元数据/派生索引，共享附件、外部工具副本和独立 fork 保留，不做全局 GC 或安全擦除。
+`NativeRetirementOwner` 自行拥有被明确 adoption 的会话记录删除生命周期。当前默认生产资格包含 DSH `0.2.1-rc.2` 的两类独立验收运行时：独立 Node `24.18.1` / libuv `1.52.1` 对应 Windows x64、macOS ARM64/Intel、Linux ARM64/x64；Electron `44.7.0` / Node `24.21.0` / libuv `1.52.1` 仅对应 macOS ARM64/APFS 桌面组合。两者均限单 Host，以及独立验证通过的 JSONL raw/zstd、已知 Workspace/JSON domain、已启用 SQLite 查询与投影 cache 组合；确认没有相应 optional provider 的最小组合也可使用。未验收的平台/架构（包括 Windows ARM64）不因 Adapter 存在或 Host 配置 true 自动获得生产资格。正在初始化的 provider 会先等待，unknown/disabled/path 或实例漂移不伪称不存在。具体运行时由 `nativeRuntimeCandidate` 与独立的 `nativePlatformVerified` 表检查；普通 Node 24.21、其他 Electron 版本或桌面架构不因候选存在而获得资格。[桌面运行证据](verification/desktop-runtime.md)记录 ASAR、SQLite、raw/zstd 及进程中断的实际结果。SDK 所有参与包版本与源码 SHA-256 固定于 `native-retirement-sdk`；变更组合需独立验收。支持的是会话日志和声明的会话元数据/派生索引，共享附件、外部工具副本和独立 fork 保留，不做全局 GC 或安全擦除。
 
 当前运行时准入与持久化协议身份分离：`native-retirement-sdk` 核对实际 `0.2.1-rc.2` 宿主及参与包；schema 1 的资源 fingerprint、`hostVersion: 0.2.0-rc.2`、queryProvider 字符串保留为历史协议标识，维持既有 binding、grant、冻结清单和回执。它们不表示当前宿主版本，也不接受未知 SDK。升级需完整关闭旧宿主后重开；协议兼容依据、跨版本运行证据与边界见 [ADR 0011](decisions/0011-runtime-and-durable-retirement-identity.md) 和[新版兼容性验证](verification/dsh-0.2.1-rc2.md)。
 

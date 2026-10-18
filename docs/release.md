@@ -28,7 +28,7 @@ npm `repository` 指回 [takboo/dsh-session-bin](https://github.com/takboo/dsh-s
 
 永久删除至少验证日志与索引一致性、运行时重新加载、写锁竞争、活动出现、重复请求、中途失败和重启对账。未支持的存储提供方有明确结果。CI 中不使用真实用户会话目录。
 
-`mise run verify:platform` 使用当前实际 OS 的隔离候选 composition，执行类型、构建、全部行为回归及 tarball 检查，并保存源码 SHA-256 和运行平台；候选资格不会自动写入生产支持矩阵。`mise run verify:linux` 从 manifest 的 Node 版本选择容器镜像，复制项目源码到独立 Linux 文件系统运行同一验收，报告和临时证据导出到工作区。Docker/WSL/模拟 CPU 的结果必须写明环境，不作为实际 Windows 桌面验收。
+`mise run verify:platform` 使用当前实际 OS 的隔离候选 composition，执行类型、构建、全部行为回归及 tarball 检查，并保存源码 SHA-256 和运行平台；候选资格不会自动写入生产支持矩阵。`mise run verify:linux` 从 mise 固定的 Node 构建版本选择容器镜像，复制项目源码到独立 Linux 文件系统运行同一验收，报告和临时证据导出到工作区。Docker/WSL/模拟 CPU 的结果必须写明环境，不作为实际 Windows 桌面验收。
 
 [CI 矩阵](../.github/workflows/host-lifecycle.yml)声明 Windows x64、macOS ARM64/Intel、Linux ARM64/x64 runners，启动时核对实际平台与架构。干净 runner 先显式运行 `mise run verify:gui:browser` 准备锁定 Playwright Chromium 和系统依赖，浏览器缓存位于工作区；再运行双语真实 CLI/GUI 并保留报告与截图。未获生产资格的平台的 GUI 拒绝检查须标记 unsupported，不能写成成功删除，更不能满足发布所要求的实际删除验收。Windows GUI 测试通过隔离 Node IPC 投递给 SDK 原有关闭处理器，单独记录这一关闭方式，不把它写作 POSIX OS 信号。
 
@@ -57,7 +57,7 @@ Release 附件为固定名称 `dsh-session-bin.tgz`、`SHA256SUMS` 和 `release.
 
 npm trusted publisher 的公开配置为：GitHub owner `takboo`、repository `dsh-session-bin`、workflow filename `host-lifecycle.yml`，Environment 留空；允许 `npm publish`。运行于 GitHub 托管 runner，固定 Node 的 npm CLI 版本须至少 `11.5.1`。包首发仍由维护者执行，后续版本由版本 tag 自动发布。
 
-2026-10-17 已重新核对 npm 官方 trusted publishing 规则，现有托管 runner、固定工具、OIDC 与 provenance 流程继续符合要求；来源见[本轮调研](research/dsh-0.2.1-rc2.md#客户端传递依赖与发布边界)。具体 publisher 权限及发布成功仍以实际 npm job 与 registry 结果为准。
+2026-10-18 已重新核对 npm 官方 trusted publishing 规则，现有托管 runner、固定工具、OIDC 与 provenance 流程继续符合要求；来源见[npm 官方规则](https://docs.npmjs.com/trusted-publishers/)。具体 publisher 权限及发布成功仍以实际 npm job 与 registry 结果为准。
 
 优先选择 [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/)；具体启用条件与账户配置在包身份确定后核对。发布前准备可审阅的版本、产物及 release 内容，使用项目授权身份并遵守仓库发布规则。
 
@@ -128,3 +128,9 @@ npm 包的 `repository` 与目录仓库匹配时，由市场自动关联。条�
 - GitHub 有源码、许可、安装说明、真实截图、支持范围、issue/PR 流程与通过的检查。
 - Release 与 npm 发布使用相同提交和构建产物。
 - 目录提交只修改本项目条目，满足仓库年龄和内容要求；是否已合并、是否已在市场可见如实记录。
+
+## 桌面运行时验收
+
+`mise.toml` 固定构建工具；`engines.node` 枚举包可加载的精确 Node 版本，永久删除另按运行时载体、平台及 SDK 资格表检查。发布报告须使用同一实际平台 Node，不能混用 engine 范围中不同版本的 Loader/GUI 证据。
+
+新增 macOS ARM64 桌面组合须独立运行 `mise run verify:desktop` 与 `mise run verify:desktop:gui`，默认只读 `/Applications/DeepSeek Harness.app` 的运行时及 SDK 元数据；可用 `DSH_SESSION_BIN_DESKTOP_APP` 指定同版本应用路径。前者使用真实 ASAR Host/native modules 和临时 DSH_HOME 做全量回归，四组浏览器 Client fixture 使用公开 npm 产物；后者在同一 Electron 载体上启动隔离 npm Web Host，执行双语真实 CLI/GUI，并用 ASAR production probe 复核准入。该 GUI 流程不操作用户正在运行的桌面窗口，也不声称覆盖原生桌面 shell 或物理输入法。生产资格及证据见[桌面验证](verification/desktop-runtime.md)。
