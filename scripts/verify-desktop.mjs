@@ -61,6 +61,13 @@ try {
       assert.equal(gui.electron, '44.7.0');
       assert.equal(gui.deletionQualification, 'supported');
       assert.equal(gui.checks.length, 17);
+      assert(gui.delayedHistoryRequests > 0);
+      assert.equal(gui.historyReadiness?.length, 2);
+      for (const opened of gui.historyReadiness) {
+        assert.equal(opened.sessionId, 'gui-native-only');
+        assert.deepEqual(opened.loadedTurns, [1, 2]);
+        assert.equal(opened.nativeSidebar, true);
+      }
       assert.deepEqual(gui.browserConsole, []);
       assert.deepEqual(gui.pageErrors, []);
       for (const shutdown of gui.hostShutdown) assert.deepEqual([shutdown.code, shutdown.signal, shutdown.forced], [0, null, false]);

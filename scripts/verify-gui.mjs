@@ -59,6 +59,7 @@ const copy = {
     settings: '设置', accountMenu: '账号菜单', general: '通用设置', settingsClose: '关闭', languageLabel: '中文', htmlLanguage: 'zh-CN',
     plugins: '插件', openDetail: title => `查看 ${title}`,
     packageDescription: '管理原生归档，支持搜索、筛选、取消归档与明确确认的永久删除。',
+    turnNavigation: '轮次导航', jumpTurn: turn => `跳转到第 ${turn} 轮`,
   },
   en: {
     panel: 'Session Bin', archive: 'Archive session', nativeUnarchive: 'Unarchive session', restore: 'Unarchive', undo: 'undo', search: 'Search archives',
@@ -84,6 +85,7 @@ const copy = {
     settings: 'Settings', accountMenu: 'Account menu', general: 'General', settingsClose: 'Close', languageLabel: 'English', htmlLanguage: 'en',
     plugins: 'Plugins', openDetail: title => `View ${title}`,
     packageDescription: 'Manage native archives with search, filters, unarchive, and explicit permanent deletion.',
+    turnNavigation: 'Turn navigation', jumpTurn: turn => `Jump to turn ${turn}`,
   },
 };
 let language = requestedLanguage;
@@ -129,6 +131,29 @@ function observePage(page, report, stage) {
   });
 }
 async function drainDiagnostics() { while (diagnosticTasks.size) await Promise.allSettled([...diagnosticTasks]); }
+
+async function delayNativeHistory(page, report) {
+  report.delayedHistoryRequests = 0;
+  await page.routeWebSocket('**/api/remote.mux', route => {
+    const server = route.connectToServer();
+    const pending = new Map();
+    route.onMessage(message => {
+      const frame = JSON.parse(String(message));
+      const address = frame.payload?.args?.request?.address;
+      if (frame.type === 'open' && frame.endpoint === 'session/follow'
+        && address?.kind === 'session' && address.sessionId === 'gui-native-only') {
+        report.delayedHistoryRequests += 1;
+        pending.set(frame.streamId, new Promise(resolve => setTimeout(resolve, 1500)));
+      }
+      const previous = pending.get(frame.streamId);
+      if (!previous) { server.send(message); return; }
+      const task = previous.then(() => server.send(message));
+      pending.set(frame.streamId, task);
+      diagnosticTasks.add(task);
+      void task.finally(() => diagnosticTasks.delete(task));
+    });
+  });
+}
 
 async function pluginDiagnostics(home) {
   const directory = join(home, 'profiles', 'web', '.plugin-manager', 'logs');
@@ -414,7 +439,9 @@ async function openSdkFixture(paths, seed = false) {
           await handle.append([
             { type: 'turn/start', seq: 0, time, data: { turn: 1 } },
             { type: 'turn/end', seq: 1, time: time + 1, data: { turn: 1, reason: { kind: 'completed' } } },
-            { type: 'session/title', seq: 2, time: time + 2, data: {
+            { type: 'turn/start', seq: 2, time: time + 2, data: { turn: 2 } },
+            { type: 'turn/end', seq: 3, time: time + 3, data: { turn: 2, reason: { kind: 'completed' } } },
+            { type: 'session/title', seq: 4, time: time + 4, data: {
               title: fixture.title, messageSeqs: [], source: { kind: 'user' },
             } },
           ]);
@@ -595,6 +622,17 @@ async function rowMenu(page, id) {
   const anchor = row.getByRole('button').first();
   await anchor.click();
   return anchor;
+}
+async function openNativeHistory(page, item, report) {
+  await page.locator(`[data-row-key="session:${item.id}"]`).getByText(item.title, { exact: true }).click();
+  const conversation = page.locator(`[data-conversation-content][data-conversation-session="${item.id}"]`).first();
+  const navigation = conversation.getByRole('navigation', { name: ui.turnNavigation, exact: true });
+  await navigation.waitFor({ state: 'visible' });
+  for (const turn of [1, 2]) await button(navigation, ui.jumpTurn(turn)).waitFor({ state: 'visible' });
+  await page.locator(`[data-sidebar-right-session="${item.id}"][data-sidebar-right-panel]`).waitFor({ state: 'attached' });
+  await conversation.locator('[contenteditable="true"],textarea').first().waitFor({ state: 'visible' });
+  report.historyReadiness ??= [];
+  report.historyReadiness.push({ sessionId: item.id, loadedTurns: [1, 2], nativeSidebar: true });
 }
 async function assertToastCopy(page, message) {
   const toast = page.getByRole('alert').filter({ hasText: message });
@@ -983,9 +1021,7 @@ async function runGui(page, paths, report, beforePhysical) {
   report.checks.push('Preexisting archives unarchive normally and the empty collection shows native Archive guidance');
   report.coverage.push('single/batch unarchive', 'singular/plural/empty collection', 'native row convergence');
 
-  await page.locator(`[data-row-key="session:${nativeOnly.id}"]`).getByText(nativeOnly.title, { exact: true }).click();
-  await page.getByRole('tab').first().waitFor({ state: 'visible' });
-  await page.locator('[contenteditable="true"],textarea').first().waitFor({ state: 'visible' });
+  await openNativeHistory(page, nativeOnly, report);
   report.coverage.push('open native history before archive and permanent deletion');
   await archiveSession(page, nativeOnly.id);
   await skipOptionalModelSetup(page);
@@ -1002,8 +1038,7 @@ async function runGui(page, paths, report, beforePhysical) {
   assert.equal(report.deletionExecutions.length, 0, 'Cancel must never submit the destructive request');
   await button(panelEntry(root, nativeOnly.title), ui.restore).click();
   await assertPanelCopy(page, 0);
-  await page.locator(`[data-row-key="session:${nativeOnly.id}"]`).getByText(nativeOnly.title, { exact: true }).click();
-  await page.locator('[contenteditable="true"],textarea').first().waitFor({ state: 'visible' });
+  await openNativeHistory(page, nativeOnly, report);
   await archiveSession(page, nativeOnly.id);
   await skipOptionalModelSetup(page);
   root = await assertPanelCopy(page, 1);
@@ -1411,10 +1446,13 @@ async function main() {
     const page = browserContext.pages()[0] ?? await browserContext.newPage();
     page.setDefaultTimeout(15000);
     observePage(page, report, 'installed');
+    await delayNativeHistory(page, report);
     await page.goto(host.authenticatedUrl, { waitUntil: 'domcontentloaded' });
     await page.waitForURL(url => !url.searchParams.has('token'));
     assert.equal(new URL(page.url()).origin, new URL(host.cleanUrl).origin);
     await runGui(page, paths, report, beforePhysical);
+    assert(report.delayedHistoryRequests > 0, 'The native history readiness regression must exercise a delayed real Gateway stream.');
+    assert.equal(report.historyReadiness?.length, 2, 'Both native history opens must finish before archive and purge.');
     await drainDiagnostics();
     assert.deepEqual(report.pageErrors, [], `Unexpected browser errors: ${report.pageErrors.join('\n')}`);
     assert.deepEqual(report.browserConsole, [], `Unexpected browser warnings/errors: ${report.browserConsole.join('\n')}`);
