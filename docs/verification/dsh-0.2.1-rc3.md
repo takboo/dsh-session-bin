@@ -40,6 +40,22 @@
 
 四个中断样本逐项保持旧 request、manifest、authorizationId；目标日志与派生记录缺失，sibling transcript 完整，重复 execute 只返回原回执。恢复不生成新目标或删除授权。[升级报告](../../.local/rc3-upgrade-verification.json)、[中断恢复报告](../../.local/rc3-upgrade-crash-verification.json)。
 
+## 五平台独立运行资格
+
+实现提交 `5aad808511c614d2971b15f28959044afbc88415` 的[完整 CI run 40066148039](https://github.com/takboo/dsh-session-bin/actions/runs/40066148039)全部通过。下载并逐项核对 20 份平台、Loader 和双语 GUI 报告：SDK 均为精确 rc.3、Node `24.18.1` / libuv `1.52.1`；源码前后稳定，Loader 均为 `productionDeletionQualified: true`，GUI 均为 `supported` 且实际执行删除。
+
+| 实际 runner | 架构 | 文件系统 | 全量 / Loader / 中文 / English |
+| --- | --- | --- | --- |
+| Windows Server 2025 | x64 | NTFS，type `0x0` | 全部通过 |
+| macOS 15 | ARM64 | APFS，type `0x1a` | 全部通过 |
+| macOS 15 Intel | x64 | APFS，type `0x1a` | 全部通过 |
+| Ubuntu 24.04 | ARM64 | ext2/ext3/ext4，type `0xef53` | 全部通过 |
+| Ubuntu 24.04 | x64 | ext2/ext3/ext4，type `0xef53` | 全部通过 |
+
+POSIX 源码清单 SHA-256 为 `82ead27850f2ba17e9750f8dac8eed7d9af71b45f7840104931de781ac8f5dd9`；Windows checkout 行尾对应清单为 `2d128296b413eb26509099c6576492237121c43ffc5e77fc877394c01e00d064`。平台内部的 Loader 与双语 GUI tarball 摘要一致：POSIX 为 `fde0b741303add8a42fc8c0ad3843a932062f1011418c54996f4154b26707940`，Windows 为 `f079461b7fdfab16022d0ba84aac10e609ab593b85808a39929369dac737e646`。中文/English 各 17 项通过，console/pageErrors 为空，20 次 Host 关闭全部正常且未强制终止。Windows 使用隔离 IPC 投递 SDK 原有 SIGTERM handler，POSIX 使用 OS 信号。[报告汇总](../../.local/ci-rc3-implementation/summary.json)
+
+后续提交只补充本验证文档；实现清单摘要保持一致。上述独立运行授予 rc.3 的对应生产组合资格，不授予其他平台或 Electron 组合。正式标签仍重跑五平台完整验收后发布。
+
 ## 发布验收边界
 
 本机证据只证明本机组合。独立 Node 的 Windows x64/NTFS、macOS ARM64/Intel/APFS、Linux ARM64/x64/ext4 组合由对应实际 CI runner 验收；candidate 报告本身不扩大生产资格。正式 tag workflow 要求五平台的全量回归、真实 Loader 和双语 CLI/GUI 均通过，只发布该轮 Linux x64 的同字节验收 tarball。实际分发摘要以 Release 的 `SHA256SUMS`、`release.json` 及 npm registry 为准。
