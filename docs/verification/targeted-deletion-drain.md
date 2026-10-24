@@ -22,4 +22,6 @@
 
 两套全量的源码前后稳定，SHA-256 为 `5183f7e3df7940cae9066ddecc574d6b1ea1919e0a30b261cb0c79e5060d2e03`；Loader tarball SHA-256 为 `7b255fbb15666248b869b754da84e67e85f6a29515b53eb9ced033dfe28618f1`。正式 tag 仍须五平台完整 CI 通过后发布。
 
+`mise run verify:gui` 的[中文](../../.local/gui/client-zh-4Cw2IE/verification.json)和[English](../../.local/gui/client-en-orTj1X/verification.json)各 17 项通过；`mise run verify:desktop:gui` 的[中文](../../.local/gui/client-zh-HUxK4S/verification.json)和[English](../../.local/gui/client-en-EOn2Aw/verification.json)也各 17 项通过，[桌面汇总](../../.local/desktop/darwin-arm64-03Fo3q/verification.json)源码稳定。四份报告的 tarball SHA-256 均与 Loader 一致，deletionQualification 为 supported；浏览器 console/pageErrors 为空，八次 Host 关闭均 code 0、signal null、forced false。覆盖单项、固定批量、清空、重载不重发、浅深色、窄屏、键盘和 composition；实际删除后重开复核，保留 sibling 记录。桌面证据为 Electron 上的隔离 Web Host/Client 加实际 ASAR probe，不声称驱动原生 shell 或物理输入法。
+
 没有真实 Windows Desktop 环境；Windows x64/NTFS 的独立 Node 组合由实际 Windows CI runner 验收。该证据不能授予 Windows Electron/Desktop 或 ARM64 资格，也不能确认用户现场独有的占用来源。支持范围与 0.2.5 相同。

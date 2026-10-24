@@ -14,13 +14,13 @@
 
 因此运行时版本检查更新为精确 rc.3，保留源码摘要检查，且继续使用 [ADR 0011](../decisions/0011-runtime-and-durable-retirement-identity.md) 的 schema-1 durable 身份。`legacyDurableHostContract = 0.2.0-rc.2`、历史 fingerprint 和 queryProvider 字符串仍为既有协议标识；它们不能改为当前 SDK 版本，也不能授予自动重发或跨 Host 删除能力。源码相同本身不授予新版生产资格。
 
-## 客户端变化
-
-### history 与目标占用（0.2.6 修复复核）
+## history 与目标占用（0.2.6 修复复核）
 
 锁定 [history.ts](https://github.com/deepseek-ai/deepseek-harness/blob/1f81c047fc48fa190a683e469daa699857e9afe8/packages/api/session-controller/src/history.ts) 中，`follow` 在 iterator finally 前保留 `sourceFor` 得到的 query observation；`closeFollowers` 是不带 SID 的全局 Set。`addressId` 对普通会话使用 sessionId，对 subagent 使用 childSessionId。prepared 源在首次 snapshot 之后调用 promotion，不能把 snapshot 送达等同于流已释放。
 
 发布物 `dsh-session-query/lib/index.js` 的 SessionObservationReader 对 prepared observation 增加当前 cache entry 的 refs，live observation 只持有只读内存；新 revision 可以替换 cache entry，旧 observation 仍保留旧快照。后续 promotion 在 `dsh-api-session-controller/lib/index.js` 经 resolveObservedAgent → resumeObserved → registry.resume 激活。两个生产实现文件继续纳入插件既有 SHA-256 核对。由此推导：删除必须保留目标当前 query refs 与后续激活/写入围栏，单靠全局 follower 数量无法判断哪个冷目标仍有资源占用；可执行回归见[定点释放验证](../verification/targeted-deletion-drain.md)。
+
+## 客户端变化
 
 | rc.3 变化 | 本插件影响 |
 | --- | --- |
