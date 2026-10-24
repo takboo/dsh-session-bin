@@ -189,42 +189,51 @@ export class NativeMetadataAdapter {
     const cached = this.query?._observations.cache.get(id);
     if (cached?.refs > 0 || (this.retained.get(id) ?? 0) > 0) this.refuse('native/query-retained', 'A retained query observation still owns this session.');
     if ((this.followers.get(id) ?? 0) > 0) this.refuse('native/follow-retained', 'A history follower still owns this session.');
-    // Followers predating install have no target key in this SDK. Refuse rather
-    // than closing unrelated streams or assuming that removed disposed them.
+    // Pinned history sources retain a query observation until iterator disposal.
+    // Its target refs above protect pre-install cold sources; a former live
+    // source is only a read-only memory snapshot once its Agent/handles close.
+    // All later activation/write routes remain fenced. A global follower count
+    // cannot identify this SID and must not block an unrelated cold target.
+    // Without the audited query witness keep the conservative fallback.
     const knownFollowers = [...this.followers.values()].reduce((sum, count) => sum + count, 0);
-    if ((this.controller?.history.closeFollowers.size ?? 0) > knownFollowers) this.refuse('native/unknown-follow', 'A history follower predates native admission tracking.');
+    if (!this.query && (this.controller?.history.closeFollowers.size ?? 0) > knownFollowers) this.refuse('native/unknown-follow', 'A history follower has no verified target observation.');
     if (this.cache && [...this.cache.dirty.keys()].some(session => session.id === id)) this.refuse('native/cache-dirty', 'Target cache write-behind is not quiescent.');
   }
-  /** Explicit deletion preparation may unload an idle API-owned lifecycle.
-   * No bare registry Agent, foreign handle, or unknown reader is disposed. */
+  /** Explicit preparation drains known target history even without an Agent.
+   * Only a captured idle API capability may dispose a lifecycle; foreign
+   * Agents, unowned streams and independent readers are never taken over. */
   async releaseIdle(id: string): Promise<void> {
     this.assertInstances();
-    const handle = this.apiHandles.get(id);
-    if (!handle) return;
-    const agent = handle.agent;
-    const registry = this.agents!;
-    if (registry.get(id) !== agent || this.sessions.get(id) !== agent.session) return;
+    const candidate = this.apiHandles.get(id);
+    const agent = this.agents?.get(id);
+    const session = this.sessions.get(id);
+    const handle = candidate && agent === candidate.agent && session === agent.session ? candidate : undefined;
+    if (candidate && !handle) this.apiHandles.delete(id);
+    if (!handle && (agent !== undefined || session !== undefined)) return;
     const activity = await this.admission.withoutBypass(() => this.ctx.waterfall('workspace/session-activity',
       { sessionId: id as never }, async () => []));
     // Inspect after the asynchronous activity query; dispose starts in this
     // same synchronous turn, before another activation can be admitted.
-    if (activity.length || agent.constructor.name !== 'ReactLoopAgent' || agent.phase?.kind !== 'idle'
+    if (activity.length || (handle && (agent.constructor.name !== 'ReactLoopAgent' || agent.phase?.kind !== 'idle'
       || agent.status !== 'idle' || !Array.isArray(agent.inbox?.nextTurn)
-      || !Array.isArray(agent.inbox?.nextStep) || agent.inbox.nextTurn.length || agent.inbox.nextStep.length) {
+      || !Array.isArray(agent.inbox?.nextStep) || agent.inbox.nextTurn.length || agent.inbox.nextStep.length))) {
       this.refuse('native/session-active', 'Native deletion refuses active or queued work.');
     }
     if (!this.workspace.archivedSessionIds.includes(id)) this.refuse('native/not-archived', 'Only an archived target may be unloaded.');
-    if (registry.get(id) !== agent || this.sessions.get(id) !== agent.session) this.refuse('native/session-live', 'The API lifecycle changed.');
+    this.assertInstances();
+    if (this.agents?.get(id) !== agent || this.sessions.get(id) !== session) this.refuse('native/session-live', 'The target lifecycle changed.');
     await this.admission.bypass(id, async () => {
-      await handle.dispose();
+      if (handle) await handle.dispose();
       for (const stop of [...(this.followerStops.get(id) ?? [])]) await stop();
       // Disposal checkpoints projections asynchronously. Join its actual put
       // operations and the durable table queue before taking the cold snapshot.
       if (this.cache) await this.cache.requireTable().host.enqueue(async () => undefined);
-      const summary = this.controller!.listState.summarizeCold({ header: agent.session.header });
-      this.admission.withoutBypass(() => (this.ctx.emit as Method)('api-session/added', summary));
+      if (handle) {
+        const summary = this.controller!.listState.summarizeCold({ header: agent.session.header });
+        this.admission.withoutBypass(() => (this.ctx.emit as Method)('api-session/added', summary));
+      }
     });
-    this.apiHandles.delete(id);
+    if (this.apiHandles.get(id) === handle) this.apiHandles.delete(id);
   }
   private async cacheView(table: ObjectPort, id: string, acceptedStage?: string): Promise<NativeMetadataSnapshot['cache']> {
     table.host.assertReadable();
@@ -537,7 +546,7 @@ export class NativeMetadataAdapter {
           if (this.apiHandles.get(agent.id)?.agent === agent) this.apiHandles.delete(agent.id);
         }, { global: true }));
         this.wrap(this.controller.history, 'follow', original => function (request: ObjectPort, signal: AbortSignal) {
-          const id = String(request.address.sessionId);
+          const id = String(request.address.kind === 'session' ? request.address.sessionId : request.address.childSessionId);
           adapter.assert(id);
           return (async function* () {
             adapter.assert(id); adapter.increment(adapter.followers, id, 1);

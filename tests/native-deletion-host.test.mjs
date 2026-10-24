@@ -156,7 +156,7 @@ test('native deletion refuses active and retained raw handles without changing b
     fixture.state.activity.delete('quiet');
     handle = await fixture.ctx.sessionPersistence.open(SessionId('quiet'), 'read');
     const held = await fixture.bin.preparePurge({ sessionId: 'quiet' });
-    assert(held.blockers.some(item => item.code === 'native/persistence-retained'));
+    assert(held.blockers.some(item => item.code === 'native/persistence-reader'));
     assert.equal((await fixture.bin.executePurge(held)).status, 'rejected');
     assert((await handle.read()).events.length);
     await handle.close(); handle = undefined;

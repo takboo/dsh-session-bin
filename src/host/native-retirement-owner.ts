@@ -169,7 +169,7 @@ export class NativeRetirementOwner implements SessionRetirementOwnerV1 {
     try {
       const scope = this.scopes.get(id);
       if (scope) {
-        if (this.provider.busy(id)) return 'native/persistence-retained';
+        const busy = this.provider.busyReason(id); if (busy) return busy;
         if (scope.blocked) return scope.blocked;
         await this.metadata.capture(id);
         return null;
@@ -178,7 +178,7 @@ export class NativeRetirementOwner implements SessionRetirementOwnerV1 {
       try {
         await this.metadata.releaseIdle(id);
         await this.admission.drain(id);
-        if (this.provider.busy(id)) return 'native/persistence-retained';
+        const busy = this.provider.busyReason(id); if (busy) return busy;
         await this.metadata.capture(id);
         const snapshot = await this.provider.stat(id);
         if (!snapshot) return 'session-not-found';
@@ -198,7 +198,7 @@ export class NativeRetirementOwner implements SessionRetirementOwnerV1 {
     const release = await this.admission.acquire(id);
     let lease: { release(): Promise<void> } | undefined;
     try {
-      if (this.provider.busy(id)) throw retirementOwnerRefusal('native/persistence-retained');
+      const busy = this.provider.busyReason(id); if (busy) throw retirementOwnerRefusal(busy);
       const snapshot = await this.provider.stat(id);
       if (!snapshot) return null;
       if (snapshot.header.origin === 'subagent') throw retirementOwnerRefusal('native/subagent-unsupported');
@@ -244,7 +244,7 @@ export class NativeRetirementOwner implements SessionRetirementOwnerV1 {
     const releaseAdmission = await this.admission.acquire(expected.sessionId, maintenance !== null);
     const scope: Scope = { witness, inventory: witness.inventory, metadata: witness.metadata, blocked: null, lease: undefined, releaseAdmission };
     try {
-      if (this.provider.busy(expected.sessionId)) scope.blocked = 'native/persistence-retained';
+      scope.blocked = this.provider.busyReason(expected.sessionId);
       if (!scope.blocked) {
         if (maintenance === null) {
           const snapshot = await this.provider.stat(expected.sessionId);

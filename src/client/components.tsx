@@ -21,7 +21,7 @@ type NoticeProps = PropsRuntime<'shell.overlay'> & PropsLocale<typeof NS> & BinF
 
 export function reasonText(reason: string | null, t: TranslateNS<typeof NS>): string {
   switch (reason) {
-    case 'session-active': return t('active');
+    case 'session-active': case 'native/session-active': return t('active');
     case 'session-not-found': return t('missing');
     case 'not-archived': return t('notArchived');
     case 'legacy-pending': return t('legacyPending');
@@ -34,9 +34,15 @@ export function reasonText(reason: string | null, t: TranslateNS<typeof NS>): st
     case 'partial-failure': case 'resource-failure': return t('deletionPartial');
     case 'permanent-deletion-unsupported': return t('deletionUnsupported');
     case 'native/session-live': return t('deletionLive');
-    case 'native/persistence-retained': case 'native/query-retained': case 'native/follow-retained':
-    case 'native/unknown-follow': case 'native/cache-dirty': return t('deletionRetained');
-    case 'jsonl/writer-active': return t('deletionWriter');
+    case 'native/persistence-retained': return t('deletionRetained');
+    case 'native/persistence-reader': return t('deletionReader');
+    case 'native/persistence-pending': return t('deletionStoragePending');
+    case 'native/migration-pending': return t('deletionMigration');
+    case 'native/query-retained': return t('deletionQuery');
+    case 'native/follow-retained': return t('deletionFollower');
+    case 'native/unknown-follow': return t('deletionUnknownFollower');
+    case 'native/cache-dirty': return t('deletionCacheWrite');
+    case 'jsonl/writer-active': case 'native/persistence-writer': return t('deletionWriter');
     case 'native/subagent-unsupported': return t('deletionSubagent');
     case 'lifecycle-changed': case 'resource-scope-changed': case 'jsonl/resource-changed':
     case 'jsonl/scope-changed': case 'native/composition-changed': return t('deletionChanged');
