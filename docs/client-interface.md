@@ -1,6 +1,6 @@
 # 客户端与 Remote 接口
 
-当前 `0.2.4` 使用精确 DSH `0.2.1-rc.2`；CLI/Web 兼容性见[rc.2 验证](verification/dsh-0.2.1-rc2.md)，新增桌面运行时及跨运行时恢复见[桌面验证](verification/desktop-runtime.md)。
+当前 `0.2.5` 使用精确 DSH `0.2.1-rc.3`；CLI/Web、官方 macOS ARM64 桌面运行时及冷重启升级见[rc.3 验证](verification/dsh-0.2.1-rc3.md)。此前 rc.2 桌面准入与跨运行时恢复证据保留于[桌面验证](verification/desktop-runtime.md)。
 
 本文说明客户端交互、严格 Remote 合约和插件生命周期。实际验证结果见[客户端验证](verification/client-interface.md)，实现状态见 [README](../README.md)。
 

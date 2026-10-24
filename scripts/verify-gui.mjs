@@ -22,7 +22,7 @@ import { workflowError } from './ci-diagnostics.mjs';
 const require = createRequire(import.meta.url);
 const workspace = fileURLToPath(new URL('../', import.meta.url));
 const guiHostWorker = fileURLToPath(new URL('./gui-host-worker.mjs', import.meta.url));
-const expectedSdk = '0.2.1-rc.2';
+const expectedSdk = '0.2.1-rc.3';
 const fixtures = [
   { id: 'gui-quiet', title: '待整理的设计讨论', workspace: 'primary' },
   { id: 'gui-sibling', title: '接口实现记录', workspace: 'primary' },
