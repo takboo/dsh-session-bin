@@ -12,70 +12,70 @@ export const nativeRetirementSdkSources = {
     }
   },
   "dsh-session": {
-    "version": "0.2.1-rc.2",
+    "version": "0.2.1-rc.3",
     "files": {
       "lib/index.js": "2f5dd07cb5c744a29abbb8003a8a4cefd9e582c6e2538074ca299a0ddd02a3bf",
       "lib/types/index.js": "59cced30c7ee65813c62f4858c2fc15c8c636df96507b60c15543468178b72f2"
     }
   },
   "dsh-session-persistence": {
-    "version": "0.2.1-rc.2",
+    "version": "0.2.1-rc.3",
     "files": {
       "lib/index.js": "cc0b6d3a224133af611b428d5a49020e300f86c3b4ba28037aeb219029bde3eb"
     }
   },
   "dsh-session-persistence-jsonl": {
-    "version": "0.2.1-rc.2",
+    "version": "0.2.1-rc.3",
     "files": {
       "lib/index.js": "973dd78679b2661d6f492343bc22b124ae958aa597d3b36c698a2c650f909984"
     }
   },
   "dsh-session-format-catalog": {
-    "version": "0.2.1-rc.2",
+    "version": "0.2.1-rc.3",
     "files": {
       "lib/index.js": "836bbb772ab505c299f1a4a246164c50c7c08b67ab0d17f1251d7ea2cd8c1818",
       "lib/types/index.js": "c7d797760bf2b9bc654751f2f8cb0b8a6b98998c8d9c1e41323c71a4d5f316f2"
     }
   },
   "dsh-storage-domain": {
-    "version": "0.2.1-rc.2",
+    "version": "0.2.1-rc.3",
     "files": {
       "lib/index.js": "a54f7664d2f64fe04a08c7058ca5bff4fc69ed6a0d30c2bc11561b620698ef16"
     }
   },
   "dsh-storage-json": {
-    "version": "0.2.1-rc.2",
+    "version": "0.2.1-rc.3",
     "files": {
       "lib/index.js": "0a6b75d5569db3379edd93e863570170e1f4121b6c9fabd856f5b476cffe8df4"
     }
   },
   "dsh-workspace": {
-    "version": "0.2.1-rc.2",
+    "version": "0.2.1-rc.3",
     "files": {
       "lib/index.js": "931ca0cb10c5102066c7723690a887f0e6e8e7ab0ffdee1a782686745b0b934f",
       "lib/types/index.js": "ed69989d8286598fddb3a40030723810a1238968e91ccfec05fc84657bb5ec74"
     }
   },
   "dsh-session-query": {
-    "version": "0.2.1-rc.2",
+    "version": "0.2.1-rc.3",
     "files": {
       "lib/index.js": "76ce2944e561c12f48b5e240d68cafe54ce6d667b1d20722e6939ed834489939"
     }
   },
   "dsh-session-query-sqlite": {
-    "version": "0.2.1-rc.2",
+    "version": "0.2.1-rc.3",
     "files": {
       "lib/index.js": "dbecf83320e10d93d735b3d01384ab817a0b90102ccecb0a22c013c71dfe70a0"
     }
   },
   "dsh-session-projection-cache": {
-    "version": "0.2.1-rc.2",
+    "version": "0.2.1-rc.3",
     "files": {
       "lib/index.js": "faf307dce5db2fb7ff58b4c7d9e544fc7cad5de2f270a89326a8d7bb2bda9c80"
     }
   },
   "dsh-api-session-controller": {
-    "version": "0.2.1-rc.2",
+    "version": "0.2.1-rc.3",
     "files": {
       "lib/index.js": "a9801acb577b03053c5d5a3191ff555c5f1d791d0acddec113bea4511e33b386",
       "lib/types/index.js": "616ced16623b7448afa908ff65093eb6ef2a478d32e5ef9bc22634bfa9f80472"
@@ -91,7 +91,7 @@ const legacyDurableContractFingerprint = '2618a33decce99fe8ae893245236273d10ac55
 export async function nativeRetirementSdkFingerprint(): Promise<string | null> {
   const root = createRequire(import.meta.url);
   const hostPath = root.resolve('@deepseek-ai/dsh/package.json');
-  if (JSON.parse(await readFile(hostPath, 'utf8')).version !== '0.2.1-rc.2') return null;
+  if (JSON.parse(await readFile(hostPath, 'utf8')).version !== '0.2.1-rc.3') return null;
   const base = createRequire(hostPath);
   for (const [name, expected] of Object.entries(nativeRetirementSdkSources)) {
     let path: string;
@@ -118,7 +118,7 @@ export async function nativeRetirementSdkFingerprint(): Promise<string | null> {
     let path: string;
     try { path = runtime.resolve(`@deepseek-ai/${name}/package.json`); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === 'MODULE_NOT_FOUND') return null; throw error; }
-    if ((JSON.parse(await readFile(path, 'utf8')) as { version: string }).version !== '0.2.1-rc.2'
+    if ((JSON.parse(await readFile(path, 'utf8')) as { version: string }).version !== '0.2.1-rc.3'
       || createHash('sha256').update(await readFile(join(dirname(path), 'lib/index.js'))).digest('hex') !== expected) return null;
   }
   return legacyDurableContractFingerprint;

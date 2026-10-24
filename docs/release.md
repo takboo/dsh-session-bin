@@ -57,7 +57,7 @@ Release 附件为固定名称 `dsh-session-bin.tgz`、`SHA256SUMS` 和 `release.
 
 npm trusted publisher 的公开配置为：GitHub owner `takboo`、repository `dsh-session-bin`、workflow filename `host-lifecycle.yml`，Environment 留空；允许 `npm publish`。运行于 GitHub 托管 runner，固定 Node 的 npm CLI 版本须至少 `11.5.1`。包首发仍由维护者执行，后续版本由版本 tag 自动发布。
 
-2026-10-18 已重新核对 npm 官方 trusted publishing 规则，现有托管 runner、固定工具、OIDC 与 provenance 流程继续符合要求；来源见[npm 官方规则](https://docs.npmjs.com/trusted-publishers/)。具体 publisher 权限及发布成功仍以实际 npm job 与 registry 结果为准。
+2026-10-24 已重新核对 npm 官方 trusted publishing 规则，现有托管 runner、固定工具、OIDC 与 provenance 流程继续符合要求；来源见[npm 官方规则](https://docs.npmjs.com/trusted-publishers/)。具体 publisher 权限及发布成功仍以实际 npm job 与 registry 结果为准。
 
 优先选择 [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/)；具体启用条件与账户配置在包身份确定后核对。发布前准备可审阅的版本、产物及 release 内容，使用项目授权身份并遵守仓库发布规则。
 
