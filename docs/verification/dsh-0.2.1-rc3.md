@@ -17,6 +17,16 @@
 
 桌面实际载体为 Electron `44.7.0` / Node `24.21.0` / libuv `1.52.1`，SQLite `3.53.4`、Zstd `1.6.0`、ABI `149`；测试不设置 candidate 资格回调。四组浏览器 Client fixture 使用公开 npm 的客户端产物，Host 测试使用 ASAR SDK 与原生模块。该证据只授予 macOS ARM64/APFS 的精确桌面组合，不推导其他桌面架构。
 
+## 双语 CLI/GUI 与正式 tarball
+
+最终用户说明及契约更新后，重新执行 `mise run verify:package`，正式 tarball 的真实 Loader 归档、取消归档、单项删除、卸载及重新激活通过，`productionDeletionQualified: true`。[Loader 报告](../../.local/lifecycle/package-cwNwvE/verification.json)
+
+`mise run verify:gui` 的[中文](../../.local/gui/client-zh-ZnlLfE/verification.json)与[English](../../.local/gui/client-en-c7oHnH/verification.json)各 17 项通过，均为 `deletionQualification: supported`。`mise run verify:desktop:gui` 使用官方 rc.3 Electron 载体运行隔离 npm Web Host/Client，ASAR production probe 另行复核源码及准入；[桌面汇总](../../.local/desktop/darwin-arm64-o0QUbH/verification.json)通过、源码稳定，[中文](../../.local/gui/client-zh-Wmdhzs/verification.json)与[English](../../.local/gui/client-en-9xxnGe/verification.json)也各 17 项通过。
+
+四份 GUI 与上述 Loader 使用同字节 tarball，SHA-256 为 `fde0b741303add8a42fc8c0ad3843a932062f1011418c54996f4154b26707940`。均覆盖原生归档/Undo、已有归档、搜索/分组/筛选、取消归档、打开真实历史后的空闲 Agent 释放、固定批量与完整清空范围、确认偏好、重载不重发、浅深色、窄屏、键盘和 composition。关闭并重开 Host 后复核日志和派生索引清除、其他会话保留；安装/卸载正常退出。四份 GUI 的 console/pageErrors 均为空，八次 Host 关闭全部 code 0、signal null、forced false。
+
+初次沙箱内 GUI 运行被 macOS 阻止 Chrome 启动；同一任务在沙箱外的独立测试 profile 中通过。没有修改断言或产品逻辑规避失败。桌面 GUI 证据使用 Electron 上的公开 Web 客户端和独立 ASAR probe，不声称驱动原生桌面 shell 或物理输入法。
+
 ## rc.2 冷重启升级
 
 更新前用基线 `0.2.4` 和 rc.2 SDK 在临时 DSH_HOME 生成样本，完全关闭旧 Context/进程后，使用 rc.3 公共服务打开同一数据。
