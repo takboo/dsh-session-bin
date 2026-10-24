@@ -35,9 +35,16 @@ export class NativePersistenceAdapter {
   stat(id: string): Promise<SessionPersistenceSnapshot | undefined> { return this.originalStat(SessionId(id)); }
   list(): Promise<readonly SessionPersistenceSnapshot[]> { return this.originalList(); }
   busy(id: string): boolean {
-    return this.raw.tracker.pending.has(id) || this.raw.tracker.writers.has(id)
-      || [...this.raw.tracker.openHandles].some(handle => handle.id === id)
-      || this.raw.migrationPreparations.size !== 0;
+    return this.busyReason(id) !== null;
+  }
+  busyReason(id: string): string | null {
+    if (this.raw.tracker.writers.has(id)) return 'native/persistence-writer';
+    if (this.raw.tracker.pending.has(id)) return 'native/persistence-pending';
+    if ([...this.raw.tracker.openHandles].some(handle => handle.id === id)) return 'native/persistence-reader';
+    // The audited provider keys preparation by SID; unrelated migrations do not
+    // own this target. Accepted corpus reads still drain through NativeAdmission.
+    if (this.raw.migrationPreparations.has(id)) return 'native/migration-pending';
+    return null;
   }
   forget(id: string): void {
     if (this.busy(id)) throw new NativeAdmissionError('A persistence reference still owns this session.');

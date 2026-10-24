@@ -49,7 +49,9 @@
 
 显式删除准备先在目标准入围栏内释放 API Session 自己激活的空闲 Agent：仅使用在匹配 `resumeObserved/claim/createAgent` 调用内取得的原始 `AgentHandle.dispose`，复核原生归档、活动提供方、真实 idle phase（不包含 maintenance）和空 inbox；不通过裸 Agent 或未识别的生命周期强行卸载。等待日志句柄关闭、目标已跟踪 history follower 结束和 cache 写入排空后，重新发布持久化冷摘要，取消删除仍保留标题、归档和日志。没有明确 disposal capability 的安装前/其他所有者生命周期继续拒绝。该释放只发生于显式准备及执行复核，不在启动、列举或归档观察时自动发生。
 
-准入只接受原生归档的冷目标，拒绝 live Session/Agent、turn/job/subagent/schedule、尚未释放的 SessionHandle、query lease、history follower、cache dirty 和迁移准备。不能识别目标的安装前 follower 保守拒绝；不隐式停止其他会话。实例 guard 保留 Cordis caller shadow context，覆盖原生 Workspace 队列执行与写入前复核、SessionStore 准入、JSONL create/open/低层读写、cache 实际 put、完整 query/SQLite queue。全局 header/historical-corpus 读帧在执行前排空，新普通扫描等待 scope 释放，防止跨 SID 历史读取与删除相互等待；其他 SID 的既有 current writer 不被本次删除停止。
+显式准备也独立关闭目标已跟踪的 history follower：即使没有 API Agent，也在目标准入围栏内复核原生归档和活动检查，结束该 SID 的流并等待退出；不接管安装前流、独立读取句柄或其他生命周期。subagent history 按 child SID 跟踪。目标迁移准备按 provider 的 SID key 检查，无关迁移不作为目标占用；全局读屏障仍保留。
+
+准入只接受原生归档的冷目标，拒绝 live Session/Agent、turn/job/subagent/schedule、目标尚未释放的 SessionHandle、query lease、history follower、cache dirty 和迁移准备。安装前冷 history 源由锁定 SDK 的目标 query observation 引用保护；已关闭生命周期的 live 源或被新 revision 替换的旧源只保留内存快照，后续 promotion、激活和写入仍受围栏阻止。全局 follower 数量不提供 SID，不能据此拒绝其他冷目标。缺少已审计 query 见证时仍保守返回 unknown-follow，不停止陌生流。具体回归见[定点释放验证](verification/targeted-deletion-drain.md)。实例 guard 保留 Cordis caller shadow context，覆盖原生 Workspace 队列执行与写入前复核、SessionStore 准入、JSONL create/open/低层读写、cache 实际 put、完整 query/SQLite queue。全局 header/historical-corpus 读帧在执行前排空，新普通扫描等待 scope 释放，防止跨 SID 历史读取与删除相互等待；其他 SID 的既有 current writer 不被本次删除停止。
 
 `session_bin_jsonl_resources` 保存 durable store/root/fingerprint 和 exact lifecycle nonce、最低既存 canonical anchor、完整文件 identity/digest、metadata medium/memory/location 快照。这个 nonce 是本插件 Adapter 提供的逻辑生命周期，不能描述为原生格式字段。显式准备固定这些证据；已退役 SID namespace 不重用，历史请求只处理原 token。`session_bin_jsonl_retirement_owner` 保存协调器 journal，恢复不从当前 SID 重建新目标。
 

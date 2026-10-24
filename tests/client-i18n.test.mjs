@@ -110,6 +110,11 @@ test('visible errors, pending receipts and query-only legacy copy are localized 
     ['session-active', 'active'], ['session-not-found', 'missing'], ['not-archived', 'notArchived'], ['legacy-pending', 'legacyPending'],
     ['pending-result', 'pendingResult'], ['pending-operation', 'pendingResult'], ['pending-deletion', 'pendingDeletion'], ['connection-failed', 'connectionFailed'],
     ['purge-cache-capacity', 'purgeCacheCapacity'],
+    ['native/persistence-reader', 'deletionReader'], ['native/persistence-writer', 'deletionWriter'],
+    ['native/persistence-pending', 'deletionStoragePending'], ['native/migration-pending', 'deletionMigration'],
+    ['native/query-retained', 'deletionQuery'], ['native/follow-retained', 'deletionFollower'],
+    ['native/unknown-follow', 'deletionUnknownFollower'], ['native/cache-dirty', 'deletionCacheWrite'],
+    ['native/persistence-retained', 'deletionRetained'], ['native/session-active', 'active'],
     ['state-changed', 'stateChanged'], ['archive-changed', 'stateChanged'], ['entry-changed', 'stateChanged'],
     ['interrupted', 'stateChanged'], ['future-unknown-reason', 'operationFailed'], [null, 'operationFailed'],
   ];
