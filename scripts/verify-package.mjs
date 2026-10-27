@@ -1,3 +1,4 @@
+import { deletionQualification } from './deletion-qualification.mjs';
 import { configuredPackageManager } from './package-manager.mjs';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
@@ -77,7 +78,8 @@ assert.equal(patch[0].insert.length, 1);
 const row = patch[0].insert[0];
 assert.equal(row.name, manifest.name);
 const packedImplementation = await import(pathToFileURL(entryPath).href);
-const productionDeletionQualified = packedImplementation.nativePlatformVerified();
+const qualification = await deletionQualification(packedImplementation.nativePlatformVerified);
+const { productionDeletionQualified } = qualification;
 const fixture = await openFixture(scratch, { seed: true, plugin: false });
 try {
   await fixture.mount(Loader, { baseUrl: pathToFileURL(join(scratch, 'installed') + '/').href });
@@ -105,7 +107,7 @@ try {
   assert.equal((await fixture.ctx.sessionBin.execute(await fixture.ctx.sessionBin.prepare({ action: 'unarchive', sessionId: 'quiet' }))).status, 'success');
   await fixture.ctx.workspaceRegistry.archiveSession(SessionId('sibling'));
   const purge = await fixture.ctx.sessionBin.preparePurge({ sessionId: 'sibling' });
-  if (productionDeletionQualified) {
+  if (qualification.qualified) {
     assert.deepEqual(purge.blockers, [], 'Packed owner must qualify the actual pinned JSONL composition.');
     assert.equal((await fixture.ctx.sessionBin.executePurge(purge)).status, 'success');
     assert.equal(await fixture.ctx.sessionPersistence.stat(SessionId('sibling')), undefined);
@@ -122,7 +124,8 @@ const report = {
   status: 'passed', tarball, sha256: createHash('sha256').update(await readFile(tarball)).digest('hex'),
   files, sdk: manifest.peerDependencies,
   platform: process.platform, arch: process.arch, node: process.versions.node, productionDeletionQualified,
-  scope: `Packed public exports and bundle patch; real Cordis Loader activation, native archive/unarchive, ${productionDeletionQualified ? 'actual single-conversation JSONL deletion' : 'explicit unsupported deletion with transcript preservation'}, disposal and reactivation on temporary sessions.`,
+  deletionQualification: qualification.mode, candidateDeletionQualified: qualification.mode === 'candidate',
+  scope: `Packed public exports and bundle patch; real Cordis Loader activation, native archive/unarchive, ${qualification.qualified ? 'actual single-conversation JSONL deletion' : 'explicit unsupported deletion with transcript preservation'}, disposal and reactivation on temporary sessions.`,
   limits: 'SDK dependencies supplied by the pinned repository install; not a clean profile/CLI install or a real GUI test.',
 };
 await writeFile(join(scratch, 'verification.json'), JSON.stringify(report, null, 2) + '\n');

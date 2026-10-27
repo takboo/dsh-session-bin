@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { deletionQualification as inspectDeletionQualification } from './deletion-qualification.mjs';
 import { fork, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { access, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
@@ -22,7 +23,7 @@ import { workflowError } from './ci-diagnostics.mjs';
 const require = createRequire(import.meta.url);
 const workspace = fileURLToPath(new URL('../', import.meta.url));
 const guiHostWorker = fileURLToPath(new URL('./gui-host-worker.mjs', import.meta.url));
-const expectedSdk = '0.2.1-rc.3';
+const expectedSdk = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')).engines.dsh;
 const fixtures = [
   { id: 'gui-quiet', title: '待整理的设计讨论', workspace: 'primary' },
   { id: 'gui-sibling', title: '接口实现记录', workspace: 'primary' },
@@ -1031,7 +1032,7 @@ async function runGui(page, paths, report, beforePhysical) {
   let deletion = page.getByRole('dialog', { name: ui.deleteTitle(nativeOnly.title), exact: true });
   await deletion.waitFor({ state: 'visible' });
   await eventually(async () => assert(await button(deletion, ui.deleteCancel).evaluate(element => element === document.activeElement)), 'Deletion initially focuses Cancel');
-  assert.equal(await button(deletion, ui.deleteConfirm).isEnabled(), report.deletionQualification === 'supported');
+  assert.equal(await button(deletion, ui.deleteConfirm).isEnabled(), report.deletionQualification !== 'unsupported');
   assert.equal(report.deletionExecutions.length, 0, 'Preparing a dialog never executes deletion');
   await button(deletion, ui.deleteCancel).click();
   await deletion.waitFor({ state: 'hidden' }); await panelCount(root, 1);
@@ -1050,7 +1051,7 @@ async function runGui(page, paths, report, beforePhysical) {
   await drainDiagnostics();
   assert.equal(report.deletionPrepares.length, 2, 'Cancelled and second dialogs prepare distinct explicit plans');
   assert.notEqual(report.deletionPrepares[0].operationId, report.deletionPrepares[1].operationId);
-  if (report.deletionQualification === 'supported') {
+  if (report.deletionQualification !== 'unsupported') {
     assert.equal(await confirmButton.isEnabled(), true, `Cold archived GUI target must be eligible: ${await deletion.innerText()}\n${JSON.stringify(report.deletionPrepares)}`);
     assert(report.deletionPrepares.every(plan => plan.status === 'prepared' && plan.fixedRequestValid && plan.schemaVersion === 2
       && plan.sessionId === nativeOnly.id && plan.expectedEntryId && plan.bound && plan.frozen && plan.blockers.length === 0),
@@ -1185,7 +1186,7 @@ async function runGui(page, paths, report, beforePhysical) {
     assert(clearPlans[0].fixedRequestValid && clearPlans[0].sessionId === prearchived.id
       && clearPlans[0].bound && clearPlans[0].frozen && clearPlans[0].blockers.length === 0,
     'Clear-all must prepare the complete hidden archive set, not only visible rows');
-    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), report.deletionQualification === 'supported');
+    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), report.deletionQualification !== 'unsupported');
     report.screenshots.clearAll = await screenshot(page, paths, 'session-bin-clear-all-confirmation');
     assert.equal(report.deletionExecutions.length, clearExecuteStart, 'Unconfirmed clear-all executes nothing');
     await button(clearDialog, ui.deleteCancel).click();
@@ -1305,7 +1306,7 @@ async function runGui(page, paths, report, beforePhysical) {
     assert(clearPlans.every(plan => plan.status === 'prepared' && plan.fixedRequestValid
       && plan.blockers.includes('permanent-deletion-unsupported')));
     assert.equal(await clearConfirmButton.isEnabled(), false);
-    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), report.deletionQualification === 'supported');
+    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), report.deletionQualification !== 'unsupported');
     assert.equal(report.deletionExecutions.length, 0);
     await button(clearDialog, ui.deleteCancel).click();
     await clearDialog.waitFor({ state: 'hidden' });
@@ -1390,11 +1391,12 @@ async function main() {
   const browserEnvironment = { ...environment, TMPDIR: browserTmp, TMP: browserTmp, TEMP: browserTmp };
   const browserConsole = [];
   const pageErrors = [];
-  const deletionQualification = nativePlatformVerified() ? 'supported' : 'unsupported';
+  const qualification = await inspectDeletionQualification(nativePlatformVerified);
+  const deletionQualification = qualification.mode;
   const report = {
     status: 'running', sdk: expectedSdk, node: process.version, electron: process.versions.electron ?? null, platform: process.platform, arch: process.arch,
     scratch, locale: browserLocale, requestedLanguage,
-    deletionQualification,
+    deletionQualification, productionDeletionQualified: qualification.productionDeletionQualified,
     browserExecutable: browserSelection, isolatedTemporaryEnvironment: { TMPDIR: paths.tmp, TMP: paths.tmp, TEMP: paths.tmp },
     browserTemporaryEnvironment: { TMPDIR: browserTmp, TMP: browserTmp, TEMP: browserTmp },
     checks: [], coverage: [], languageSwitches: [], metadata: [], hostLaunches: [], hostShutdown: [],
@@ -1464,7 +1466,7 @@ async function main() {
     activeHost = undefined;
     const after = await openSdkFixture(paths);
     try {
-      if (report.deletionQualification === 'supported') {
+      if (report.deletionQualification !== 'unsupported') {
         const deleted = new Set(report.deletedSessionIds);
         const expectedLogs = Object.fromEntries(Object.entries(beforeLogs).filter(([id]) => !deleted.has(id)));
         assert.deepEqual(await readLogs(after, report.deletedSessionIds), expectedLogs,

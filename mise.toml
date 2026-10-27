@@ -93,3 +93,19 @@ run = "pnpm run verify:desktop"
 description = "Verify bilingual isolated Web profiles on the installed Desktop Electron carrier"
 depends = ["build"]
 run = "pnpm run verify:desktop:gui"
+
+[tasks."compat:discover"]
+description = "Discover exact new DSH releases and existing compatibility Issues"
+run = "node scripts/compatibility/discover.mjs"
+
+[tasks."compat:check"]
+description = "Check an exact SDK on isolated sessions without changing production admission"
+run = "pnpm run compat:check"
+
+[tasks."compat:report"]
+description = "Maintain compatibility Issues and draft dependency proposals"
+run = "node scripts/compatibility/report.mjs"
+
+[tasks."verify:docs"]
+description = "Check current document links and anchors"
+run = "pnpm run verify:docs"
