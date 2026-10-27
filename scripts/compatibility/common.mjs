@@ -37,6 +37,7 @@ export function marker(body) {
     assert(['running', 'passed', 'partial', 'failed', 'retry'].includes(data.status));
     assert(Number.isSafeInteger(data.attempts) && data.attempts >= 0 && data.attempts <= 100);
     assert(/^[a-f\d]{64}$/.test(data.identity));
+    if (data.components) validComponents(data.components);
     return data;
   } catch { return; }
 }
@@ -106,4 +107,18 @@ const rootInputs = new Set(['.gitignore', '.gitattributes', '.editorconfig', '.r
 export function isWorkspaceInput(path) {
   return !path.split('/').some(part => part === '..' || part === '.env' || part === '.npmrc')
     && (rootInputs.has(path) || /^(src|scripts|tests|docs|locale|market|\.github)\//.test(path));
+}
+
+export function validComponents(components) {
+  assert(components && typeof components === 'object' && !Array.isArray(components));
+  for (const [key, value] of Object.entries(components)) {
+    assert(['sdk', 'desktop'].includes(key));
+    assert(/^[a-f\d]{64}$/.test(value.identity));
+    assert(['running', 'passed', 'partial', 'failed', 'retry'].includes(value.status));
+    assert(Number.isSafeInteger(value.attempts) && value.attempts >= 1 && value.attempts <= 100);
+    assert(/^\d+$/.test(value.run) && /^[a-f\d]{40}$/.test(value.sourceCommit));
+    assert(Number.isFinite(Date.parse(value.updatedAt)));
+    assert(Buffer.byteLength(JSON.stringify(value)) < 6000);
+  }
+  return components;
 }

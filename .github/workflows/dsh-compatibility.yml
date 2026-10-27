@@ -14,10 +14,14 @@ on:
       - '.github/workflows/dsh-compatibility.yml'
       - 'scripts/compatibility/**'
       - 'scripts/deletion-qualification.mjs'
+      - 'scripts/verify-desktop.mjs'
+      - 'scripts/desktop-sdk-bootstrap.mjs'
+      - 'tests/helpers/desktop-*.mjs'
       - 'scripts/verify-gui*.mjs'
       - 'scripts/gui-preservation.mjs'
       - 'tests/gui-preservation.test.mjs'
       - 'tests/compatibility-monitor.test.mjs'
+      - 'tests/compatibility-desktop.test.mjs'
 
 permissions:
   contents: read
@@ -36,6 +40,10 @@ jobs:
     outputs:
       matrix: ${{ steps.find.outputs.matrix }}
       count: ${{ steps.find.outputs.count }}
+      sdk_matrix: ${{ steps.find.outputs.sdk_matrix }}
+      sdk_count: ${{ steps.find.outputs.sdk_count }}
+      desktop_matrix: ${{ steps.find.outputs.desktop_matrix }}
+      desktop_count: ${{ steps.find.outputs.desktop_count }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,12 +83,12 @@ jobs:
   check:
     name: DSH ${{ matrix.target.version }} / ${{ matrix.runner }}
     needs: [discover, track]
-    if: always() && needs.discover.result == 'success' && needs.discover.outputs.count != '0' && (github.event_name == 'pull_request' || needs.track.result == 'success')
+    if: always() && needs.discover.result == 'success' && needs.discover.outputs.sdk_count != '0' && (github.event_name == 'pull_request' || needs.track.result == 'success')
     strategy:
       fail-fast: false
       max-parallel: 5
       matrix:
-        target: ${{ fromJSON(needs.discover.outputs.matrix).include }}
+        target: ${{ fromJSON(needs.discover.outputs.sdk_matrix).include }}
         runner:
           - ubuntu-24.04
           - ubuntu-24.04-arm
@@ -111,8 +119,41 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+  desktop:
+    name: Desktop DSH ${{ matrix.target.version }} / macos-15 ARM64
+    needs: [discover, track]
+    if: always() && needs.discover.result == 'success' && needs.discover.outputs.desktop_count != '0' && (github.event_name == 'pull_request' || needs.track.result == 'success')
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        target: ${{ fromJSON(needs.discover.outputs.desktop_matrix).include }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v3
+      - run: mise run install
+      - run: mise run verify:gui:browser
+      - name: Verify signed official Desktop in isolated candidate workspace
+        env:
+          DSH_TARGET_JSON: ${{ toJSON(matrix.target) }}
+          DSH_REPORT_DIR: ${{ runner.temp }}/dsh-desktop-report
+        run: mise run compat:desktop
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dsh-desktop-${{ matrix.target.version }}-macos-15
+          path: ${{ runner.temp }}/dsh-desktop-report/
+          retention-days: 14
+          if-no-files-found: warn
+
   report:
-    needs: [discover, track, check]
+    needs: [discover, track, check, desktop]
     if: always() && github.event_name != 'pull_request' && needs.discover.result == 'success' && needs.discover.outputs.count != '0'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -134,7 +175,7 @@ jobs:
       - uses: actions/download-artifact@v4
         continue-on-error: true
         with:
-          pattern: dsh-check-${{ matrix.target.version }}-*
+          pattern: dsh-*-${{ matrix.target.version }}-*
           path: ${{ runner.temp }}/dsh-reports
       - name: Maintain durable Issue and bounded draft dependency proposal
         env:
