@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { appendFile, readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { compareVersions, digest, pages, request, selectTargets, version, versionPattern, assertRepository } from './common.mjs';
+import { compareVersions, digest, pages, request, selectTargets, version, versionPattern, assertRepository, FetchError } from './common.mjs';
 export const desktopFeed = 'https://download.deepseek.com/dsh-desk/feeds/mac-arm64/nightly-mac.yml';
 export function parseDesktopFeed(source) {
   const scalar = key => {
@@ -39,7 +39,12 @@ export function combineTargets(registry, releases, desktop, baseline, manual = '
   if (d) { d.channels.push('desktop:mac-arm64'); d.desktop = { version: desktop.version, sha512: desktop.sha512, path: desktop.path }; }
   return [...all.values()].filter(t => manual ? t.version === manual.replace(/^dsh-v/, '') : compareVersions(t.version, baseline) > 0).map(t => {
     const pkg = registry.versions?.[t.version];
-    assert(pkg?.dist?.integrity && registry.time?.[t.version], `npm publish not complete: ${t.version}`);
+    if (!pkg?.dist?.integrity || !registry.time?.[t.version]) {
+      if (!t.release && !t.desktop) throw new FetchError(`Exact npm version is not published: ${t.version}`);
+      t.npm = { publishedAt: 'not yet available', integrity: null, tarball: null };
+      t.identity = digest({ version: t.version, release: t.release ?? null, desktop: t.desktop ?? null, npm: null });
+      return t;
+    }
     const tarball = new URL(pkg.dist.tarball);
     assert(tarball.origin === 'https://registry.npmjs.org' && tarball.pathname === `/@deepseek-ai/dsh/-/dsh-${t.version}.tgz`);
     t.npm = { publishedAt: registry.time[t.version], tarball: tarball.href, integrity: pkg.dist.integrity, ...( /^[a-f\d]{40}$/.test(pkg.gitHead ?? '') ? { commit: pkg.gitHead } : {} ) };

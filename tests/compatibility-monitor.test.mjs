@@ -99,3 +99,28 @@ test('lightweight discovery parses only trusted Desktop feed scalars without ins
   assert.throws(() => parseDesktopFeed(feed.replace('download.deepseek.com', 'example.org')));
   assert.throws(() => parseDesktopFeed('version: invalid'));
 });
+test('document validation remains valid in a clean relocated checkout without local research snapshots', async () => {
+  const { mkdtemp, cp, readdir } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join, dirname } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { execFileSync } = await import('node:child_process');
+  const root = dirname(dirname(fileURLToPath(import.meta.url)));
+  const tracked = new Set(['README.md', 'AGENTS.md', 'CONTRIBUTING.md', 'LICENSE', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'mise.toml', 'screenshots.json', 'tsconfig.json', 'tsconfig.client.json', 'cordis.patch.yml', '.gitignore']);
+  const scratch = await mkdtemp(join(tmpdir(), 'dsh-compat-docs-'));
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    if (entry.isFile() && tracked.has(entry.name)) await cp(join(root, entry.name), join(scratch, entry.name));
+    if (entry.isDirectory() && ['docs', 'src', 'scripts', 'tests', '.github', 'market', 'locale'].includes(entry.name)) await cp(join(root, entry.name), join(scratch, entry.name), { recursive: true });
+  }
+  const result = JSON.parse(execFileSync(process.execPath, [join(scratch, 'scripts/verify-docs.mjs')], { cwd: scratch, encoding: 'utf8' }));
+  assert.equal(result.status, 'passed'); assert(result.localLinks > 500);
+});
+
+test('GitHub-first publication remains a retryable target until npm metadata arrives', () => {
+  const t = combineTargets({ 'dist-tags': {}, versions: {}, time: {} }, [{ id: 2, tag_name: 'dsh-v0.2.2-beta.1', published_at: '2026-10-27T00:00:00Z' }], {}, baseline);
+  assert.equal(t.length, 1); assert.equal(t[0].npm.integrity, null);
+  assert.equal(compareVersions('0.2.2-beta.1', baseline), 1);
+  assert.equal(compareVersions('0.2.2-beta.1', '0.2.2-rc.1'), -1);
+  assert.equal(compareVersions('0.2.2-rc.10', '0.2.2-rc.2'), 1);
+  assert.throws(() => compareVersions('0.2.2-rc.01', baseline));
+});

@@ -129,6 +129,7 @@ try {
     : (await discover({ manual: version(report.version), local: true }))[0];
   report.version = version(report.target.version);
   assert(compareVersions(report.version, baseline.engines.dsh) > 0, 'Automatic updates must advance the baseline');
+  if (!report.target.npm?.integrity) throw new FetchError('Target npm publication is incomplete; wait for matching package metadata.');
   const targetMetadata = await request(`https://registry.npmjs.org/@deepseek-ai%2Fdsh/${report.version}`);
   assert.equal(targetMetadata.dist.integrity, report.target.npm.integrity, 'Target identity changed during discovery');
   const tarball = await request(report.target.npm.tarball, { responseType: 'bytes' });
@@ -167,6 +168,7 @@ try {
   if (!process.argv.includes('--no-gui')) await attempt(() => pnpm('normal-gui-refusal', ['run', 'verify:gui']));
   await collectReports('normal');
   await candidateOverlay();
+  await pnpm('candidate-build', ['run', 'build']);
   await attempt(() => pnpm('candidate-platform', ['run', 'verify:platform']));
   await attempt(() => command('upgrade-verify', process.execPath, ['scripts/compatibility/upgrade-worker.mjs', 'verify', upgradeManifest]));
   if (!process.argv.includes('--no-gui')) await attempt(() => pnpm('candidate-gui', ['run', 'verify:gui']));

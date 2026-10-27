@@ -2,15 +2,28 @@
 // Copyright (c) 2026 takboo. See ./LICENSE.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-export const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-rc\.(0|[1-9]\d*))?$/;
+export const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([A-Za-z\d-]+(?:\.[A-Za-z\d-]+)*))?$/;
 export function version(value) {
-  assert(typeof value === 'string' && versionPattern.test(value), 'Expected exact X.Y.Z or X.Y.Z-rc.N version');
+  assert(typeof value === 'string' && value.length <= 100 && versionPattern.test(value), 'Expected exact X.Y.Z or X.Y.Z-prerelease version');
+  const m = versionPattern.exec(value);
+  assert(m.slice(1, 4).every(v => Number.isSafeInteger(Number(v))), 'Version components exceed SemVer bounds');
+  assert(!m[4]?.split('.').some(v => /^\d+$/.test(v) && v.length > 1 && v.startsWith('0')), 'Numeric prerelease identifiers cannot have leading zeros');
   return value;
 }
 export function compareVersions(a, b) {
-  const parts = value => { const m = versionPattern.exec(version(value)); return [Number(m[1]), Number(m[2]), Number(m[3]), m[4] === undefined ? Infinity : Number(m[4])]; };
-  const x = parts(a), y = parts(b);
-  for (let i = 0; i < 4; i++) if (x[i] !== y[i]) return x[i] > y[i] ? 1 : -1;
+  const x = versionPattern.exec(version(a)), y = versionPattern.exec(version(b));
+  for (let i = 1; i <= 3; i++) if (Number(x[i]) !== Number(y[i])) return Number(x[i]) > Number(y[i]) ? 1 : -1;
+  if (x[4] === y[4]) return 0;
+  if (!x[4] || !y[4]) return !x[4] ? 1 : -1;
+  const left = x[4].split('.'), right = y[4].split('.');
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    if (left[i] === right[i]) continue;
+    if (left[i] === undefined || right[i] === undefined) return left[i] === undefined ? -1 : 1;
+    const xn = /^\d+$/.test(left[i]), yn = /^\d+$/.test(right[i]);
+    if (xn && yn) return BigInt(left[i]) > BigInt(right[i]) ? 1 : -1;
+    if (xn !== yn) return xn ? -1 : 1;
+    return left[i] > right[i] ? 1 : -1;
+  }
   return 0;
 }
 export const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
