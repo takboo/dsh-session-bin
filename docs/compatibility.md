@@ -10,9 +10,30 @@
 
 沿用 [dsh-usage-state 的检测与 Issue 机制](https://github.com/takboo/dsh-usage-state/blob/main/.github/workflows/dsh-compatibility.yml)：发现、检查和报告分离；开始检查前先写入 running 状态与尝试次数，避免中断后无限重复；按版本维护一个 Issue，只有机器人或仓库所有者的有效状态标记参与去重。发布物 identity 包括 npm integrity、Release/commit 和匹配桌面发布物；渠道汇合更新原 Issue，新增发布物可补跑，不自动降级。每轮至多处理三个版本。
 
-网络、安装准备、超时、任务中断或缺报告记为 `retry`；间隔至少六小时，每个发布物 identity 最多自动尝试三次。断言失败为 `failed`，不自动无限重试；手动精确版本可复验。源码审阅及桌面资格尚未完成的候选成功结果为 `partial`，不写作生产支持。Issue 保存基线、目标来源、平台结果和 Actions 链接；Artifacts 只保留报告、必要日志及失败截图，保留期 14 天，依赖、浏览器、测试会话与真实用户数据不上传。
+网络、安装准备、超时、任务中断或缺报告记为 `retry`；间隔至少六小时，npm 与 Desktop 各自按发布物 identity 最多自动尝试三次。断言失败为 `failed`，不自动无限重试；手动精确版本可复验。源码审阅及生产资格尚未完成的候选成功结果为 `partial`，不写作生产支持。Issue 保存基线、目标来源、组件结果和各自的 Actions/source commit；Artifacts 只保留报告、必要日志及失败截图，保留期 14 天，依赖、应用 ZIP、浏览器、测试会话与真实用户数据不上传。
 
 候选验证在五个独立标准 runner 执行：Windows x64、macOS ARM64/Intel、Ubuntu ARM64/x64。检查 job 只有读取权限；报告 job 才有 Issue、草稿 PR 与分支写权限，PR 事件不运行写入 job。机器人创建草稿 PR 需要仓库允许 GitHub Actions 创建 PR；创建失败会保留 Issue 与依赖提案并报告原因。验证直接在同一 workflow 串联，不依赖机器人 PR 自动触发 CI。
+
+### 官方 Desktop 与重复工作控制
+
+仍使用同一个每小时工作流，不增加第二个 cron 或 `workflow_run` 链。轻量发现读取渠道与 Issue；只有待检查组件才分配 runner：
+
+| 变化 | 实际运行 |
+| --- | --- |
+| 新 npm integrity | 五平台 SDK；已有匹配 Desktop 时同时检查桌面 |
+| npm 已完成，匹配 Desktop 首次到达或 ZIP 摘要改变 | 只补一个 macOS ARM64 Desktop job，保留旧 SDK run/source 身份 |
+| 仅新增 GitHub Release 元数据 | 只更新报告，不重跑已完成组件 |
+| 同一发布物的候选检查已完成 | 下小时仅发现，无 SDK/Desktop job |
+| 组件遇到基础设施故障或中断 | 六小时后只重试该组件，最多三次 |
+| 对应依赖已合并成为当前 baseline | 不再按小时重验该旧版本；新版本仍继续检测 |
+
+旧 Issue 没有独立组件状态时需一次完整验证建立新记录；维护者可将已核对来源/提交的本轮完整 CI 产物交给报告器建立记录。不能仅凭旧 Issue 的 partial 文本猜测 SDK 资格。PR 事件重新验证本次代码，但不改 Issue/PR；常规生命周期 CI 验证当前正式构建，新版监测验证另一精确版本/载体，两者目的不同。
+
+Desktop job 下载 feed 声明的精确官方 macOS ARM64 ZIP，核对 SHA-512、归档路径、完整签名与 DeepSeek Team ID，在工作区 `.local/compatibility-desktop/` 独立解压。只接受既有审阅的 Electron `44.7.0` / Node `24.21.0` / libuv `1.52.1` / ABI `149`、ARM64/APFS；未知载体直接报告失败，不能自动更改运行时名单。所有会话使用临时 DSH_HOME，且不访问或替换已安装应用。
+
+先在真实 ASAR Host 上验证正式源码的未准入准备拒绝及日志保留，再用该 Electron 运行真实 Loader 和双语 Web GUI；然后在副本生成明确标记的 SDK 候选映射，运行实际 ASAR 的全量生命周期/原生模块、八组 raw/zstd 冷升级恢复、Loader，以及该 Electron 上的双语 Web GUI。ASAR 源码须匹配此次 npm 候选指纹。浏览器 GUI 的 Host/client 为公开 Web 产物，ASAR 由独立完整测试与 probe 覆盖；不声称驱动原生 Desktop shell、物理输入法或真实账号推理。
+
+报告器更新同版本 Issue（rc.4 为 #16），并在现有依赖 PR（rc.4 为 #17）维护一条带标记的状态评论；不重写人工描述或分支文件，开放 PR 保持 Draft。即使全部候选阶段成功，仍为 partial，正式源码审阅、生产组合准入和最终提交全量 CI 由维护者完成，不自动关闭 Issue、标记 Ready、合并或发布。
 
 ## 受控更新与永久删除边界
 
@@ -22,7 +43,7 @@
 2. 在副本中只更新显式列出的官方 DSH 精确依赖及 release-age 例外，生成并冻结 lockfile，记录实际解析版本；禁用安装脚本。不自动更新 Node、Electron、其他顶层依赖或删除协议。
 3. 使用未改源码准入的正常构建运行类型、Loader 和双语 GUI。未准入新版须明确拒绝单项/批量/清空，验证零执行和日志保留；源码指纹参与报告资格判断，不能只凭 OS 判定。显式打开原生历史后，以只读 JSONL Context 观察已持久化的初始化事件并冻结删除前快照；该 Context 不挂载 Workspace/domain，也不取得写所有权。只允许该历史窗口内已审计的四类初始化事件追加，保留原始事件及压缩字节前缀，其他会话完全不变；每次删除准备/取消窗口前后及最后重开均逐事件、逐字节比较，不允许插件删除尝试追加或改写日志。
 4. 只在隔离副本中生成候选源码版本/摘要映射，保留 durable 协议身份。源码差异完整记录；JSONL 类身份、生命周期、活动保护、资源范围等断言不放宽。运行完整平台回归、旧冻结计划/中断样本恢复、真实 Loader 与双语 GUI。已知验证失败仍保留，并继续收集独立阶段证据。
-5. 候选报告标记 `candidate`，不能满足发布所需的 productionDeletionQualified / supported 条件。正式代码没有环境变量准入绕过入口。源码审阅与官方桌面 Electron/ASAR 验收另行完成；feed 未提供对应桌面包时记为等待，不复用旧版资格。
+5. 候选报告标记 `candidate`，不能满足发布所需的 productionDeletionQualified / supported 条件。正式代码没有环境变量准入绕过入口。官方桌面到达后由独立组件补充 Electron/ASAR 候选检查；feed 未提供对应桌面包时记为等待，不复用旧版资格。正式源码审阅和生产组合准入仍另行决定。
 
 依赖提案仅包含 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`，报告 job 重新核对文件白名单、目标版本、原 manifest 和策略。草稿 PR 保持原有生产准入、运行时/平台范围与插件发布版本，关联对应 Issue。自动化不会覆盖已有提案或维护者修改；后续证据仍写入 Issue，维护者决定是否更新分支。
 
@@ -37,9 +58,12 @@
 ```sh
 mise run compat:discover -- --local
 DSH_VERSION=0.2.1-rc.4 mise run compat:check
+DSH_VERSION=0.2.1-rc.4 mise run compat:desktop
 ```
 
 `compat:discover --local` 只读查询上游，不访问 Issue；可用 `DSH_VERSION` 固定版本。`compat:check` 默认运行正常拒绝与候选双语 GUI，需要可用 Chromium；`--no-gui` 仅供诊断，报告保留未覆盖范围。每次生成独立目录，不复用上轮测试会话。命令结果写在该目录的 `report/report.json`，终端同时输出目录位置。
+
+`compat:desktop` 只在 macOS ARM64/APFS 上运行，必须有匹配的官方 feed；不接受用户安装应用路径替代下载来源。`--current-baseline` 仅供对当前已发布桌面版本演练验证器，不证明未来版本的兼容性。缺少 GUI/ASAR/恢复阶段的报告不能被报告器当成完成证据。
 
 本地检查不创建 Issue/PR。写入由默认分支的 report job 完成；同一 workflow 的 PR 验证只读，并忽略持久 Issue 状态以复验本次代码变更；定时任务仍遵守去重和有限重试。此自动化不调用付费 AI 服务。标准 GitHub-hosted runner 在公开仓库的运行分钟免费，Artifact/缓存仍遵循账户额度与 GitHub 当前计费规则。
 

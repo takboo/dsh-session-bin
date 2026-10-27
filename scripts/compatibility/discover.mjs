@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict';
 import { appendFile, readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { compareVersions, digest, pages, request, selectTargets, version, versionPattern, assertRepository, FetchError } from './common.mjs';
+import { compareVersions, digest, pages, request, version, versionPattern, assertRepository, FetchError } from './common.mjs';
+import { selectChecks } from './planning.mjs';
 export const desktopFeed = 'https://download.deepseek.com/dsh-desk/feeds/mac-arm64/nightly-mac.yml';
 export function parseDesktopFeed(source) {
   const scalar = key => {
@@ -53,7 +54,7 @@ export function combineTargets(registry, releases, desktop, baseline, manual = '
     return t;
   });
 }
-export async function discover({ manual = '', token, repo, local = false } = {}) {
+export async function discover({ manual = '', token, repo, local = false, pullRequest = false } = {}) {
   const baseline = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8')).engines.dsh;
   const [registry, releases, feed, issues] = await Promise.all([
     request('https://registry.npmjs.org/@deepseek-ai%2Fdsh'),
@@ -68,15 +69,19 @@ export async function discover({ manual = '', token, repo, local = false } = {})
     assert(/^[a-f\d]{40}$/.test(commit.sha)); target.commit = commit.sha;
   }
   for (const target of targets) target.identity = digest({ version: target.version, npm: target.npm, release: target.release ?? null, desktop: target.desktop ?? null, commit: target.commit ?? null });
-  const selected = selectTargets(targets, issues, { baseline, manual: normalized });
+  const selected = selectChecks(targets, issues, { baseline, manual: normalized, pullRequest });
   if (manual) assert.equal(selected.length, 1, 'Exact published target not found');
   return selected;
 }
 async function main() {
   const targets = await discover({ manual: process.env.DSH_VERSION ?? '', token: process.env.GH_TOKEN,
-    repo: process.env.GITHUB_REPOSITORY, local: process.argv.includes('--local') || process.env.GITHUB_EVENT_NAME === 'pull_request' });
+    repo: process.env.GITHUB_REPOSITORY, local: process.argv.includes('--local') || process.env.GITHUB_EVENT_NAME === 'pull_request',
+    pullRequest: process.env.GITHUB_EVENT_NAME === 'pull_request' });
   if (process.env.DSH_TARGET_FILE) await writeFile(process.env.DSH_TARGET_FILE, JSON.stringify(targets[0], null, 2) + '\n');
-  if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({ include: targets })}\ncount=${targets.length}\n`);
+  if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT,
+    `matrix=${JSON.stringify({ include: targets })}\ncount=${targets.length}\n`
+    + `sdk_matrix=${JSON.stringify({ include: targets.filter(t => t.runSdk) })}\nsdk_count=${targets.filter(t => t.runSdk).length}\n`
+    + `desktop_matrix=${JSON.stringify({ include: targets.filter(t => t.runDesktop) })}\ndesktop_count=${targets.filter(t => t.runDesktop).length}\n`);
   console.log(JSON.stringify(targets, null, 2));
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(error => { console.error(error); process.exitCode = 1; });

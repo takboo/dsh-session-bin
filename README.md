@@ -35,7 +35,7 @@
 
 表格记录实际验收环境，不代表所有 Windows、macOS 或 Linux 版本均已验证。Windows ARM64、其他桌面架构/版本、普通 Node `24.21.0` 及未验证的存储组合不在永久删除支持范围内。永久删除还会检查宿主源码、资源身份和当前状态；不满足条件时明确拒绝。完整准入与限制见 [Host 生命周期](docs/host-lifecycle.md)。
 
-新版 DSH 的自动检测、隔离候选验证与 Issue/草稿 PR 流程见[兼容性自动检查](docs/compatibility.md)。每小时检查上游发布渠道，产物保留 14 天；候选结果不自动扩大永久删除准入，不自动合并或发布。
+新版 DSH 的自动检测、隔离候选验证与 Issue/草稿 PR 流程见[兼容性自动检查](docs/compatibility.md)。每小时检查上游发布渠道；匹配的官方 macOS ARM64 Desktop 到达后，在独立解压的 Electron/ASAR 载体上补充候选验证。npm 与 Desktop 分别去重，产物保留 14 天；候选结果不自动扩大永久删除准入，依赖 PR 保持草稿，不自动合并或发布。
 
 ## 安装
 

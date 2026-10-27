@@ -106,6 +106,10 @@ run = "pnpm run compat:check"
 description = "Maintain compatibility Issues and draft dependency proposals"
 run = "node scripts/compatibility/report.mjs"
 
+[tasks."compat:desktop"]
+description = "Verify an official signed macOS ARM64 Desktop on isolated candidate sessions"
+run = "pnpm run compat:desktop"
+
 [tasks."verify:docs"]
 description = "Check current document links and anchors"
 run = "pnpm run verify:docs"

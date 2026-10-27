@@ -64,6 +64,7 @@
     "verify:desktop:gui": "node scripts/verify-desktop.mjs --gui",
     "compat:discover": "node scripts/compatibility/discover.mjs",
     "compat:check": "node scripts/compatibility/check.mjs",
+    "compat:desktop": "node scripts/compatibility/desktop.mjs",
     "compat:report": "node scripts/compatibility/report.mjs",
     "verify:docs": "node scripts/verify-docs.mjs"
   },

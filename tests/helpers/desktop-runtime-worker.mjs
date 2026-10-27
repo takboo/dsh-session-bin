@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { createScratch, transcript } from './fixture.mjs';
 import { openNativeDeletionFixture } from './native-deletion-fixture.mjs';
 import { nativePlatformVerified } from '../../dist/index.js';
+import { deletionQualification } from '../../scripts/deletion-qualification.mjs';
 
 assert.equal(process.platform, 'darwin');
 assert.equal(process.arch, 'arm64');
@@ -40,6 +41,8 @@ for (const [name, entry] of Object.entries(expected)) {
   }
 }
 assert(nativePlatformVerified(), 'The installed Desktop carrier must have independent production qualification.');
+const qualification = await deletionQualification(nativePlatformVerified);
+assert(qualification.qualified);
 const root = await createScratch('desktop-production-probe-');
 const fixture = await openNativeDeletionFixture(root, { seed: true, productService: true });
 try {
@@ -48,6 +51,8 @@ try {
   assert.deepEqual(plan.blockers, [], 'Permanent deletion is not supported by this Host and storage combination.');
   assert.deepEqual(await transcript(fixture, 'quiet'), before);
   console.log(JSON.stringify({ status: 'passed', sdk: descriptor.release.version,
+    productionDeletionQualified: qualification.productionDeletionQualified,
+    candidateDeletionQualified: qualification.mode === 'candidate',
     node: process.versions.node, uv: process.versions.uv, electron: process.versions.electron,
     modules: process.versions.modules, sqlite: process.versions.sqlite, zstd: process.versions.zstd,
     platform: process.platform, arch: process.arch, sources, prepareBlockers: plan.blockers,

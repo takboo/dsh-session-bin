@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, readdir, statfs, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, readdir, statfs, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { configuredNodeVersion } from './package-manager.mjs';
@@ -14,6 +14,9 @@ const application = resolve(process.env.DSH_SESSION_BIN_DESKTOP_APP ?? '/Applica
 const executable = join(application, 'Contents/MacOS/DeepSeek Harness');
 const sdkRoot = join(application, 'Contents/Resources/app.asar/dsh');
 const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+let candidate = false;
+try { await access(join(root, '.compatibility-candidate.json')); candidate = true; }
+catch (error) { if (error.code !== 'ENOENT') throw error; }
 const parent = join(root, '.local/desktop');
 await mkdir(parent, { recursive: true });
 const scratch = await mkdtemp(join(parent, 'darwin-arm64-'));
@@ -42,6 +45,7 @@ async function run(name, args, { capture = false } = {}) {
   return output;
 }
 const report = { status: 'running', sdk: manifest.engines.dsh, packageVersion: manifest.version,
+  candidateDeletionQualified: candidate, productionDeletionQualified: !candidate,
   application, scratch, filesystem: { name: 'APFS', type: '0x1a' }, evidence: [],
   scope: 'Installed Electron carrier; actual ASAR Host/native modules; isolated sessions. Browser fixtures use published client artifacts.',
   limits: 'Only macOS ARM64, Electron 44.7.0 / Node 24.21.0 / libuv 1.52.1 on APFS. No native Desktop shell or physical OS input-method claim.' };
@@ -59,7 +63,8 @@ try {
       assert.equal(gui.status, 'passed');
       assert.equal(gui.node, 'v24.21.0');
       assert.equal(gui.electron, '44.7.0');
-      assert.equal(gui.deletionQualification, 'supported');
+      assert.equal(gui.deletionQualification, candidate ? 'candidate' : 'supported');
+      assert.equal(gui.productionDeletionQualified, !candidate);
       assert.equal(gui.checks.length, 17);
       assert(gui.delayedHistoryRequests > 0);
       assert.equal(gui.historyReadiness?.length, 2);
