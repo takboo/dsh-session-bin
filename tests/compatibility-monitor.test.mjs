@@ -73,6 +73,8 @@ test('Issue reports label candidate evidence and retain run/source identities wi
 test('workflow keeps hourly monitoring, fourteen-day retention and isolated write permissions', async () => {
   const workflow = parse(await readFile(new URL('../.github/workflows/dsh-compatibility.yml', import.meta.url), 'utf8'));
   assert.equal(workflow.on.schedule[0].cron, '17 * * * *');
+  assert(workflow.on.pull_request.paths.includes('scripts/gui-preservation.mjs'));
+  assert(workflow.on.pull_request.paths.includes('tests/gui-preservation.test.mjs'));
   assert.deepEqual(workflow.jobs.check.permissions, { contents: 'read' });
   assert.equal(workflow.jobs.report.permissions.issues, 'write');
   assert.equal(workflow.jobs.track.permissions.issues, 'write');
