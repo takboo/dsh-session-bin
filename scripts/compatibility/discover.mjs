@@ -74,7 +74,7 @@ export async function discover({ manual = '', token, repo, local = false } = {})
 }
 async function main() {
   const targets = await discover({ manual: process.env.DSH_VERSION ?? '', token: process.env.GH_TOKEN,
-    repo: process.env.GITHUB_REPOSITORY, local: process.argv.includes('--local') });
+    repo: process.env.GITHUB_REPOSITORY, local: process.argv.includes('--local') || process.env.GITHUB_EVENT_NAME === 'pull_request' });
   if (process.env.DSH_TARGET_FILE) await writeFile(process.env.DSH_TARGET_FILE, JSON.stringify(targets[0], null, 2) + '\n');
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({ include: targets })}\ncount=${targets.length}\n`);
   console.log(JSON.stringify(targets, null, 2));

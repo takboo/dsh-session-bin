@@ -41,7 +41,7 @@ DSH_VERSION=0.2.1-rc.4 mise run compat:check
 
 `compat:discover --local` 只读查询上游，不访问 Issue；可用 `DSH_VERSION` 固定版本。`compat:check` 默认运行正常拒绝与候选双语 GUI，需要可用 Chromium；`--no-gui` 仅供诊断，报告保留未覆盖范围。每次生成独立目录，不复用上轮测试会话。命令结果写在该目录的 `report/report.json`，终端同时输出目录位置。
 
-本地检查不创建 Issue/PR。写入由默认分支的 report job 完成；同一 workflow 的 PR 验证只读。此自动化不调用付费 AI 服务。标准 GitHub-hosted runner 在公开仓库的运行分钟免费，Artifact/缓存仍遵循账户额度与 GitHub 当前计费规则。
+本地检查不创建 Issue/PR。写入由默认分支的 report job 完成；同一 workflow 的 PR 验证只读，并忽略持久 Issue 状态以复验本次代码变更；定时任务仍遵守去重和有限重试。此自动化不调用付费 AI 服务。标准 GitHub-hosted runner 在公开仓库的运行分钟免费，Artifact/缓存仍遵循账户额度与 GitHub 当前计费规则。
 
 ## 复用来源
 
