@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { assertHistoryTransition, assertFrozenTranscripts, assertPhysicalTransition } from './gui-preservation.mjs';
+import { deletionQualification as inspectDeletionQualification } from './deletion-qualification.mjs';
 import { fork, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { access, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
@@ -22,7 +24,7 @@ import { workflowError } from './ci-diagnostics.mjs';
 const require = createRequire(import.meta.url);
 const workspace = fileURLToPath(new URL('../', import.meta.url));
 const guiHostWorker = fileURLToPath(new URL('./gui-host-worker.mjs', import.meta.url));
-const expectedSdk = '0.2.1-rc.3';
+const expectedSdk = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')).engines.dsh;
 const fixtures = [
   { id: 'gui-quiet', title: '待整理的设计讨论', workspace: 'primary' },
   { id: 'gui-sibling', title: '接口实现记录', workspace: 'primary' },
@@ -468,6 +470,18 @@ async function openSdkFixture(paths, seed = false) {
     return { ctx, close };
   } catch (error) { await close(); throw error; }
 }
+// A second read-only JSONL context observes committed bytes without opening
+// Workspace/domain services or activating an Agent in the live Web Host.
+async function openTranscriptReader(paths) {
+  const ctx = new Context();
+  try {
+    await ctx.plugin(SessionStore);
+    const fiber = ctx.plugin(Jsonl, { root: paths.sessions, compression: 'zstd' });
+    await fiber; if (fiber.error) throw fiber.error;
+    return { ctx, close: () => ctx.fiber.dispose() };
+  } catch (error) { await ctx.fiber.dispose(); throw error; }
+}
+
 async function readLogs(fixture, excluded = []) {
   const logs = {};
   for (const item of fixtures.filter(item => !excluded.includes(item.id))) {
@@ -506,7 +520,10 @@ async function physicalLogs(fixture, paths) {
     const files = [];
     for (const member of members.filter(member => process.platform === 'win32' || member.name !== 'session.lock').sort((a, b) => a.name.localeCompare(b.name))) {
       const path = join(directory, member.name);
-      files.push({ path, name: member.name, sha256: createHash('sha256').update(await readFile(path)).digest('hex') });
+      const bytes = await readFile(path);
+      const identity = await lstat(path, { bigint: true });
+      files.push({ path, name: member.name, bytes, identity: { device: String(identity.dev), inode: String(identity.ino), birthtimeNs: String(identity.birthtimeNs) },
+        sha256: createHash('sha256').update(bytes).digest('hex') });
     }
     assert(files.some(file => file.path === canonicalArtifact), 'Current seeded diagnostic artifact must physically exist');
     result[item.id] = { directory, directoryIdentity: { device: String(directoryIdentity.dev), inode: String(directoryIdentity.ino) }, files, coordination };
@@ -884,7 +901,7 @@ function observeDeletionRpc(page, report) {
   });
 }
 
-async function runGui(page, paths, report, beforePhysical) {
+async function runGui(page, paths, report, beforePhysical, preservation) {
   observeDeletionRpc(page, report);
   const [quiet, sibling, nativeOnly, prearchived] = fixtures;
   await page.waitForFunction(() => Array.isArray(window.__DSH_BOOT__?.entries));
@@ -1021,28 +1038,33 @@ async function runGui(page, paths, report, beforePhysical) {
   report.checks.push('Preexisting archives unarchive normally and the empty collection shows native Archive guidance');
   report.coverage.push('single/batch unarchive', 'singular/plural/empty collection', 'native row convergence');
 
+  let historyStartedAt = Date.now();
   await openNativeHistory(page, nativeOnly, report);
   report.coverage.push('open native history before archive and permanent deletion');
   await archiveSession(page, nativeOnly.id);
   await skipOptionalModelSetup(page);
   root = await assertPanelCopy(page, 1);
   report.membershipBeforeDeletion = await readWorkspaceMembership(paths);
+  if (report.deletionQualification === 'unsupported') await preservation.begin({ sessionId: nativeOnly.id, startedAt: historyStartedAt });
   await button(panelEntry(root, nativeOnly.title), ui.deleteAction(nativeOnly.title)).click();
   let deletion = page.getByRole('dialog', { name: ui.deleteTitle(nativeOnly.title), exact: true });
   await deletion.waitFor({ state: 'visible' });
   await eventually(async () => assert(await button(deletion, ui.deleteCancel).evaluate(element => element === document.activeElement)), 'Deletion initially focuses Cancel');
-  assert.equal(await button(deletion, ui.deleteConfirm).isEnabled(), report.deletionQualification === 'supported');
+  assert.equal(await button(deletion, ui.deleteConfirm).isEnabled(), report.deletionQualification !== 'unsupported');
   assert.equal(report.deletionExecutions.length, 0, 'Preparing a dialog never executes deletion');
   await button(deletion, ui.deleteCancel).click();
   await deletion.waitFor({ state: 'hidden' }); await panelCount(root, 1);
   assert.equal(report.deletionExecutions.length, 0, 'Cancel must never submit the destructive request');
+  if (report.deletionQualification === 'unsupported') await preservation.end('cancelled-first-single');
   await button(panelEntry(root, nativeOnly.title), ui.restore).click();
   await assertPanelCopy(page, 0);
+  historyStartedAt = Date.now();
   await openNativeHistory(page, nativeOnly, report);
   await archiveSession(page, nativeOnly.id);
   await skipOptionalModelSetup(page);
   root = await assertPanelCopy(page, 1);
   report.coverage.push('cancel deletion, unarchive, reopen, and archive the released lifecycle again');
+  if (report.deletionQualification === 'unsupported') await preservation.begin({ sessionId: nativeOnly.id, startedAt: historyStartedAt });
   await button(panelEntry(root, nativeOnly.title), ui.deleteAction(nativeOnly.title)).click();
   deletion = page.getByRole('dialog', { name: ui.deleteTitle(nativeOnly.title), exact: true });
   await deletion.waitFor({ state: 'visible' });
@@ -1050,7 +1072,7 @@ async function runGui(page, paths, report, beforePhysical) {
   await drainDiagnostics();
   assert.equal(report.deletionPrepares.length, 2, 'Cancelled and second dialogs prepare distinct explicit plans');
   assert.notEqual(report.deletionPrepares[0].operationId, report.deletionPrepares[1].operationId);
-  if (report.deletionQualification === 'supported') {
+  if (report.deletionQualification !== 'unsupported') {
     assert.equal(await confirmButton.isEnabled(), true, `Cold archived GUI target must be eligible: ${await deletion.innerText()}\n${JSON.stringify(report.deletionPrepares)}`);
     assert(report.deletionPrepares.every(plan => plan.status === 'prepared' && plan.fixedRequestValid && plan.schemaVersion === 2
       && plan.sessionId === nativeOnly.id && plan.expectedEntryId && plan.bound && plan.frozen && plan.blockers.length === 0),
@@ -1185,7 +1207,7 @@ async function runGui(page, paths, report, beforePhysical) {
     assert(clearPlans[0].fixedRequestValid && clearPlans[0].sessionId === prearchived.id
       && clearPlans[0].bound && clearPlans[0].frozen && clearPlans[0].blockers.length === 0,
     'Clear-all must prepare the complete hidden archive set, not only visible rows');
-    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), report.deletionQualification === 'supported');
+    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), report.deletionQualification !== 'unsupported');
     report.screenshots.clearAll = await screenshot(page, paths, 'session-bin-clear-all-confirmation');
     assert.equal(report.deletionExecutions.length, clearExecuteStart, 'Unconfirmed clear-all executes nothing');
     await button(clearDialog, ui.deleteCancel).click();
@@ -1253,6 +1275,7 @@ async function runGui(page, paths, report, beforePhysical) {
       confirmDisabled: true, executeCount: 0 };
     await button(deletion, ui.deleteCancel).click();
     await deletion.waitFor({ state: 'hidden' });
+    await preservation.end('cancelled-second-single');
     await button(panelEntry(root, nativeOnly.title), ui.restore).click();
     await assertToastCopy(page, ui.restored);
     root = await assertPanelCopy(page, 0);
@@ -1305,7 +1328,7 @@ async function runGui(page, paths, report, beforePhysical) {
     assert(clearPlans.every(plan => plan.status === 'prepared' && plan.fixedRequestValid
       && plan.blockers.includes('permanent-deletion-unsupported')));
     assert.equal(await clearConfirmButton.isEnabled(), false);
-    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), report.deletionQualification === 'supported');
+    assert.equal(await button(clearDialog, ui.batchConfirm).isEnabled(), report.deletionQualification !== 'unsupported');
     assert.equal(report.deletionExecutions.length, 0);
     await button(clearDialog, ui.deleteCancel).click();
     await clearDialog.waitFor({ state: 'hidden' });
@@ -1390,11 +1413,12 @@ async function main() {
   const browserEnvironment = { ...environment, TMPDIR: browserTmp, TMP: browserTmp, TEMP: browserTmp };
   const browserConsole = [];
   const pageErrors = [];
-  const deletionQualification = nativePlatformVerified() ? 'supported' : 'unsupported';
+  const qualification = await inspectDeletionQualification(nativePlatformVerified);
+  const deletionQualification = qualification.mode;
   const report = {
     status: 'running', sdk: expectedSdk, node: process.version, electron: process.versions.electron ?? null, platform: process.platform, arch: process.arch,
     scratch, locale: browserLocale, requestedLanguage,
-    deletionQualification,
+    deletionQualification, productionDeletionQualified: qualification.productionDeletionQualified,
     browserExecutable: browserSelection, isolatedTemporaryEnvironment: { TMPDIR: paths.tmp, TMP: paths.tmp, TEMP: paths.tmp },
     browserTemporaryEnvironment: { TMPDIR: browserTmp, TMP: browserTmp, TEMP: browserTmp },
     checks: [], coverage: [], languageSwitches: [], metadata: [], hostLaunches: [], hostShutdown: [],
@@ -1450,7 +1474,35 @@ async function main() {
     await page.goto(host.authenticatedUrl, { waitUntil: 'domcontentloaded' });
     await page.waitForURL(url => !url.searchParams.has('token'));
     assert.equal(new URL(page.url()).origin, new URL(host.cleanUrl).origin);
-    await runGui(page, paths, report, beforePhysical);
+    const readPreservation = async () => {
+      const reader = await openTranscriptReader(paths);
+      try { return { logs: await readLogs(reader), physical: await physicalLogs(reader, paths) }; }
+      finally { await reader.close(); }
+    };
+    const preservation = {
+      async begin(window) {
+        let snapshot, added;
+        await eventually(async () => {
+          snapshot = await readPreservation();
+          added = assertHistoryTransition(beforeLogs, snapshot.logs, { ...window, observedAt: Date.now() });
+          // An opened fixture must finish its audited initialization before any
+          // plugin prepare request; an unchanged repeat open needs no new events.
+          if (!report.nativeInitialization?.length) assert.equal(added.length, 4);
+        }, 'Native history initialization must be durably readable before the deletion baseline');
+        assertPhysicalTransition(beforePhysical, snapshot.physical, { sessionId: window.sessionId, appended: added.length });
+        report.nativeInitialization ??= [];
+        report.nativeInitialization.push({ sessionId: window.sessionId, appendedTypes: added.map(event => event.type), beforePluginPrepare: true });
+        beforeLogs = snapshot.logs; beforePhysical = snapshot.physical;
+      },
+      async end(stage) {
+        const snapshot = await readPreservation();
+        assertFrozenTranscripts(beforeLogs, snapshot.logs);
+        assertPhysicalTransition(beforePhysical, snapshot.physical);
+        report.refusedDeletionPreservation ??= [];
+        report.refusedDeletionPreservation.push({ stage, unchangedTranscript: true, unchangedBytes: true });
+      },
+    };
+    await runGui(page, paths, report, beforePhysical, preservation);
     assert(report.delayedHistoryRequests > 0, 'The native history readiness regression must exercise a delayed real Gateway stream.');
     assert.equal(report.historyReadiness?.length, 2, 'Both native history opens must finish before archive and purge.');
     await drainDiagnostics();
@@ -1464,7 +1516,7 @@ async function main() {
     activeHost = undefined;
     const after = await openSdkFixture(paths);
     try {
-      if (report.deletionQualification === 'supported') {
+      if (report.deletionQualification !== 'unsupported') {
         const deleted = new Set(report.deletedSessionIds);
         const expectedLogs = Object.fromEntries(Object.entries(beforeLogs).filter(([id]) => !deleted.has(id)));
         assert.deepEqual(await readLogs(after, report.deletedSessionIds), expectedLogs,
@@ -1572,4 +1624,4 @@ if (import.meta.main) {
   finally { process.off('SIGINT', onInterrupt); process.off('SIGTERM', onInterrupt); }
 }
 
-export { runCommand };
+export { runCommand, openTranscriptReader };

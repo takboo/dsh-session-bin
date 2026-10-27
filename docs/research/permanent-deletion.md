@@ -45,7 +45,7 @@ The single-session endpoint uses Host-local `enqueueOperation()`. Its body check
 | Writer lock | Deletion never acquires `acquireLease`; **repair** does. JSONL directory removal includes POSIX `session.lock`. SDK acquisition uses `flock` and device/inode validation; release closes the descriptor without unlinking. [Repair][ref-repair], [delete][ref-delete], [removal][ref-removal], [SDK lease][sdk-lease], [limits][sdk-jsonl-limits]. | Unlinking a live lock forfeits exclusion. Another writer/newly admitted writer is not excluded by local detach or the Bin lease. The existing single-Host boundary is retained. [Deployment contract](../host-lifecycle.md#并发与部署边界). |
 | Flush/close | `SessionStore.flush` awaits durability listeners, not writer close. Detach emits disposal without collectively awaiting async observers; JSONL's observer starts `writer.close().catch(...)` without a caller-awaited close barrier. Handles retain separate lifetimes. [Session runtime][sdk-session-runtime], [JSONL listeners][sdk-jsonl-lifetime]. | The fixture observes close-before-removal in its tested case, but that does not establish settlement of all observers, retained handles, Agents, or competing Hosts. The projection tail is not a provider-wide close acknowledgement. [Fixture][ref-latest-fixture]. |
 | Activity/current | Archive uses the native activity waterfall; delete has no such gate or stop-settlement barrier. Native delete-menu/confirmation has no archived/current/running/pending predicate. Delete text includes running children; idle cleanup protections apply to archiving. [Archive][ref-archive], [delete][ref-delete], [menu][ref-menu], [wording][ref-delete-copy], [idle rules][ref-organizer]. | Current/active protection is not established for permanent deletion. Archive success and detach do not prove all work stopped. |
-| Ownership/absence | Batch uses native global archives; single delete admits unarchived known Sessions. Favorites do not establish Bin ownership. Unknown-delete cleanup does not prove absence; a separate pruning helper uses `stat`, and native discovery can omit unreadable headers. [Batch][ref-batch], [delete][ref-delete], [test][ref-host-delete-tests], [favorites][ref-favorites], [absence helper][ref-absence], [SDK discovery][sdk-jsonl-layout]. | Native archive/confirmation cannot replace durable entry identity and execution-time checks. Unknown indexes cannot prove artifacts absent. [Session Bin semantics](../host-lifecycle.md#公共接口). |
+| Ownership/absence | Batch uses native global archives; single delete admits unarchived known Sessions. Favorites do not establish Bin ownership. Unknown-delete cleanup does not prove absence; a separate pruning helper uses `stat`, and native discovery can omit unreadable headers. [Batch][ref-batch], [delete][ref-delete], [test][ref-host-delete-tests], [favorites][ref-favorites], [absence helper][ref-absence], [SDK discovery][sdk-jsonl-layout]. | Native archive/confirmation cannot replace durable entry identity and execution-time checks. Unknown indexes cannot prove artifacts absent. [Session Bin semantics](../host-lifecycle.md#原生归档公共接口). |
 
 ## Linked resources and accounting
 
@@ -112,7 +112,7 @@ The following are **interface requirements derived from the locked source**, not
 
 **Admission conclusion:** no audited public owner can implement the proposed complete protocol on this SDK. The tests preserve all session directories, lock files, shared attachments and indexes. They do not validate erasure, shared-reference GC, index removal, actual Agent quiescence or crash recovery during deletion, and do not enlarge the product's supported deletion scope. Implementing a private `rm`/Workspace/cache overlay would leave the gaps unresolved.
 
-**Locked declaration follow-up for native-archive authorization:** the concrete JSONL class does declare public `acquireWriteLease(header)` for created-session materialization, while `acquireLease`, `listGenerations` and `locate` are private in its published declaration. This local writer capability is not a verified lifecycle-bound, non-migrating retirement lease or full resource inventory. Workspace entity `detachSession(id)` removes an account member without touching the persisted transcript; SessionStore exact live entry/disposal likewise does not supply an awaited barrier for every resource owner. These partial capabilities leave the admission conclusion unchanged. [JSONL declaration](../../node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/types/index.d.ts#L194), [private diagnostic declaration](../../node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/types/index.d.ts#L81), [Workspace entity declaration][sdk-workspace-entity].
+**Locked declaration follow-up for native-archive authorization:** the concrete JSONL class does declare public `acquireWriteLease(header)` for created-session materialization, while `acquireLease`, `listGenerations` and `locate` are private in its published declaration. This local writer capability is not a verified lifecycle-bound, non-migrating retirement lease or full resource inventory. Workspace entity `detachSession(id)` removes an account member without touching the persisted transcript; SessionStore exact live entry/disposal likewise does not supply an awaited barrier for every resource owner. These partial capabilities leave the admission conclusion unchanged. [JSONL declaration](../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/types/index.d.ts#L194), [private diagnostic declaration](../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/types/index.d.ts#L81), [Workspace entity declaration][sdk-workspace-entity].
 
 ## Implications for Session Bin
 
@@ -177,28 +177,28 @@ Reference source links use commit `46af4c54bab466b11ccddf2b63818749ded98c17`. SD
 [ref-ci-jobs]: https://api.github.com/repos/MichengAI/dsh-archive-manager/actions/runs/37445537603/jobs?per_page=100
 [ref-ci-workflow]: https://github.com/MichengAI/dsh-archive-manager/blob/46af4c54bab466b11ccddf2b63818749ded98c17/.github/workflows/test.yml
 [ref-matrix]: https://github.com/MichengAI/dsh-archive-manager/blob/46af4c54bab466b11ccddf2b63818749ded98c17/scripts/test-version-matrix.mjs
-[sdk-persistence-types]: <../../node_modules/@deepseek-ai/dsh-session-persistence/lib/types/index.d.ts#L99-L157>
-[sdk-persistence-limits]: <../../node_modules/@deepseek-ai/dsh-session-persistence/README.md#L152>
-[sdk-jsonl-layout]: <../../node_modules/@deepseek-ai/dsh-session-persistence-jsonl/README.md#L54-L100>
-[sdk-jsonl-limits]: <../../node_modules/@deepseek-ai/dsh-session-persistence-jsonl/README.md#L163-L166>
-[sdk-locate]: <../../node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js#L2411-L2420>
-[sdk-lease]: <../../node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js#L612-L729>
-[sdk-jsonl-lifetime]: <../../node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js#L355-L435>
-[sdk-session-types]: <../../node_modules/@deepseek-ai/dsh-session/lib/types/index.d.ts#L415-L441>
-[sdk-session-runtime]: <../../node_modules/@deepseek-ai/dsh-session/lib/types/index.js#L934-L1027>
-[sdk-workspace-types]: <../../node_modules/@deepseek-ai/dsh-workspace/lib/types/index.d.ts#L126-L287>
+[sdk-persistence-types]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence/lib/types/index.d.ts#L99-L157>
+[sdk-persistence-limits]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence/README.md#L152>
+[sdk-jsonl-layout]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/README.md#L54-L100>
+[sdk-jsonl-limits]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/README.md#L163-L166>
+[sdk-locate]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js#L2411-L2420>
+[sdk-lease]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js#L612-L729>
+[sdk-jsonl-lifetime]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js#L355-L435>
+[sdk-session-types]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session/lib/types/index.d.ts#L415-L441>
+[sdk-session-runtime]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session/lib/types/index.js#L934-L1027>
+[sdk-workspace-types]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/lib/types/index.d.ts#L126-L287>
 [sdk-cache-types]: <../../node_modules/.pnpm/@deepseek-ai+dsh-session-projection-cache@0.2.0-rc.2_@deepseek-ai+cordis@4.0.4_@deepsee_da38ef051ef02d0e9efd2b60de4aab7e/node_modules/@deepseek-ai/dsh-session-projection-cache/lib/types/index.d.ts#L53-L165>
 [sdk-attachments]: <../../node_modules/.pnpm/@deepseek-ai+dsh-attachment-local@0.2.0-rc.2_@deepseek-ai+cordis@4.0.4_@deepseek-ai+dsh_29d677c1a811b3450ea239f4c669b10f/node_modules/@deepseek-ai/dsh-attachment-local/README.md#L55-L151>
 [sdk-query]: <../../node_modules/.pnpm/@deepseek-ai+dsh-session-query-sqlite@0.2.0-rc.2_@deepseek-ai+cordis@4.0.4_@deepseek-ai_713598a3e3c9bcba814f71654813b06d/node_modules/@deepseek-ai/dsh-session-query-sqlite/lib/index.js#L646-L788>
-[sdk-connection]: <../../node_modules/@deepseek-ai/dsh-client-connection/README.md#L39-L45>
-[sdk-connection-runtime]: <../../node_modules/@deepseek-ai/dsh-client-connection/lib/index.js#L585-L594>
-[sdk-gateway-peer]: <../../node_modules/@deepseek-ai/dsh-api-gateway/lib/index.js#L798-L807>
-[sdk-client-removal]: <../../node_modules/@deepseek-ai/dsh-api-session-controller/lib/types/client/sessions/manager.js#L589-L615>
-[sdk-client-session]: <../../node_modules/@deepseek-ai/dsh-api-session-controller/lib/types/client/sessions/session.js#L495-L525>
-[sdk-workspace-entity]: <../../node_modules/@deepseek-ai/dsh-workspace/lib/types/types.d.ts#L112-L120>
-[sdk-header]: <../../node_modules/@deepseek-ai/dsh-session/lib/types/types.d.ts#L54-L122>
-[sdk-jsonl-open]: <../../node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js#L2454-L2519>
-[sdk-jsonl-discovery]: <../../node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js#L3031-L3092>
+[sdk-connection]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-connection/README.md#L39-L45>
+[sdk-connection-runtime]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-connection/lib/index.js#L585-L594>
+[sdk-gateway-peer]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-gateway/lib/index.js#L798-L807>
+[sdk-client-removal]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-session-controller/lib/types/client/sessions/manager.js#L589-L615>
+[sdk-client-session]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-api-session-controller/lib/types/client/sessions/session.js#L495-L525>
+[sdk-workspace-entity]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-workspace/lib/types/types.d.ts#L112-L120>
+[sdk-header]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session/lib/types/types.d.ts#L54-L122>
+[sdk-jsonl-open]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js#L2454-L2519>
+[sdk-jsonl-discovery]: <../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js#L3031-L3092>
 [sdk-agent-close]: <../../node_modules/.pnpm/@deepseek-ai+dsh-agent-loop@0.2.0-rc.2_0c5ce3d184ce320f0d23631770cc12ac/node_modules/@deepseek-ai/dsh-agent-loop/lib/index.js#L1677-L1709>
 [sdk-cache-write]: <../../node_modules/.pnpm/@deepseek-ai+dsh-session-projection-cache@0.2.0-rc.2_@deepseek-ai+cordis@4.0.4_@deepsee_da38ef051ef02d0e9efd2b60de4aab7e/node_modules/@deepseek-ai/dsh-session-projection-cache/lib/index.js#L266-L355>
 [sdk-attachment-types]: <../../node_modules/.pnpm/@deepseek-ai+dsh-attachment-local@0.2.0-rc.2_@deepseek-ai+cordis@4.0.4_@deepseek-ai+dsh_29d677c1a811b3450ea239f4c669b10f/node_modules/@deepseek-ai/dsh-attachment-local/lib/types/index.d.ts#L65-L87>

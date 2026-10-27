@@ -1,0 +1,143 @@
+name: Monitor DSH compatibility
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact npm version or dsh-v tag (empty discovers new versions)
+        required: false
+        type: string
+  pull_request:
+    paths:
+      - '.github/workflows/dsh-compatibility.yml'
+      - 'scripts/compatibility/**'
+      - 'scripts/deletion-qualification.mjs'
+      - 'scripts/verify-gui*.mjs'
+      - 'scripts/gui-preservation.mjs'
+      - 'tests/gui-preservation.test.mjs'
+      - 'tests/compatibility-monitor.test.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dsh-compatibility-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'monitor' }}
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      matrix: ${{ steps.find.outputs.matrix }}
+      count: ${{ steps.find.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v3
+      - name: Discover exact npm, Release and Desktop identities
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DSH_VERSION: ${{ inputs.version }}
+        run: mise run compat:discover
+
+  track:
+    needs: discover
+    if: github.event_name != 'pull_request' && needs.discover.outputs.count != '0'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        target: ${{ fromJSON(needs.discover.outputs.matrix).include }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v3
+      - name: Persist a bounded attempt before starting expensive checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DSH_TARGET_JSON: ${{ toJSON(matrix.target) }}
+        run: mise run compat:report -- --start
+
+  check:
+    name: DSH ${{ matrix.target.version }} / ${{ matrix.runner }}
+    needs: [discover, track]
+    if: always() && needs.discover.result == 'success' && needs.discover.outputs.count != '0' && (github.event_name == 'pull_request' || needs.track.result == 'success')
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        target: ${{ fromJSON(needs.discover.outputs.matrix).include }}
+        runner:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - windows-2025
+          - macos-15
+          - macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 55
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v3
+      - run: mise run install
+      - run: mise run verify:gui:browser
+      - name: Verify normal refusal and isolated candidate
+        env:
+          DSH_TARGET_JSON: ${{ toJSON(matrix.target) }}
+          DSH_REPORT_DIR: ${{ runner.temp }}/dsh-report
+        run: mise run compat:check
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dsh-check-${{ matrix.target.version }}-${{ matrix.runner }}
+          path: ${{ runner.temp }}/dsh-report/
+          retention-days: 14
+          if-no-files-found: warn
+
+  report:
+    needs: [discover, track, check]
+    if: always() && github.event_name != 'pull_request' && needs.discover.result == 'success' && needs.discover.outputs.count != '0'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        target: ${{ fromJSON(needs.discover.outputs.matrix).include }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v3
+      - run: mise run install
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: dsh-check-${{ matrix.target.version }}-*
+          path: ${{ runner.temp }}/dsh-reports
+      - name: Maintain durable Issue and bounded draft dependency proposal
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DSH_TARGET_JSON: ${{ toJSON(matrix.target) }}
+        run: mise run compat:report -- "$RUNNER_TEMP/dsh-reports"
