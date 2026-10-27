@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { parse } from 'yaml';
-import { digest, selectTargets, marker, aggregate, compareVersions, previousReports, subprocessStatus } from '../scripts/compatibility/common.mjs';
+import { digest, selectTargets, marker, aggregate, compareVersions, previousReports, subprocessStatus, isWorkspaceInput } from '../scripts/compatibility/common.mjs';
 import { combineTargets, parseDesktopFeed } from '../scripts/compatibility/discover.mjs';
 import { targetManifest, validateProposal } from '../scripts/compatibility/proposal.mjs';
 import { issueBody } from '../scripts/compatibility/report.mjs';
@@ -123,4 +123,9 @@ test('GitHub-first publication remains a retryable target until npm metadata arr
   assert.equal(compareVersions('0.2.2-beta.1', '0.2.2-rc.1'), -1);
   assert.equal(compareVersions('0.2.2-rc.10', '0.2.2-rc.2'), 1);
   assert.throws(() => compareVersions('0.2.2-rc.01', baseline));
+});
+
+test('candidate source copying excludes account config, environment files and unrelated root data', () => {
+  for (const path of ['README.md', 'package.json', 'src/host/native-retirement-sdk.ts', 'scripts/compatibility/common.mjs']) assert.equal(isWorkspaceInput(path), true);
+  for (const path of ['.npmrc', '.mise.local.toml', '.env', '.env.example', 'credentials.json', '.aws/credentials', '.local/user-session.json', 'src/../credentials.json', 'scripts/.npmrc']) assert.equal(isWorkspaceInput(path), false);
 });

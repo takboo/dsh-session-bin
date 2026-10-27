@@ -7,7 +7,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captureSources } from '../verification-sources.mjs';
 import { configuredNodeVersion, configuredPackageManager } from '../package-manager.mjs';
-import { compareVersions, digest, FetchError, request, subprocessStatus, version } from './common.mjs';
+import { compareVersions, digest, FetchError, request, subprocessStatus, isWorkspaceInput, version } from './common.mjs';
 import { targetManifest } from './proposal.mjs';
 import { discover } from './discover.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -34,7 +34,7 @@ await save();
 const environment = { ...process.env, CI: 'true', DSH_HOME: join(scratch, 'dsh-home'), DSH_TELEMETRY_DISABLED: '1',
   DSH_PERMISSION_MODE: 'workspace-write', npm_config_ignore_scripts: 'true', PNPM_CONFIG_IGNORE_SCRIPTS: 'true',
   pnpm_config_verify_deps_before_run: 'error', pnpm_config_pm_on_fail: 'error' };
-for (const key of Object.keys(environment)) if (/(?:TOKEN|API_KEY|SECRET|PASSWORD)$/.test(key) || ['NODE_OPTIONS', 'SSH_AUTH_SOCK', 'DSH_SNAPSHOT', 'DSH_PROFILE', 'DSH_WEB_URL', 'DSH_SESSION_BIN_PLATFORM_VERIFY', 'DSH_SESSION_BIN_DESKTOP_VERIFY', 'DSH_SESSION_BIN_DESKTOP_SDK'].includes(key)) delete environment[key];
+for (const key of Object.keys(environment)) if (/TOKEN|API_KEY|SECRET|PASSWORD|PRIVATE_KEY/.test(key) || ['NODE_OPTIONS', 'SSH_AUTH_SOCK', 'DSH_SNAPSHOT', 'DSH_PROFILE', 'DSH_WEB_URL', 'DSH_SESSION_BIN_PLATFORM_VERIFY', 'DSH_SESSION_BIN_DESKTOP_VERIFY', 'DSH_SESSION_BIN_DESKTOP_SDK'].includes(key)) delete environment[key];
 class StageError extends Error { constructor(name, status) { super(`${name}: ${status}`); this.status = status; } }
 async function command(name, file, args, { cwd = workspace, timeout = 12 * 60 * 1000, setup = false } = {}) {
   const chunks = []; let timedOut = false; let error;
@@ -139,10 +139,14 @@ try {
   const paths = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
   await mkdir(workspace);
   for (const path of paths) {
-    if (!/^(?:src\/|scripts\/|tests\/|docs\/|locale\/|market\/|\.github\/|[\w.-]+$)/.test(path) || path.startsWith('.env')) continue;
+    if (!isWorkspaceInput(path)) continue;
     await mkdir(dirname(join(workspace, path)), { recursive: true }); await cp(join(root, path), join(workspace, path), { dereference: false });
   }
   report.workspaceSourceSha256 = (await captureSources(workspace)).sha256; await save();
+  const userconfig = join(scratch, 'empty-user.npmrc'), globalconfig = join(scratch, 'empty-global.npmrc');
+  await Promise.all([writeFile(userconfig, '', { flag: 'wx' }), writeFile(globalconfig, '', { flag: 'wx' })]);
+  Object.assign(environment, { npm_config_userconfig: userconfig, npm_config_globalconfig: globalconfig,
+    PNPM_CONFIG_USERCONFIG: userconfig, PNPM_CONFIG_GLOBALCONFIG: globalconfig });
   await pnpm('baseline-install', ['install', '--frozen-lockfile', '--ignore-scripts'], { setup: true });
   await pnpm('baseline-build', ['run', 'build']);
   const upgradeManifest = join(scratch, 'upgrade.json');

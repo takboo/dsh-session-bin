@@ -101,3 +101,9 @@ export function subprocessStatus({ code, signal, error, timedOut, setup, log = '
   if (setup || /EAI_AGAIN|ENETUNREACH|ECONNRESET|ETIMEDOUT|listen EPERM|kill EPERM|Operation not permitted|ENOSPC/.test(log)) return 'retry';
   return 'failed';
 }
+
+const rootInputs = new Set(['.gitignore', '.gitattributes', '.editorconfig', '.rgignore', 'README.md', 'AGENTS.md', 'CONTRIBUTING.md', 'LICENSE', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'mise.toml', 'screenshots.json', 'tsconfig.json', 'tsconfig.client.json', 'cordis.patch.yml']);
+export function isWorkspaceInput(path) {
+  return !path.split('/').some(part => part === '..' || part === '.env' || part === '.npmrc')
+    && (rootInputs.has(path) || /^(src|scripts|tests|docs|locale|market|\.github)\//.test(path));
+}
