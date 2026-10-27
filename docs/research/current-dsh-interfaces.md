@@ -1,8 +1,14 @@
+# 当前 SDK 核对入口
+
+当前正式依赖固定为 DSH `0.2.1-rc.3`；源码与发布物见[rc.3 调研](dsh-0.2.1-rc3.md)，实际运行证据见[rc.3 验证](../verification/dsh-0.2.1-rc3.md)与[0.2.6 补充验证](../verification/targeted-deletion-drain.md)。新版自动检测、候选更新、Issue/草稿 PR 和准入边界见[兼容性自动检查](../compatibility.md)。
+
+下文是最初 `0.2.0-rc.2` 的研究记录，其中版本与旧 Bin 建议只属于当时基线；不覆盖当前原生 Archive 产品契约或新版本资格。
+
 # DSH 0.2.0-rc.2 interfaces and session-plugin compatibility
 
 ## Conclusion and evidence scope
 
-This report records the **2026-10-06 source-inspection baseline, DeepSeek Harness 0.2.0-rc.2**. The separate Bin recommendations below describe that historical design. The subsequently selected native-archive collection model uses the same public archive set and unarchive interfaces; current behavior is specified in the [Host contract](../host-lifecycle.md) and [client contract](../client-interface.md), with the decision in [ADR 0005](../decisions/0005-native-archive-collection.md). The inspected application metadata, packaged runtime package, and desktop release metadata agree. The desktop metadata also records host protocol `4`, Node `24.18.1`, pnpm `11.7.0`, platform `darwin`, and architecture `arm64`. Sources: [application version:19](</Applications/DeepSeek Harness.app/Contents/Info.plist#L19>), [runtime package:1](<../../.local/dsh-runtime/dsh/package.json#L1>), [release metadata:1](<../../.local/dsh-runtime/dsh/desktop-runtime.json#L1>).
+This report records the **2026-10-06 source-inspection baseline, DeepSeek Harness 0.2.0-rc.2**. The separate Bin recommendations below describe that historical design. The subsequently selected native-archive collection model uses the same public archive set and unarchive interfaces; current behavior is specified in the [Host contract](../host-lifecycle.md) and [client contract](../client-interface.md), with the decision in [ADR 0005](../decisions/0005-native-archive-collection.md). The inspected application metadata, packaged runtime package, and desktop release metadata agree. The desktop metadata also records host protocol `4`, Node `24.18.1`, pnpm `11.7.0`, platform `darwin`, and architecture `arm64`. Sources: `/Applications/DeepSeek Harness.app/Contents/Info.plist:19`, [runtime package:1](<../../.local/dsh-runtime/dsh/package.json#L1>), [release metadata:1](<../../.local/dsh-runtime/dsh/desktop-runtime.json#L1>).
 
 **A reversible archive-backed Bin is feasible through supported interfaces, including a plugin-owned durable catalog. Permanent session deletion is unsupported by the public native APIs in this release.** The persistence seam explicitly has no deletion/retention API; the JSONL provider says nothing deletes session files; the native UI says sessions can be archived but never deleted. Sources: [persistence limits:149](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence/README.md#L149>), [provider limits:160](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/README.md#L160>), [native UI limit:214](<../../.local/dsh-runtime/dsh/node_modules/@deepseek-ai/dsh-client-ui-workspace/README.md#L214>).
 

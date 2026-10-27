@@ -59,9 +59,13 @@
     "verify:gui:locale": "node scripts/verify-gui.mjs",
     "verify:linux": "node scripts/verify-linux.mjs",
     "verify:platform": "node scripts/verify-platform.mjs",
-    "verify": "pnpm run verify:market && pnpm run check && pnpm run build && pnpm run test && pnpm run verify:package",
+    "verify": "pnpm run verify:docs && pnpm run verify:market && pnpm run check && pnpm run build && pnpm run test && pnpm run verify:package",
     "verify:desktop": "node scripts/verify-desktop.mjs",
-    "verify:desktop:gui": "node scripts/verify-desktop.mjs --gui"
+    "verify:desktop:gui": "node scripts/verify-desktop.mjs --gui",
+    "compat:discover": "node scripts/compatibility/discover.mjs",
+    "compat:check": "node scripts/compatibility/check.mjs",
+    "compat:report": "node scripts/compatibility/report.mjs",
+    "verify:docs": "node scripts/verify-docs.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
