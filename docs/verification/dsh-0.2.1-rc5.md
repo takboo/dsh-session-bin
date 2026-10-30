@@ -1,12 +1,12 @@
 # DSH 0.2.1-rc.5 正式构建兼容性验证
 
-日期：2026-10-30。基线为 `main` 的 `34ef1136c1e6df197677fc793120249e71fc2153`（已发布插件 `0.2.6` / DSH `0.2.1-rc.3`），工作分支为 [PR #21](https://github.com/takboo/dsh-session-bin/pull/21)。插件发布版本保留 `0.2.6`，本分支尚未发布；npm/GitHub Release 的既有 `0.2.6` 仍对应 rc.3。一手源码、发布物与依赖图审阅见[rc.5 调研](../research/dsh-0.2.1-rc5.md)。
+日期：2026-10-30。基线为 `main` 的 `34ef1136c1e6df197677fc793120249e71fc2153`（已发布插件 `0.2.6` / DSH `0.2.1-rc.3`），实现见已合并的 [PR #21](https://github.com/takboo/dsh-session-bin/pull/21)，合并提交为 `e268f2418d8cc8588ba6e47c389cd3971a32b0ae`。插件 `0.2.7` 对应 rc.5；既有 `0.2.6` 仍对应 rc.3。一手源码、发布物与依赖图审阅见[rc.5 调研](../research/dsh-0.2.1-rc5.md)。
 
 ## 自动化证据与批准状态
 
 rc.5 的[五平台候选检查](https://github.com/takboo/dsh-session-bin/actions/runs/40916669401)和[官方 macOS ARM64 Desktop 候选检查](https://github.com/takboo/dsh-session-bin/actions/runs/40989055392)均通过；[Issue #20](https://github.com/takboo/dsh-session-bin/issues/20)的 `partial` 保留其候选含义，不能代替正式构建的生产准入验收。
 
-原 PR CI [40918828680](https://github.com/takboo/dsh-session-bin/actions/runs/40918828680) 为 `action_required`，没有 job 或 check-run。事件 actor、PR 作者及创建提交均为 `github-actions[bot]`。GitHub 当前对 `GITHUB_TOKEN` 创建/更新 PR 产生的工作流要求批准，见[官方触发规则](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)。该状态发生于执行前，不能解释为测试失败或兼容性通过。审阅后的实现需由维护者提交触发或批准最终工作流，不取消安全设置、不改写旧运行证据。
+原 PR CI [40918828680](https://github.com/takboo/dsh-session-bin/actions/runs/40918828680) 为 `action_required`，没有 job 或 check-run。事件 actor、PR 作者及创建提交均为 `github-actions[bot]`。GitHub 当前对 `GITHUB_TOKEN` 创建/更新 PR 产生的工作流要求批准，见[官方触发规则](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)。该状态发生于执行前，不能解释为测试失败或兼容性通过。维护者推送审阅后的实现后，最终工作流正常执行并通过，没有取消安全设置或改写旧运行证据。
 
 ## 正式源码与启动竞态回归
 
@@ -59,10 +59,18 @@ Node 和官方 ASAR 各 8 组通过：prepared、done、owner-fenced、resource-
 
 证据采集修正后的完整本机清单为 `5da4ac38153c7a7057bf19ef4868483307ffe2ad8ecb852e5c9d5e6860a2479a`，对应干净 CI 的 124 文件清单 `3e81ffe70e0daa37062324ce5a38c89e3232e98103bba5fac3adb2109a40872b`。与 `c4769d3` 相比仅新增 `filesystem-evidence` 采集模块及五项测试，并让 `verify-platform` 调用该模块；生产源码、SDK 指纹和正式 tarball 字节保持不变。最终五平台运行与各份原始报告从 [PR #21 checks](https://github.com/takboo/dsh-session-bin/pull/21/checks)检索，核对时须使用此轮新清单及实际文件系统名称。
 
+## 最终正式验收与 0.2.7 发布基线
+
+最终实现提交 `6199c0e7b6090c0c4c67573384c46d6be9120647` 的[完整 PR CI 40995615703](https://github.com/takboo/dsh-session-bin/actions/runs/40995615703)五个平台全部通过，两个发布 job 均跳过。已下载并独立校验全部 20 份平台、Loader、中文和 English 报告；Windows x64 的实际文件系统为 NTFS，macOS ARM64/Intel 均采集到 `apfs`，Linux ARM64/x64 为 ext2/ext3/ext4 family（`0xef53`）。所有报告的精确 SDK、Node/libuv、架构、源码稳定性及 production/candidate 标记均匹配正式资格；十份 GUI 各 17 项通过，console/pageErrors 为空，20 次 Host 关闭均正常且无强制终止。各平台 Loader 与两种语言 GUI 使用同字节 tarball，汇总见[CI 证据](../../.local/rc5-review/accepted-ci.json)。
+
+最终完整清单上的官方 ASAR 回归为 435 项，429 通过、0 失败、6 项 Windows 专用检查跳过，[报告](../../.local/desktop/darwin-arm64-um5wVh/verification.json)源码稳定、production 为 true、candidate 为 false；最终官方 Electron 双语 GUI [报告](../../.local/desktop/darwin-arm64-PZSGrY/verification.json)同样通过。此轮全量取代前述 430 项运行作为最终实现的完成证据，原始历史保留。
+
+`0.2.7` 发布准备只递增包版本并同步文档；SDK、产品实现及资格表与上述已验收提交一致。版本变化会产生新的 tarball 摘要，不能沿用本页 `0.2.6` 基线 tarball 的摘要。tag 工作流须重新完成五平台验收，并将 Linux x64 同轮 Loader 和双语 GUI 测试过的同一份 tarball 发布到 GitHub Release 与 npm；桌面运行时的生产实现证据仍由上述真实 ASAR 验收限定。
+
 ## 资格与证据边界
 
 正式五平台结果由 [PR #21 的生命周期 CI](https://github.com/takboo/dsh-session-bin/pull/21/checks)保存，每个实际 runner 分别产生平台、Loader、中文和 English 四份报告。必须逐份核对 rc.5、实际 Node/libuv/架构/文件系统、源码前后稳定、Loader 的 `productionDeletionQualified: true`、GUI 的 `supported` 及实际删除/重开结果；macOS 必须有实际采集的 `apfs` 名称。候选报告或仅有工作流绿色结论不足以授予资格。
 
 官方桌面另用重新下载并验签的独立 rc.5 应用，执行 `verify:desktop`、真实 ASAR Loader、`verify:desktop:gui` 及八组 raw/zstd 冷升级。正式报告必须没有 candidate marker，并与上述最终实现清单匹配。Electron 限 `44.7.0` / Node `24.21.0` / libuv `1.52.1`、macOS ARM64/APFS；独立 Node 限 `24.18.1` / libuv `1.52.1` 及各自实际验收的五平台组合。
 
-GUI 使用公开 npm Web Host/client，在 Node 或官方 Electron 载体上运行；真实 ASAR Host/native modules 另由完整回归和 production probe 覆盖。不声称覆盖原生 Desktop shell、物理输入法、真实账号/推理、多 Host、其他平台/运行时/文件系统/存储、共享附件 GC、安全擦除或掉电保证。本轮不打 tag、创建 Release 或发布 npm 包。
+GUI 使用公开 npm Web Host/client，在 Node 或官方 Electron 载体上运行；真实 ASAR Host/native modules 另由完整回归和 production probe 覆盖。不声称覆盖原生 Desktop shell、物理输入法、真实账号/推理、多 Host、其他平台/运行时/文件系统/存储、共享附件 GC、安全擦除或掉电保证。插件 `0.2.7` 按[发布流程](../release.md)由 `v0.2.7` tag 重新运行五平台验收后发布；发布身份与各报告来源以该 tag 工作流的 `release.json` 为准。
