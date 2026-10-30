@@ -14,6 +14,8 @@
 
 候选验证在五个独立标准 runner 执行：Windows x64、macOS ARM64/Intel、Ubuntu ARM64/x64。检查 job 只有读取权限；报告 job 才有 Issue、草稿 PR 与分支写权限，PR 事件不运行写入 job。机器人创建草稿 PR 需要仓库允许 GitHub Actions 创建 PR；创建失败会保留 Issue 与依赖提案并报告原因。验证直接在同一 workflow 串联，不依赖机器人 PR 自动触发 CI。
 
+`GITHUB_TOKEN` 创建或更新 PR 时，GitHub 当前会把对应 `pull_request` 工作流置于等待批准状态；可能显示 `action_required` 且没有任何 job。这不代表候选检查失败，也不等于该依赖 PR 的正式构建已通过。维护者应先审阅提案，再批准对应运行或推送审阅后的提交，并核对最终提交的完整生命周期 CI。不得通过取消保护或放宽删除断言解决等待状态。[GitHub 触发规则](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)
+
 ### 官方 Desktop 与重复工作控制
 
 仍使用同一个每小时工作流，不增加第二个 cron 或 `workflow_run` 链。轻量发现读取渠道与 Issue；只有待检查组件才分配 runner：
@@ -57,11 +59,11 @@ Desktop job 下载 feed 声明的精确官方 macOS ARM64 ZIP，核对 SHA-512�
 
 ```sh
 mise run compat:discover -- --local
-DSH_VERSION=0.2.1-rc.4 mise run compat:check
-DSH_VERSION=0.2.1-rc.4 mise run compat:desktop
+mise run compat:check
+mise run compat:desktop
 ```
 
-`compat:discover --local` 只读查询上游，不访问 Issue；可用 `DSH_VERSION` 固定版本。`compat:check` 默认运行正常拒绝与候选双语 GUI，需要可用 Chromium；`--no-gui` 仅供诊断，报告保留未覆盖范围。每次生成独立目录，不复用上轮测试会话。命令结果写在该目录的 `report/report.json`，终端同时输出目录位置。
+运行检查前，先把 `DSH_VERSION` 设置为高于当前 `package.json.engines.dsh` 的精确已发布版本。`compat:discover --local` 只读查询上游，不访问 Issue；也可用 `DSH_VERSION` 固定发现版本。`compat:check` 默认运行正常拒绝与候选双语 GUI，需要可用 Chromium；`--no-gui` 仅供诊断，报告保留未覆盖范围。每次生成独立目录，不复用上轮测试会话。命令结果写在该目录的 `report/report.json`，终端同时输出目录位置。
 
 `compat:desktop` 只在 macOS ARM64/APFS 上运行，必须有匹配的官方 feed；不接受用户安装应用路径替代下载来源。`--current-baseline` 仅供对当前已发布桌面版本演练验证器，不证明未来版本的兼容性。缺少 GUI/ASAR/恢复阶段的报告不能被报告器当成完成证据。
 

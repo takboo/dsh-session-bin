@@ -14,6 +14,8 @@
 
 当前版本为 `0.2.6`，包名为 `@takboo/dsh-session-bin`。本版修复无 Agent 时目标历史订阅释放不完整，以及无关会话迁移、旧订阅造成的删除误阻止；界面分别说明具体阻止原因。变更与验收见[定点释放验证](docs/verification/targeted-deletion-drain.md)。GitHub Release 提供预编译 tarball；npm 通过 trusted publishing 自动发布同一份产物。[dshmarket 收录流程](docs/release.md#dshmarket)独立于 npm 发布，须经目录检查与维护者审核。宿主兼容范围见[rc.3 兼容性验证](docs/verification/dsh-0.2.1-rc3.md)。
 
+本开发分支以 `0.2.6` 为基线适配 DSH `0.2.1-rc.5`，尚未发布；源码审阅及正式构建验收见 [rc.5 验证](docs/verification/dsh-0.2.1-rc5.md)。npm 与 GitHub Release 中已发布的 `0.2.6` 仍对应 rc.3。
+
 ## 界面预览
 
 ![原生归档管理与批量选择](https://raw.githubusercontent.com/takboo/dsh-session-bin/v0.2.0/docs/images/archives-light.png)
@@ -22,7 +24,7 @@
 
 ## 兼容性
 
-本版适配 DSH `0.2.1-rc.3`，覆盖 CLI/Web 与 macOS ARM64 桌面运行时；接口、旧回执升级及实际验收见[rc.3 兼容性验证](docs/verification/dsh-0.2.1-rc3.md)。使用 DSH `0.2.1-rc.2` 时请保留插件 `0.2.4`，`0.2.1-rc.1` 对应插件 `0.2.1`；旧宿主 `0.2.0-rc.2` 对应插件 `0.2.0`。
+本分支构建适配 DSH `0.2.1-rc.5`，覆盖 CLI/Web 与 macOS ARM64 桌面运行时；接口、旧回执升级及独立组合验收见[rc.5 兼容性验证](docs/verification/dsh-0.2.1-rc5.md)。已发布插件 `0.2.6` 的宿主仍为 rc.3，证据保留在[rc.3 验证](docs/verification/dsh-0.2.1-rc3.md)。使用 DSH `0.2.1-rc.2` 时请保留插件 `0.2.4`，`0.2.1-rc.1` 对应插件 `0.2.1`；旧宿主 `0.2.0-rc.2` 对应插件 `0.2.0`。
 
 永久删除仅对以下精确运行时及环境启用，使用单 Host 和已验证的 JSONL raw/zstd 存储组合：
 

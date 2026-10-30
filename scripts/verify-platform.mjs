@@ -1,9 +1,10 @@
+import { filesystemEvidence } from './filesystem-evidence.mjs';
 import { captureSources } from './verification-sources.mjs';
 import { configuredNodeVersion, configuredPackageManager } from './package-manager.mjs';
 import { workflowError, workflowNotice } from './ci-diagnostics.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, statfs, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,32 +19,6 @@ const parent = join(root, '.local', 'platform');
 await mkdir(parent, { recursive: true });
 const scratch = await mkdtemp(join(parent, `${process.platform}-${process.arch}-`));
 
-async function capture(file, args, env = process.env) {
-  let stdout = ''; let stderr = '';
-  const code = await new Promise((resolve, reject) => {
-    const child = spawn(file, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
-    child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk; });
-    child.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
-    child.once('error', reject);
-    child.once('close', resolve);
-  });
-  assert.equal(code, 0, `${file} failed while identifying the verification filesystem: ${stderr.trim()}`);
-  assert(stdout.trim(), `${file} returned no filesystem identity.`);
-  return stdout.trim();
-}
-
-async function filesystemEvidence(path) {
-  const stats = await statfs(path, { bigint: true });
-  const type = `0x${stats.type.toString(16)}`;
-  const name = process.platform === 'win32'
-    ? await capture('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
-      '[System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($env:DSH_SESSION_BIN_EVIDENCE_PATH)).DriveFormat'],
-    { ...process.env, DSH_SESSION_BIN_EVIDENCE_PATH: path })
-    : process.platform === 'darwin'
-      ? stats.type === 0x1an ? 'apfs' : `unknown-${type}`
-      : stats.type === 0xef53n ? 'ext2/ext3/ext4' : await capture('stat', ['-f', '-c', '%T', path]);
-  return { name, type, blockSize: stats.bsize.toString() };
-}
 
 const baseline = await captureSources(root);
 const command = await configuredPackageManager(['run', 'verify']);

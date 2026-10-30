@@ -1,6 +1,6 @@
 # 客户端与 Remote 接口
 
-当前 `0.2.6` 使用精确 DSH `0.2.1-rc.3`；删除占用释放与具体原因见[定点释放验证](verification/targeted-deletion-drain.md)。CLI/Web、官方 macOS ARM64 桌面运行时及冷重启升级见[rc.3 验证](verification/dsh-0.2.1-rc3.md)。此前 rc.2 桌面准入与跨运行时恢复证据保留于[桌面验证](verification/desktop-runtime.md)。
+本开发分支以 `0.2.6` 为基线使用精确 DSH `0.2.1-rc.5`，尚未发布；CLI/Web、官方 macOS ARM64 桌面运行时及冷重启升级见[rc.5 验证](verification/dsh-0.2.1-rc5.md)。已发布 `0.2.6` 对应 rc.3；删除占用释放与具体原因保留于[定点释放验证](verification/targeted-deletion-drain.md)，此前正式组合见[rc.3 验证](verification/dsh-0.2.1-rc3.md)。此前 rc.2 桌面准入与跨运行时恢复证据保留于[桌面验证](verification/desktop-runtime.md)。
 
 删除拒绝分别显示目标存储 reader、writer、pending 操作、日志迁移准备、query 快照、history 订阅、无法定点识别的旧订阅和 cache 待写入原因，中英文均提供对应建议。旧 `native/persistence-retained` 回执继续显示兼容提示；活动任务单独显示原生活动保护。关闭已知目标订阅不等同于强制关闭其他插件的独立 reader。
 

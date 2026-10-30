@@ -103,7 +103,7 @@ export class NativeMetadataAdapter {
     const value = object(ctx.get(name));
     return object(value?.[Symbol.for('cordis.original')] ?? value);
   }
-  static async open(ctx: Context, admission: NativeMetadataAdmission): Promise<NativeMetadataAdapter | undefined> {
+  static open(ctx: Context, admission: NativeMetadataAdmission): NativeMetadataAdapter | undefined {
     const workspace = this.get(ctx, 'workspaceRegistry');
     const sessions = this.get(ctx, 'sessions');
     const cache = this.get(ctx, 'sessionProjectionCache');
