@@ -1,12 +1,52 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { createRequire } from 'node:module';
 import { open as openFile, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import * as product from '../dist/index.js';
 import { openNativeDeletionFixture } from './helpers/native-deletion-fixture.mjs';
 import { createScratch, openFixture, transcript } from './helpers/fixture.mjs';
 import { assertStableSessionLock, retainedLockEntries, sessionBinPlugin } from './helpers/platform-fixture.mjs';
+
+test('startup captures a query provider that becomes ready while the owner journal opens', { timeout: 20000 }, async () => {
+  const root = await createScratch('native-delete-startup-query-');
+  const fixture = await openFixture(root, { seed: true, plugin: false });
+  const require = createRequire(import.meta.url);
+  const cli = createRequire(require.resolve('@deepseek-ai/dsh/package.json'));
+  const sdk = createRequire(cli.resolve('@deepseek-ai/dsh-base/package.json'));
+  const Query = (await import(pathToFileURL(sdk.resolve('@deepseek-ai/dsh-session-query-sqlite')).href)).default;
+  const domain = fixture.ctx.storageDomain[Symbol.for('cordis.original')] ?? fixture.ctx.storageDomain;
+  const original = domain.open;
+  let mounted = false;
+  domain.open = async function (spec) {
+    const result = await original.call(this, spec);
+    if (spec.name === 'session_bin_jsonl_retirement_owner' && !mounted) {
+      mounted = true;
+      await fixture.mount(Query, { path: join(root, 'late-query.sqlite'), openAt: 'startup' });
+    }
+    return result;
+  };
+  try {
+    await fixture.ctx.workspaceRegistry.archiveSession(SessionId('quiet'));
+    const sibling = await transcript(fixture, 'sibling');
+    await fixture.mount(sessionBinPlugin(root), { coordinationDirectory: join(root, 'coordination') });
+    assert(mounted);
+    const service = fixture.ctx.get('sessionBin');
+    const plan = await service.preparePurge({ sessionId: 'quiet' });
+    assert.deepEqual(plan.blockers, []);
+    assert(plan.manifest.resources.some(resource => resource.kind === 'index'), 'The final provider must be in the frozen scope.');
+    assert.equal((await service.executePurge(plan)).status, 'success');
+    assert.equal(await fixture.ctx.sessionPersistence.stat(SessionId('quiet')), undefined);
+    assert.deepEqual(await transcript(fixture, 'sibling'), sibling);
+    fixture.ctx.get('sessionQuery').config.path = join(root, 'replacement.sqlite');
+    await fixture.ctx.workspaceRegistry.archiveSession(SessionId('sibling'));
+    const refused = await service.preparePurge({ sessionId: 'sibling' });
+    assert(refused.blockers.some(blocker => blocker.code === 'native/composition-changed'));
+    assert.deepEqual(await transcript(fixture, 'sibling'), sibling);
+  } finally { domain.open = original; await fixture.close(); }
+});
 
 for (const compression of ['none', 'zstd']) test(`real native deletion joins cache and SQLite owner erasure and survives reopen (${compression})`, { timeout: 20000 }, async t => {
   const root = await createScratch(`native-delete-complete-${compression}-`); t.diagnostic(root);

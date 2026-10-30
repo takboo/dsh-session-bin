@@ -206,7 +206,7 @@ export class NativeJsonlFiles {
       || (config.compression ?? 'zstd') !== internals.compression) return;
     const require = createRequire(import.meta.url);
     const metadata: unknown = require('@deepseek-ai/dsh-session-persistence-jsonl/package.json');
-    if ((metadata as { version?: unknown }).version !== '0.2.1-rc.3') return;
+    if ((metadata as { version?: unknown }).version !== '0.2.1-rc.5') return;
     let root: string;
     try { root = await realpath(internals.root); }
     catch (error) { if (missing(error)) return; throw error; }

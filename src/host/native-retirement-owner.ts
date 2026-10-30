@@ -53,6 +53,18 @@ function known(error: unknown): string | null {
   if (error instanceof NativeAdmissionError) return 'native/session-busy';
   return null;
 }
+async function metadataServicesReady(ctx: Context): Promise<boolean> {
+  for (const name of ['sessionQuery', 'sessionProjectionCache', 'sessionController'] as const) {
+    const pending = ctx.get(name, false);
+    if (pending !== undefined && ctx.get(name) === undefined) {
+      const instance = nativeServiceInstance(pending as object) as { ctx?: { fiber?: { await(): Promise<unknown> } } };
+      if (!instance.ctx?.fiber) return false;
+      await instance.ctx.fiber.await();
+      if (ctx.get(name) === undefined) return false;
+    }
+  }
+  return true;
+}
 export interface NativeRetirementOptions {
   /** Independent composition qualification, used by isolated candidate-platform fixtures.
    * The production Service never takes this callback from Host configuration. */
@@ -75,7 +87,7 @@ export class NativeRetirementOwner implements SessionRetirementOwnerV1 {
   private closing: Promise<void> | undefined;
 
   private constructor(private readonly ctx: Context, private readonly files: NativeJsonlFiles,
-    private readonly metadata: NativeMetadataAdapter, private readonly admission: NativeAdmission,
+    private metadata: NativeMetadataAdapter, private readonly admission: NativeAdmission,
     private readonly domain: Domain<typeof nativeRetirementDomainSpec>, private readonly journal: RetirementOwnerStore,
     fingerprint: string, options: NativeRetirementOptions) {
     this.originalProvider = nativeServiceInstance(ctx.sessionPersistence);
@@ -108,22 +120,14 @@ export class NativeRetirementOwner implements SessionRetirementOwnerV1 {
     })) return;
     const fingerprint = await nativeRetirementSdkFingerprint();
     if (fingerprint === null) return;
-    for (const name of ['sessionQuery', 'sessionProjectionCache', 'sessionController'] as const) {
-      const pending = ctx.get(name, false);
-      if (pending !== undefined && ctx.get(name) === undefined) {
-        const instance = nativeServiceInstance(pending as object) as { ctx?: { fiber?: { await(): Promise<unknown> } } };
-        if (!instance.ctx?.fiber) return;
-        await instance.ctx.fiber.await();
-        if (ctx.get(name) === undefined) return;
-      }
-    }
+    if (!await metadataServicesReady(ctx)) return;
     const files = await NativeJsonlFiles.open(ctx.sessionPersistence);
     if (!files) return;
     const admission = new NativeAdmission();
     const providerInstance = nativeServiceInstance(ctx.sessionPersistence);
     const previous = Reflect.get(providerInstance, nativeOwnerRegistry) as GuardRegistration | undefined;
     if (previous && (!previous.owner.fullyClosed || previous.root !== files.root || previous.fingerprint !== fingerprint)) return;
-    const metadata = await NativeMetadataAdapter.open(ctx, admission);
+    const metadata = NativeMetadataAdapter.open(ctx, admission);
     if (!metadata) return;
     let domain: Domain<typeof nativeRetirementDomainSpec> | undefined;
     let journalDomain: Domain<typeof nativeRetirementOwnerDomainSpec> | undefined;
@@ -142,10 +146,17 @@ export class NativeRetirementOwner implements SessionRetirementOwnerV1 {
       const journal = new DomainRetirementOwnerStore(journalDomain as unknown as Domain<typeof retirementOwnerDomainSpec>);
       owner = new NativeRetirementOwner(ctx, files, metadata, admission, domain, journal, fingerprint, options);
       await owner.coordinator.initialize();
+      // Optional SDK services may finish starting while the domains/journal
+      // open. Capture their final composition and install guards in the same
+      // turn; later drift must still fail the adapter's instance checks.
+      if (!await metadataServicesReady(ctx)) throw new NativeMetadataRefusal('native/composition-changed', 'Native metadata services did not finish initialization.');
+      const currentMetadata = NativeMetadataAdapter.open(ctx, admission);
+      if (!currentMetadata) throw new NativeMetadataRefusal('native/composition-changed', 'Native metadata service composition is unsupported.');
+      owner.metadata = currentMetadata;
       admission.activate();
       if (previous) previous.owner.relinquishGuards();
       owner.restore.push(owner.provider.install());
-      owner.restore.push(await metadata.install());
+      owner.restore.push(await currentMetadata.install());
       Reflect.set(providerInstance, nativeOwnerRegistry, { owner, root: files.root, fingerprint, storeId: owner.descriptor.storeId } satisfies GuardRegistration);
       return owner;
     } catch (error) {

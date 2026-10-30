@@ -1,6 +1,6 @@
 # 当前 SDK 核对入口
 
-当前正式依赖固定为 DSH `0.2.1-rc.3`；源码与发布物见[rc.3 调研](dsh-0.2.1-rc3.md)，实际运行证据见[rc.3 验证](../verification/dsh-0.2.1-rc3.md)与[0.2.6 补充验证](../verification/targeted-deletion-drain.md)。新版自动检测、候选更新、Issue/草稿 PR 和准入边界见[兼容性自动检查](../compatibility.md)。
+本分支正式依赖固定为 DSH `0.2.1-rc.5`，尚未发布；源码与发布物见[rc.5 调研](dsh-0.2.1-rc5.md)，实际运行证据见[rc.5 验证](../verification/dsh-0.2.1-rc5.md)。已发布插件 `0.2.6` / rc.3 的历史证据保留于[rc.3 验证](../verification/dsh-0.2.1-rc3.md)与[定点释放验证](../verification/targeted-deletion-drain.md)。新版自动检测、候选更新、Issue/草稿 PR 和准入边界见[兼容性自动检查](../compatibility.md)。
 
 下文是最初 `0.2.0-rc.2` 的研究记录，其中版本与旧 Bin 建议只属于当时基线；不覆盖当前原生 Archive 产品契约或新版本资格。
 
