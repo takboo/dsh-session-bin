@@ -31,3 +31,20 @@
 本轮读取的官方 [macOS ARM64 nightly feed](https://download.deepseek.com/dsh-desk/feeds/mac-arm64/nightly-mac.yml)仍为 `0.2.1-rc.5`，alpha.2 GitHub Release 没有附件；没有对应官方 Electron/ASAR 载体可供独立资格验证。不能用 rc.5 桌面或 npm 重组载体替代。
 
 alpha.2 后续必须完成宿主生命周期和历史/投影接口迁移、固定对象及活动/引用/未知状态保护、全量候选与冷升级恢复，再审阅正式准入并独立验收实际组合。当前结论仍是未支持；[Issue #19](https://github.com/takboo/dsh-session-bin/issues/19)保存后续证据与完成条件。
+
+## 0.2.8 的 rc.5 发布验证
+
+配置类型修复为 [33fc9be](https://github.com/takboo/dsh-session-bin/commit/33fc9bedf94d0ad42e1216fad8e594fd631b7f7f)，`0.2.8` 版本准备为 [2a75978](https://github.com/takboo/dsh-session-bin/commit/2a75978461c109af2b33728f3f3c303c5c4d27af)，由 [PR #22](https://github.com/takboo/dsh-session-bin/pull/22) 交付。只改变配置类型导出、插件版本及文档；SDK、依赖锁文件、运行时/平台范围和永久删除保护沿用已验收的 rc.5。
+
+2026-11-02，以正式 `0.2.8` tarball 在本机 macOS ARM64/APFS 独立验收：
+
+- Node `24.18.1` 的类型、构建、frozen install 与真实 Loader 通过；Loader 为 production、candidate 为 false。
+- 重新完整验签的官方 rc.5 应用，实际 ASAR/native modules、Electron `44.7.0` / Node `24.21.0` / libuv `1.52.1` 全量 435 项：429 通过、0 失败、6 Windows 专用检查跳过；源码前后稳定。实际 ASAR Loader 也通过。
+- 同一官方 Electron 运行的中文/English Web GUI 各 17 项通过，均为 supported、production 为 true、candidate 为 false。console/pageErrors 为空，四次 Host 关闭均为 code 0、signal null、forced false；包括实际删除、重开、固定批量、清空、两次延迟原生历史读取和确认设置检查。
+- 两份 Loader 与两份 GUI 使用相同 tarball，SHA-256 为 `0b0f65a0c3cae6004f66113aa493f525339dc5160441df40b9bb00104f162163`。[独立证据核对结果](../../.local/release-0.2.8/release-0.2.8-accepted-local.json)逐份核对实际 Node/Electron、源码稳定、生产标记、GUI 项目及 tarball 字节。
+
+本机完整实现清单为 `d403a930eb1d01d7f70344c3060ca3149d6c55195e53f142e4778fd3ec72ec1d`；仅扣除两份既有、Git 忽略的 Finder 元数据后，干净 124 文件清单为 `a1fc723065561bdcdf6ce4fcead47a811a5936cd2e453072706a36600735d967`。文档不参与实现清单；最终 PR/CI 还须逐文件核对，Windows 按实际 LF/CRLF 核对，不能忽略未知差异。
+
+首次两次单独调用 ASAR Loader 时未传入 pnpm 执行入口，检查器在打包前明确拒绝；通过 mise 和显式固定的 pnpm 入口复验后通过。失败调用日志保留在同目录，不计入上述完成证据。没有关闭验证器的包管理器检查。
+
+完整五平台正式报告以 [PR #22 最终提交检查](https://github.com/takboo/dsh-session-bin/pull/22/checks)为准；`v0.2.8` tag 必须重新通过全部五平台及同轮 Loader/双语 GUI 门禁，再由 Linux x64 已测试的同一 tarball 发布 GitHub Release/npm，最终身份以 `release.json` 为准。这里只修复声明编译问题，没有 alpha.2 的生产支持或原生 Desktop shell、物理输入法、真实用户会话验收声明。
