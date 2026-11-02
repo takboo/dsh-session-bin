@@ -187,3 +187,23 @@ Linux CLI 的额外 add/remove 补验没有通过：profile 缓存预热后安�
 实际报告：[中文](../../.local/gui/client-zh-WaxHrq/verification.json)、[English](../../.local/gui/client-en-dbREN7/verification.json)。浅深色、窄屏和切换截图位于各自报告的 artifacts；两轮与 Host tarball 的 SHA-256 同为 `68efcf15e636f126bbd99d87d5c3433633f0aa55ad9428c4f9e0d86675f6fdd7`。测试端口 `64909/65062` 仅属脚本临时 Host，均已关闭，未连接 `19387`。
 
 客户端及严格 Remote DTO 未扩展删除。GUI 仍验证默认无 owner 的安装/卸载、既有移入/Undo、恢复、筛选、固定选择批量恢复、语言偏好、浅深色/390px 布局及重开；没有据此声明 native 删除、删除 Modal/批量/清空或其他平台已支持。环境及操作系统输入法限制与前节一致。
+
+
+## 2026-11-02：GUI 控制进程与原生 WebSocket 隔离
+
+基线为 PR #22 合并提交 `347bc06551f5bb10dd3c7c63353186969d2239d6`、DSH `0.2.1-rc.5`、固定 Node `24.18.1` 与 Playwright `1.56.0` 配套 Chromium `141.0.7390.37`。旧历史探针用 `routeWebSocket` 将整个 Gateway 连接的所有帧绕经 Node 控制进程，只有目标历史流需要的 1500ms 延迟也位于该进程。控制进程因此进入了原生 `$events` 就绪握手的转发路径。
+
+在 macOS ARM64/APFS 的独立临时 DSH_HOME 与浏览器 profile，固定在 Gateway WebSocket 创建时让 Node 控制进程停顿 3500ms；宿主与浏览器继续独立运行。以下四份报告的 tarball 均为同一份 `703de530a0004ac8bc0f93faa0a8a31a3f90ab4c7fea67a96e0ee6b53cf24ab0`，差别在探针路径：
+
+| 探针 | 范围 | 结果 |
+| --- | --- | --- |
+| [旧全连接代理](../../.local/gui/client-zh-6Qy7sd/verification.json) | 初始原生归档视图 | 失败，出现原生 3000ms 就绪警告 |
+| [旧代理重复](../../.local/gui/client-zh-FotZhw/verification.json) | 相同初始连接探针 | 再次失败，出现同一警告 |
+| [原生连接对照](../../.local/gui/client-zh-kji7PF/verification.json) | 相同初始连接探针 | 通过，零警告 |
+| [浏览器定点历史延迟](../../.local/gui/client-zh-UpKff4/verification.json) | 完整中文 GUI | 18 项通过，零 console/pageErrors；两次真实历史延迟和两个正常 Host 退出 |
+
+固定故障试验明确复现了控制进程代理阻塞握手的机制。原 main Windows 的两轮失败分别为初始 15 秒超时与完整 GUI 主体后收集到的 3 秒告警；旧报告未记录控制进程停顿，不能证明那两轮的具体停顿来源。原始失败与后续采样见 [PR #22](https://github.com/takboo/dsh-session-bin/pull/22)。
+
+修复见 [PR #23](https://github.com/takboo/dsh-session-bin/pull/23)：历史探针在浏览器内只延迟固定 fixture 的 `session/follow`，保留原生 WebSocket 与其他流直通；后续同流 item/cancel 保持顺序，关闭后丢弃尚未发送的排队请求。8 项定向测试覆盖就绪流、非目标会话、同流顺序、跨 socket 隔离、其他 origin/endpoint 与帧类型、关闭、重载计数和重复安装。正式双语 GUI 增加 3500ms 控制进程停顿回归，合计每语言 18 项；原生告警、硬超时、历史就绪、固定删除对象、未知状态保护和正常退出断言继续执行。
+
+这属于验证工具修复，正式 SDK 和产品运行时代码沿用 rc.5。最终源码、tarball 及五平台/官方 Electron 验收以本轮报告为准；没有真实用户会话、原生 Desktop shell 或物理输入法验收声明。
