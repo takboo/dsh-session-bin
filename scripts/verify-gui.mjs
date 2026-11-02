@@ -110,6 +110,7 @@ function observePage(page, report, stage) {
   page.on('console', message => {
     if (message.type() !== 'error' && message.type() !== 'warning') return;
     report.browserConsole.push(`${stage}: ${redact(message.text())}`);
+    (report.warningTimeline ??= []).push({ text: redact(message.text()), at: Date.now(), checksCompleted: report.checks.length, lastCheck: report.checks.at(-1), pageUrl: cleanUrl(page.url()), recentHistoryDelays: report.historyDelays?.slice(-5) });
     if (report.browserConsole.length > 100) report.browserConsole.shift();
     const task = Promise.all(message.args().map(argument => argument.evaluate(value => {
       const seen = new Set();
@@ -145,6 +146,7 @@ async function delayNativeHistory(page, report) {
       if (frame.type === 'open' && frame.endpoint === 'session/follow'
         && address?.kind === 'session' && address.sessionId === 'gui-native-only') {
         report.delayedHistoryRequests += 1;
+        (report.historyDelays ??= []).push({ streamId: frame.streamId, at: Date.now(), checksCompleted: report.checks.length, lastCheck: report.checks.at(-1) });
         pending.set(frame.streamId, new Promise(resolve => setTimeout(resolve, 1500)));
       }
       const previous = pending.get(frame.streamId);
@@ -1470,6 +1472,8 @@ async function main() {
     const page = browserContext.pages()[0] ?? await browserContext.newPage();
     page.setDefaultTimeout(15000);
     observePage(page, report, 'installed');
+    report.limits.push('Intel CI diagnostic branch; not release evidence.');
+    page.on('framenavigated', frame => { if (frame === page.mainFrame()) (report.navigations ??= []).push({ at: Date.now(), url: cleanUrl(frame.url()), checksCompleted: report.checks.length }); });
     await delayNativeHistory(page, report);
     await page.goto(host.authenticatedUrl, { waitUntil: 'domcontentloaded' });
     await page.waitForURL(url => !url.searchParams.has('token'));
@@ -1575,7 +1579,10 @@ async function main() {
   } catch (error) {
     report.status = 'failed';
     report.error = redact(error.stack ?? error);
-    try { report.pluginDiagnostics = await pluginDiagnostics(paths.home); }
+    try {
+      report.pluginDiagnostics = await pluginDiagnostics(paths.home);
+      report.hostDiagnostics = redact(activeHost?.log ?? '');
+    }
     catch (diagnosticError) { report.pluginDiagnosticError = redact(diagnosticError.message); }
     workflowError('GUI verification failed', [report.error,
       ...(report.pluginDiagnostics ?? []).map(log => `${log.operation}:\n${log.output}`)].join('\n'));
