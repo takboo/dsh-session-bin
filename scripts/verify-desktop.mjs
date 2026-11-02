@@ -65,7 +65,10 @@ try {
       assert.equal(gui.electron, '44.7.0');
       assert.equal(gui.deletionQualification, candidate ? 'candidate' : 'supported');
       assert.equal(gui.productionDeletionQualified, !candidate);
-      assert.equal(gui.checks.length, 17);
+      assert.equal(gui.checks.length, 18);
+      assert.equal(gui.controlProcessStall?.requestedMs, 3500);
+      assert.equal(gui.controlProcessStall?.result, 'timed-out');
+      assert(gui.controlProcessStall.actualMs >= 3000);
       assert(gui.delayedHistoryRequests > 0);
       assert.equal(gui.historyReadiness?.length, 2);
       for (const opened of gui.historyReadiness) {
@@ -75,6 +78,7 @@ try {
       }
       assert.deepEqual(gui.browserConsole, []);
       assert.deepEqual(gui.pageErrors, []);
+      assert.equal(gui.hostShutdown.length, 2);
       for (const shutdown of gui.hostShutdown) assert.deepEqual([shutdown.code, shutdown.signal, shutdown.forced], [0, null, false]);
       report.evidence.push({ path, locale: gui.locale, sha256: gui.sha256 });
     }
