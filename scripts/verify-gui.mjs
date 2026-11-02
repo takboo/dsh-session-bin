@@ -20,6 +20,7 @@ import { discoverBrowserExecutable } from './browser-executable.mjs';
 import { shutdownMessage } from './gui-host-worker.mjs';
 import { configuredPackageManager, nodeRuntimeArgs } from './package-manager.mjs';
 import { workflowError } from './ci-diagnostics.mjs';
+import { delayNativeHistory } from './gui-history-delay.mjs';
 
 const require = createRequire(import.meta.url);
 const workspace = fileURLToPath(new URL('../', import.meta.url));
@@ -135,27 +136,15 @@ function observePage(page, report, stage) {
 }
 async function drainDiagnostics() { while (diagnosticTasks.size) await Promise.allSettled([...diagnosticTasks]); }
 
-async function delayNativeHistory(page, report) {
-  report.delayedHistoryRequests = 0;
-  await page.routeWebSocket('**/api/remote.mux', route => {
-    const server = route.connectToServer();
-    const pending = new Map();
-    route.onMessage(message => {
-      const frame = JSON.parse(String(message));
-      const address = frame.payload?.args?.request?.address;
-      if (frame.type === 'open' && frame.endpoint === 'session/follow'
-        && address?.kind === 'session' && address.sessionId === 'gui-native-only') {
-        report.delayedHistoryRequests += 1;
-        pending.set(frame.streamId, new Promise(resolve => setTimeout(resolve, 1500)));
-      }
-      const previous = pending.get(frame.streamId);
-      if (!previous) { server.send(message); return; }
-      const task = previous.then(() => server.send(message));
-      pending.set(frame.streamId, task);
-      diagnosticTasks.add(task);
-      void task.finally(() => diagnosticTasks.delete(task));
-    });
-  });
+function stallControlOnFirstSocket(page, report) {
+  const listener = socket => {
+    if (new URL(socket.url()).pathname !== '/api/remote.mux') return;
+    page.off('websocket', listener);
+    const started = performance.now();
+    const result = Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 3500);
+    report.controlProcessStall = { requestedMs: 3500, actualMs: performance.now() - started, result };
+  };
+  page.on('websocket', listener);
 }
 
 async function pluginDiagnostics(home) {
@@ -1471,7 +1460,8 @@ async function main() {
     const page = browserContext.pages()[0] ?? await browserContext.newPage();
     page.setDefaultTimeout(15000);
     observePage(page, report, 'installed');
-    await delayNativeHistory(page, report);
+    stallControlOnFirstSocket(page, report);
+    const historyDelayCount = await delayNativeHistory(page, { sessionId: 'gui-native-only' });
     await page.goto(host.authenticatedUrl, { waitUntil: 'domcontentloaded' });
     await page.waitForURL(url => !url.searchParams.has('token'));
     assert.equal(new URL(page.url()).origin, new URL(host.cleanUrl).origin);
@@ -1504,6 +1494,10 @@ async function main() {
       },
     };
     await runGui(page, paths, report, beforePhysical, preservation);
+    assert.equal(report.controlProcessStall?.result, 'timed-out', 'The real Gateway socket must exercise the control-process stall.');
+    assert(report.controlProcessStall.actualMs >= 3000, 'The stall must exceed the native readiness warning threshold.');
+    report.checks.push('Native Gateway readiness survives a 3500ms verification control-process stall');
+    report.delayedHistoryRequests = await historyDelayCount();
     assert(report.delayedHistoryRequests > 0, 'The native history readiness regression must exercise a delayed real Gateway stream.');
     assert.equal(report.historyReadiness?.length, 2, 'Both native history opens must finish before archive and purge.');
     await drainDiagnostics();
