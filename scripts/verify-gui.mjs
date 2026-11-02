@@ -110,7 +110,7 @@ function observePage(page, report, stage) {
   page.on('console', message => {
     if (message.type() !== 'error' && message.type() !== 'warning') return;
     report.browserConsole.push(`${stage}: ${redact(message.text())}`);
-    (report.warningTimeline ??= []).push({ text: redact(message.text()), at: Date.now(), checksCompleted: report.checks.length, lastCheck: report.checks.at(-1), pageUrl: cleanUrl(page.url()), recentHistoryDelays: report.historyDelays?.slice(-5) });
+    (report.warningTimeline ??= []).push({ at: Date.now(), text: redact(message.text()), stage, checksCompleted: report.checks.length, lastCheck: report.checks.at(-1), pageUrl: cleanUrl(page.url()) });
     if (report.browserConsole.length > 100) report.browserConsole.shift();
     const task = Promise.all(message.args().map(argument => argument.evaluate(value => {
       const seen = new Set();
@@ -146,7 +146,6 @@ async function delayNativeHistory(page, report) {
       if (frame.type === 'open' && frame.endpoint === 'session/follow'
         && address?.kind === 'session' && address.sessionId === 'gui-native-only') {
         report.delayedHistoryRequests += 1;
-        (report.historyDelays ??= []).push({ streamId: frame.streamId, at: Date.now(), checksCompleted: report.checks.length, lastCheck: report.checks.at(-1) });
         pending.set(frame.streamId, new Promise(resolve => setTimeout(resolve, 1500)));
       }
       const previous = pending.get(frame.streamId);
@@ -1472,54 +1471,11 @@ async function main() {
     const page = browserContext.pages()[0] ?? await browserContext.newPage();
     page.setDefaultTimeout(15000);
     observePage(page, report, 'installed');
-    report.limits.push('Intel CI diagnostic branch; not release evidence.');
     page.on('framenavigated', frame => { if (frame === page.mainFrame()) (report.navigations ??= []).push({ at: Date.now(), url: cleanUrl(frame.url()), checksCompleted: report.checks.length }); });
-    if (process.env.DSH_DIAG_STARTUP_ONLY === 'true' || process.env.DSH_DIAG_TRACE === 'true') {
-      report.scope = process.env.DSH_DIAG_STARTUP_ONLY === 'true' ? 'Diagnostic startup only; not release acceptance' : 'Diagnostic full GUI trace; not release acceptance';
-      report.startupNetwork = [];
-      const cdp = await browserContext.newCDPSession(page);
-      const record = (kind, data) => {
-        if (report.startupNetwork.length < 1200) report.startupNetwork.push({ at: Date.now(), kind, ...data });
-      };
-      const frame = (direction, event) => {
-        let data;
-        try { data = JSON.parse(event.response.payloadData); } catch { return; }
-        if (!data || typeof data !== 'object') return;
-        // Record protocol routing metadata only, never payload arguments or credentials.
-        record(direction, { id: event.requestId, type: data.type, endpoint: data.endpoint, streamId: data.streamId, bytes: event.response.payloadData.length });
-      };
-      await cdp.send('Network.enable');
-      cdp.on('Network.webSocketCreated', e => record('created', { id: e.requestId, path: new URL(e.url).pathname }));
-      cdp.on('Network.webSocketFrameSent', e => frame('sent', e));
-      cdp.on('Network.webSocketFrameReceived', e => frame('received', e));
-      cdp.on('Network.webSocketClosed', e => record('closed', { id: e.requestId }));
-      cdp.on('Network.webSocketFrameError', e => record('error', { id: e.requestId, error: redact(e.errorMessage) }));
-      page.on('request', request => { const path = new URL(request.url()).pathname; if (path.startsWith('/api')) record('request', { path, method: request.method() }); });
-      page.on('response', response => { const path = new URL(response.url()).pathname; if (path.startsWith('/api')) record('response', { path, status: response.status() }); });
-      report.startupAt = Date.now();
-    }
-    if (process.env.DSH_DIAG_WS_ROUTE !== 'off') await delayNativeHistory(page, report);
+    await delayNativeHistory(page, report);
     await page.goto(host.authenticatedUrl, { waitUntil: 'domcontentloaded' });
     await page.waitForURL(url => !url.searchParams.has('token'));
     assert.equal(new URL(page.url()).origin, new URL(host.cleanUrl).origin);
-    if (process.env.DSH_DIAG_STARTUP_ONLY === 'true') {
-      // URL authentication alone does not prove the real Client is connected.
-      await button(page, ui.panel).waitFor({ state: 'visible' });
-      await assertDocumentLanguage(page);
-      const preview = page.getByRole('dialog', { name: ui.preview, exact: true });
-      await preview.waitFor({ state: 'visible', timeout: 10000 });
-      await button(preview, ui.continue).click();
-      await preview.waitFor({ state: 'hidden' });
-      await skipModelSetup(page);
-      await showAllSessions(page);
-      await assertPanelCopy(page, 2);
-      report.startupReadyMs = Date.now() - report.startupAt;
-      await drainDiagnostics();
-      assert.deepEqual(report.pageErrors, []);
-      assert.deepEqual(report.browserConsole, [], 'Startup must have no connection warning');
-      report.status = 'passed';
-      return;
-    }
     const readPreservation = async () => {
       const reader = await openTranscriptReader(paths);
       try { return { logs: await readLogs(reader), physical: await physicalLogs(reader, paths) }; }
@@ -1621,10 +1577,7 @@ async function main() {
   } catch (error) {
     report.status = 'failed';
     report.error = redact(error.stack ?? error);
-    try {
-      report.pluginDiagnostics = await pluginDiagnostics(paths.home);
-      report.hostDiagnostics = redact(activeHost?.log ?? '');
-    }
+    try { report.pluginDiagnostics = await pluginDiagnostics(paths.home); report.hostDiagnostics = redact(activeHost?.log ?? ''); }
     catch (diagnosticError) { report.pluginDiagnosticError = redact(diagnosticError.message); }
     workflowError('GUI verification failed', [report.error,
       ...(report.pluginDiagnostics ?? []).map(log => `${log.operation}:\n${log.output}`)].join('\n'));

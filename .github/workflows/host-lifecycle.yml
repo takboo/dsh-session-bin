@@ -1,47 +1,158 @@
-name: Exact task GUI connection diagnosis
+name: Session Bin lifecycle
+
 on:
   push:
+  pull_request:
+
 permissions:
   contents: read
+
 jobs:
-  diagnose:
-    name: ${{ matrix.os }} / trace-${{ matrix.trace }}
+  verify:
+    name: ${{ matrix.os }} / ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2025]
-        trace: ["false"]
+        include:
+          - os: windows-2025
+            platform: win32
+            arch: x64
+          - os: macos-15
+            platform: darwin
+            arch: arm64
+          - os: macos-15-intel
+            platform: darwin
+            arch: x64
+          - os: ubuntu-24.04
+            platform: linux
+            arch: x64
+          - os: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
     env:
-      DSH_DIAG_WS_ROUTE: "on"
-      DSH_DIAG_TRACE: ${{ matrix.trace }}
-      DSH_DIAG_FULL_GUI: "true"
-      DSH_DIAG_ATTEMPTS: "3"
+      DSH_VERIFY_PLATFORM: ${{ matrix.platform }}
+      DSH_VERIFY_ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v3
-      - run: mise run install
-      - run: mise run verify:platform
-      - run: mise run verify:gui:browser
-      - name: Record process and memory state after the full suite
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force .local/startup-diagnosis | Out-Null
-          $snapshot = @{
-            memory = Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize
-            processes = @(Get-Process node,chrome -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,CPU,WorkingSet64,StartTime)
-          }
-          $snapshot | ConvertTo-Json -Depth 5 | Set-Content .local/startup-diagnosis/pre-start-resources.json
-      - name: Repeat the full GUI lifecycle and preserve warning phases
-        run: mise exec -- pnpm run diagnose:startup
-      - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: flow-${{ matrix.os }}-${{ matrix.trace }}
+          fetch-depth: 0
+      - uses: jdx/mise-action@v3
+      - name: Check release version and main ancestry
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: mise run release:check
+      - name: Install locked dependencies without lifecycle scripts
+        run: mise run install
+      - name: Check dshmarket publication metadata
+        run: mise run verify:market
+      - name: Check, build, test actual platform candidates, and verify tarball
+        run: mise run verify:platform
+      - name: Prepare pinned Chromium on the isolated runner
+        run: mise run verify:gui:browser
+      - name: Verify bilingual public CLI and browser lifecycle
+        run: mise run verify:gui
+      - name: Prepare the exact tested release tarball
+        if: matrix.platform == 'linux' && matrix.arch == 'x64'
+        run: mise run release:prepare
+      - name: Preserve release payload for review or publication
+        if: matrix.platform == 'linux' && matrix.arch == 'x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-payload
+          include-hidden-files: true
+          if-no-files-found: error
+          path: .local/release/
+      - name: Preserve native platform evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-${{ matrix.platform }}-${{ matrix.arch }}
+          if-no-files-found: error
           path: |
-            .local/startup-diagnosis/
             .local/platform/**/verification.json
             .local/lifecycle/package-*/verification.json
             .local/gui/**/verification.json
             .local/gui/**/artifacts/*.png
+
+  release:
+    name: Publish verified tarball
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: tarball-release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v3
+      - name: Check release version and main ancestry
+        run: mise run release:check
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-payload
+          path: .local/release/
+      - name: Check payload integrity and identity
+        id: payload
+        run: |
+          cd .local/release
+          sha256sum --check SHA256SUMS
+          cd ../..
+          mise run release:verify
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ steps.payload.outputs.prerelease }}
+        run: |
+          args=(--verify-tag --title "$RELEASE_TAG" --generate-notes --notes-file .local/release/RELEASE_NOTES.md)
+          if [ "$PRERELEASE" = true ]; then
+            args+=(--prerelease --latest=false)
+          fi
+          gh release create "$RELEASE_TAG" "${args[@]}" \
+            .local/release/dsh-session-bin.tgz \
+            .local/release/SHA256SUMS \
+            .local/release/release.json
+
+  npm:
+    name: Publish verified npm package
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: npm-release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v3
+      - name: Check release version and main ancestry
+        run: mise run release:check
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-payload
+          path: .local/release/
+      - name: Check payload integrity and identity
+        id: payload
+        run: |
+          cd .local/release
+          sha256sum --check SHA256SUMS
+          cd ../..
+          mise run release:verify
+      - name: Publish the identical tarball with npm trusted publishing
+        env:
+          PRERELEASE: ${{ steps.payload.outputs.prerelease }}
+        run: |
+          npm --version
+          tag=latest
+          if [ "$PRERELEASE" = true ]; then tag=next; fi
+          npm publish .local/release/dsh-session-bin.tgz \
+            --access public --provenance --tag "$tag" \
+            --registry https://registry.npmjs.org
