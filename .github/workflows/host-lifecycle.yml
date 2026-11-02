@@ -1,4 +1,4 @@
-name: Startup handshake diagnosis
+name: Startup after full-suite diagnosis
 on:
   push:
 permissions:
@@ -19,8 +19,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3
       - run: mise run install
-      - run: mise run build
+      - run: mise run verify:platform
       - run: mise run verify:gui:browser
+      - name: Record process and memory state after the full suite
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .local/startup-diagnosis | Out-Null
+          $snapshot = @{
+            memory = Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize
+            processes = @(Get-Process node,chrome -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,CPU,WorkingSet64,StartTime)
+          }
+          $snapshot | ConvertTo-Json -Depth 5 | Set-Content .local/startup-diagnosis/pre-start-resources.json
       - name: Repeat isolated real startup with protocol timing
         run: mise exec -- pnpm run diagnose:startup
       - uses: actions/upload-artifact@v4
@@ -29,5 +38,7 @@ jobs:
           name: startup-${{ matrix.os }}-${{ matrix.proxy }}
           path: |
             .local/startup-diagnosis/
+            .local/platform/**/verification.json
+            .local/lifecycle/package-*/verification.json
             .local/gui/**/verification.json
             .local/gui/**/artifacts/*.png
