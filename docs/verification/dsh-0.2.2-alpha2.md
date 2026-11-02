@@ -48,3 +48,23 @@ alpha.2 后续必须完成宿主生命周期和历史/投影接口迁移、固�
 首次两次单独调用 ASAR Loader 时未传入 pnpm 执行入口，检查器在打包前明确拒绝；通过 mise 和显式固定的 pnpm 入口复验后通过。失败调用日志保留在同目录，不计入上述完成证据。没有关闭验证器的包管理器检查。
 
 完整五平台正式报告以 [PR #22 最终提交检查](https://github.com/takboo/dsh-session-bin/pull/22/checks)为准；`v0.2.8` tag 必须重新通过全部五平台及同轮 Loader/双语 GUI 门禁，再由 Linux x64 已测试的同一 tarball 发布 GitHub Release/npm，最终身份以 `release.json` 为准。这里只修复声明编译问题，没有 alpha.2 的生产支持或原生 Desktop shell、物理输入法、真实用户会话验收声明。
+
+## CI 浏览器选择修正
+
+上述 `08f1559` 实现的 [PR CI](https://github.com/takboo/dsh-session-bin/actions/runs/41413739187)五平台通过，20 份报告逐份核验通过；同提交 [push CI](https://github.com/takboo/dsh-session-bin/actions/runs/41413730763)的 Intel job 连续三次被宿主 `generation is still not ready after 3000ms` 警告拦截。失败 artifact `13127590258`、`13127572807`、`13128088867` 已备份，原运行没有改写为通过。
+
+独立 Intel 诊断中，单语言 GUI、无前置全量的双语启动器、全量后单语言 GUI 均通过，未复现警告；本机 6 倍 CPU 限速下的启动及完整中文 GUI 也未复现。因此没有把启动器、前置负载、历史流注入或产品启动逻辑单独判为根因，也未延长阈值或放宽零警告、删除及恢复断言。
+
+报告比对另发现可确定复现的配置缺陷：CI 虽安装 Playwright `1.56.0` 的配套 Chromium，选择器却优先启动系统 Chrome `151.0.7922.174`。这违反了声明的锁定浏览器基线；[Playwright 一手文档](https://playwright.dev/docs/browsers)要求每个版本使用匹配的浏览器二进制。
+
+三项选择回归在旧实现全部失败：CI 选择系统 Chrome、缺少锁定浏览器时静默回退、显式 override 失败后改用其他浏览器。修正后连同原平台/worker 检查共七项通过。`CI=true` 仅接受指定 override 或配套 Chromium，缺失直接失败；普通本机查找顺序保持。本次不声称已确定所有慢握手警告的根因；后续正式 CI 必须记录锁定浏览器来源，并重新通过原有全量及双语 GUI 门禁。
+
+### 浏览器选择修正后的正式构建
+
+前节 `0b0f65a0…` tarball 和 435 项报告属于修正前的 `0.2.8` 首轮实现，保留为历史证据。浏览器选择修复为 `011f02f`；以下独立正式检查使用修正后的源码和同步后的发布文档。产品运行时 JavaScript 与两份语言资源逐文件匹配已发布 `0.2.7`，变化限类型声明、source map、包版本和文档；测试辅助脚本不进入发布包。
+
+本机正式 Node Loader 与实际官方 ASAR Loader 均通过；官方 rc.5 Electron 的全量回归为 438 项，432 通过、0 失败、6 项 Windows 专用检查跳过。两份正式 Loader 与官方 Electron 上的中文/English GUI 各 17 项均通过，production 为 true、candidate 为 false；GUI console/pageErrors 为空，四次 Host 关闭均正常、无强制终止。四份报告使用相同 tarball，SHA-256 为 `703de530a0004ac8bc0f93faa0a8a31a3f90ab4c7fea67a96e0ee6b53cf24ab0`。[本机证据核对](../../.local/release-0.2.8/browser-fix/release-0.2.8-accepted-local.json)确认实际运行时、源码稳定、历史加载、实际删除与重开及同字节产物。
+
+本机实现清单为 `4c8d994d71b3c033e95d4ec289b30e0a98666a00f4171061969eda50473849cd`，扣除既有两份 Finder 元数据后的干净 124 文件清单为 `ee2a4ccbaf2211b28a3a190617547464659f62de70f622f01e534cac79a524e2`。最终五平台/发布报告须重新匹配此清单；不能沿用修正前清单。
+
+修正后的 [Intel 双语诊断](https://github.com/takboo/dsh-session-bin/actions/runs/41423096493)实际选择 Chromium `141.0.7390.37`，来源为 `configured-tool-cache`，两种语言各 17 项、零警告；它仍只是诊断，正式资格以 PR #22 最终提交及 tag 的完整五平台门禁为准。诊断中一次资源采集因 runner 缺少 `rg` 提前终止，没有产生 GUI 结果，未计作 GUI 失败或通过；修正为系统工具后重新执行。未保留临时诊断日志代码或精简 workflow 到正式修复分支。

@@ -106,7 +106,7 @@ mise run verify
 | `mise run verify:platform` | 记录实际操作系统的候选组合验收证据 |
 | `mise run verify:linux` | 在固定 Node 的 Linux 容器内验证，需要 Docker |
 
-GUI 验证需要可用 Chromium 和 npm registry 网络访问，准备方式见[客户端接口](docs/client-interface.md#构建和检查)。候选验收通过不会自动扩大生产支持矩阵。本地 `.local/` 存放研究快照及测试证据，不进入 Git 或发布包。
+GUI 验证需要 npm registry 网络访问。本机可使用系统 Chromium；`CI=true`（包括隔离候选检查）使用 Playwright 锁定的浏览器，先运行 `mise run verify:gui:browser`，缺失时直接拒绝，不回退到自动更新的系统 Chrome。准备方式见[客户端接口](docs/client-interface.md#构建和检查)。候选验收通过不会自动扩大生产支持矩阵。本地 `.local/` 存放研究快照及测试证据，不进入 Git 或发布包。
 
 ## 文档与贡献
 
