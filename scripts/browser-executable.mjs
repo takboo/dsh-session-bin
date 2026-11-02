@@ -8,7 +8,7 @@ function candidate(path, browser, source) {
 }
 
 /** Pure platform mapping. Discovery performs filesystem access separately. */
-export function browserExecutableCandidates({ platform = process.platform, env = process.env, home = homedir() } = {}) {
+export function browserExecutableCandidates({ platform = process.platform, env = process.env, home = homedir(), fallbackExecutable } = {}) {
   const path = platform === 'win32' ? win32 : posix;
   const override = candidate(env.DSH_GUI_BROWSER_EXECUTABLE, 'configured', 'DSH_GUI_BROWSER_EXECUTABLE');
   let installed = [];
@@ -44,8 +44,14 @@ export function browserExecutableCandidates({ platform = process.platform, env =
   } else {
     throw new Error(`GUI browser discovery does not support platform ${JSON.stringify(platform)}.`);
   }
+  const locked = candidate(fallbackExecutable, 'chromium', 'configured-tool-cache');
+  if (env.CI === 'true') {
+    const required = override ?? locked;
+    if (!required) throw new Error('CI GUI verification requires the locked Playwright browser; run mise run verify:gui:browser.');
+    return [required];
+  }
   const seen = new Set();
-  return [override, ...installed].filter(item => item && !seen.has(item.path) && seen.add(item.path));
+  return [override, ...installed, locked].filter(item => item && !seen.has(item.path) && seen.add(item.path));
 }
 
 export async function selectReadableBrowser(candidates, check = path => access(path, constants.X_OK)) {
@@ -65,7 +71,5 @@ export async function selectReadableBrowser(candidates, check = path => access(p
 }
 
 export async function discoverBrowserExecutable(options = {}) {
-  const candidates = browserExecutableCandidates(options);
-  if (options.fallbackExecutable) candidates.push({ path: options.fallbackExecutable, browser: 'chromium', source: 'configured-tool-cache' });
-  return selectReadableBrowser(candidates);
+  return selectReadableBrowser(browserExecutableCandidates(options));
 }
