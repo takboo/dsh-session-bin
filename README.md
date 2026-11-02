@@ -37,6 +37,8 @@
 
 新版 DSH 的自动检测、隔离候选验证与 Issue/草稿 PR 流程见[兼容性自动检查](docs/compatibility.md)。每小时检查上游发布渠道；匹配的官方 macOS ARM64 Desktop 到达后，在独立解压的 Electron/ASAR 载体上补充候选验证。npm 与 Desktop 分别去重，产物保留 14 天；候选结果不自动扩大永久删除准入，依赖 PR 保持草稿，不自动合并或发布。
 
+DSH `0.2.2-alpha.2` 的[隔离检查](docs/verification/dsh-0.2.2-alpha2.md)已确认配置类型导出问题及后续生命周期不兼容，尚未纳入正式支持。
+
 ## 安装
 
 从 npm 安装已发布的预编译包：

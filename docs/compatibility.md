@@ -35,7 +35,7 @@ Desktop job 下载 feed 声明的精确官方 macOS ARM64 ZIP，核对 SHA-512�
 
 先在真实 ASAR Host 上验证正式源码的未准入准备拒绝及日志保留，再用该 Electron 运行真实 Loader 和双语 Web GUI；然后在副本生成明确标记的 SDK 候选映射，运行实际 ASAR 的全量生命周期/原生模块、八组 raw/zstd 冷升级恢复、Loader，以及该 Electron 上的双语 Web GUI。ASAR 源码须匹配此次 npm 候选指纹。浏览器 GUI 的 Host/client 为公开 Web 产物，ASAR 由独立完整测试与 probe 覆盖；不声称驱动原生 Desktop shell、物理输入法或真实账号推理。
 
-报告器更新同版本 Issue（rc.4 为 #16），并在现有依赖 PR（rc.4 为 #17）维护一条带标记的状态评论；不重写人工描述或分支文件，开放 PR 保持 Draft。即使全部候选阶段成功，仍为 partial，正式源码审阅、生产组合准入和最终提交全量 CI 由维护者完成，不自动关闭 Issue、标记 Ready、合并或发布。
+报告器更新同版本 Issue，并在现有依赖 PR 维护一条带标记的状态评论；不重写人工描述或分支文件，开放 PR 保持 Draft。即使全部候选阶段成功，仍为 partial，正式源码审阅、生产组合准入和最终提交全量 CI 由维护者完成，不自动关闭 Issue、标记 Ready、合并或发布。
 
 ## 受控更新与永久删除边界
 
@@ -51,7 +51,7 @@ Desktop job 下载 feed 声明的精确官方 macOS ARM64 ZIP，核对 SHA-512�
 
 候选通过不能自动晋级。准入变更必须经过源码审阅，并在对应实际组合上通过正式构建的删除及恢复验收；最终合并和发布仍由维护者决定。
 
-本轮 rc.4 本地结果与保留的失败见[自动化验证](verification/compatibility-automation.md)。
+rc.4 本地结果与保留的失败见[自动化验证](verification/compatibility-automation.md)；alpha.2 的编译修复、正常删除拒绝及后续生命周期失败见[隔离验证](verification/dsh-0.2.2-alpha2.md)。
 
 ## 本地执行
 

@@ -49,7 +49,7 @@ export type {
 } from './host/retirement-owner.js';
 
 export interface Config { coordinationDirectory?: string; permanentDeletion?: boolean }
-export const Config = schema.object({
+export const Config: schema<Config> = schema.object({
   permanentDeletion: schema.boolean().default(true).description('Enable the version-checked cold JSONL deletion Adapter when its complete composition is supported.'),
   coordinationDirectory: schema.string().description('Absolute shared directory for this Bin domain’s lifetime lock; defaults to $DSH_HOME/session-bin.'),
 });
