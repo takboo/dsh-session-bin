@@ -1474,7 +1474,7 @@ async function main() {
     observePage(page, report, 'installed');
     report.limits.push('Intel CI diagnostic branch; not release evidence.');
     page.on('framenavigated', frame => { if (frame === page.mainFrame()) (report.navigations ??= []).push({ at: Date.now(), url: cleanUrl(frame.url()), checksCompleted: report.checks.length }); });
-    if (process.env.DSH_DIAG_STARTUP_ONLY === 'true') {
+    if (process.env.DSH_DIAG_STARTUP_ONLY === 'true' || process.env.DSH_DIAG_TRACE === 'true') {
       report.scope = 'Diagnostic startup only; not release or deletion acceptance';
       report.startupNetwork = [];
       const cdp = await browserContext.newCDPSession(page);
@@ -1494,8 +1494,8 @@ async function main() {
       cdp.on('Network.webSocketFrameReceived', e => frame('received', e));
       cdp.on('Network.webSocketClosed', e => record('closed', { id: e.requestId }));
       cdp.on('Network.webSocketFrameError', e => record('error', { id: e.requestId, error: redact(e.errorMessage) }));
-      page.on('request', request => record('request', { path: new URL(request.url()).pathname, method: request.method() }));
-      page.on('response', response => record('response', { path: new URL(response.url()).pathname, status: response.status() }));
+      page.on('request', request => { const path = new URL(request.url()).pathname; if (path.startsWith('/api')) record('request', { path, method: request.method() }); });
+      page.on('response', response => { const path = new URL(response.url()).pathname; if (path.startsWith('/api')) record('response', { path, status: response.status() }); });
       report.startupAt = Date.now();
     }
     if (process.env.DSH_DIAG_WS_ROUTE !== 'off') await delayNativeHistory(page, report);

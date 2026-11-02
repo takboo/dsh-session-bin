@@ -1,20 +1,23 @@
-name: Startup after full-suite diagnosis
+name: Full GUI connection phase diagnosis
 on:
   push:
 permissions:
   contents: read
 jobs:
   diagnose:
-    name: ${{ matrix.os }} / proxy-${{ matrix.proxy }}
+    name: ${{ matrix.os }} / trace-${{ matrix.trace }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
         os: [windows-2025]
-        proxy: ["on", "off"]
+        trace: ["true", "false"]
     env:
-      DSH_DIAG_WS_ROUTE: ${{ matrix.proxy }}
+      DSH_DIAG_WS_ROUTE: "on"
+      DSH_DIAG_TRACE: ${{ matrix.trace }}
+      DSH_DIAG_FULL_GUI: "true"
+      DSH_DIAG_ATTEMPTS: "3"
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3
@@ -30,12 +33,12 @@ jobs:
             processes = @(Get-Process node,chrome -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,CPU,WorkingSet64,StartTime)
           }
           $snapshot | ConvertTo-Json -Depth 5 | Set-Content .local/startup-diagnosis/pre-start-resources.json
-      - name: Repeat isolated real startup with protocol timing
+      - name: Repeat the full GUI lifecycle and preserve warning phases
         run: mise exec -- pnpm run diagnose:startup
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: startup-${{ matrix.os }}-${{ matrix.proxy }}
+          name: flow-${{ matrix.os }}-${{ matrix.trace }}
           path: |
             .local/startup-diagnosis/
             .local/platform/**/verification.json
