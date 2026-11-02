@@ -1475,7 +1475,7 @@ async function main() {
     report.limits.push('Intel CI diagnostic branch; not release evidence.');
     page.on('framenavigated', frame => { if (frame === page.mainFrame()) (report.navigations ??= []).push({ at: Date.now(), url: cleanUrl(frame.url()), checksCompleted: report.checks.length }); });
     if (process.env.DSH_DIAG_STARTUP_ONLY === 'true' || process.env.DSH_DIAG_TRACE === 'true') {
-      report.scope = 'Diagnostic startup only; not release or deletion acceptance';
+      report.scope = process.env.DSH_DIAG_STARTUP_ONLY === 'true' ? 'Diagnostic startup only; not release acceptance' : 'Diagnostic full GUI trace; not release acceptance';
       report.startupNetwork = [];
       const cdp = await browserContext.newCDPSession(page);
       const record = (kind, data) => {
