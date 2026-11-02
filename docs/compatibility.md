@@ -63,7 +63,7 @@ mise run compat:check
 mise run compat:desktop
 ```
 
-运行检查前，先把 `DSH_VERSION` 设置为高于当前 `package.json.engines.dsh` 的精确已发布版本。`compat:discover --local` 只读查询上游，不访问 Issue；也可用 `DSH_VERSION` 固定发现版本。`compat:check` 默认运行正常拒绝与候选双语 GUI，需要可用 Chromium；`--no-gui` 仅供诊断，报告保留未覆盖范围。每次生成独立目录，不复用上轮测试会话。命令结果写在该目录的 `report/report.json`，终端同时输出目录位置。
+运行检查前，先把 `DSH_VERSION` 设置为高于当前 `package.json.engines.dsh` 的精确已发布版本。`compat:discover --local` 只读查询上游，不访问 Issue；也可用 `DSH_VERSION` 固定发现版本。`compat:check` 默认运行正常拒绝与候选双语 GUI，其隔离副本使用 `CI=true`，因此先运行 `mise run verify:gui:browser` 准备锁定 Chromium；`--no-gui` 仅供诊断，报告保留未覆盖范围。每次生成独立目录，不复用上轮测试会话。命令结果写在该目录的 `report/report.json`，终端同时输出目录位置。
 
 `compat:desktop` 只在 macOS ARM64/APFS 上运行，必须有匹配的官方 feed；不接受用户安装应用路径替代下载来源。`--current-baseline` 仅供对当前已发布桌面版本演练验证器，不证明未来版本的兼容性。缺少 GUI/ASAR/恢复阶段的报告不能被报告器当成完成证据。
 
