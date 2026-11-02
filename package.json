@@ -49,6 +49,7 @@
     }
   },
   "scripts": {
+    "diagnose:startup": "node scripts/diagnose-startup.mjs",
     "check": "tsc --noEmit && tsc --project tsconfig.client.json --noEmit",
     "build": "tsc --emitDeclarationOnly && tsc --project tsconfig.client.json --emitDeclarationOnly && node scripts/build.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",

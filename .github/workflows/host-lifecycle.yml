@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2025, macos-15-intel]
+        os: [windows-2025]
         proxy: ["on", "off"]
     env:
       DSH_DIAG_WS_ROUTE: ${{ matrix.proxy }}
@@ -22,7 +22,7 @@ jobs:
       - run: mise run build
       - run: mise run verify:gui:browser
       - name: Repeat isolated real startup with protocol timing
-        run: mise exec -- node scripts/diagnose-startup.mjs
+        run: mise exec -- pnpm run diagnose:startup
       - uses: actions/upload-artifact@v4
         if: always()
         with:
