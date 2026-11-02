@@ -1471,7 +1471,6 @@ async function main() {
     const page = browserContext.pages()[0] ?? await browserContext.newPage();
     page.setDefaultTimeout(15000);
     observePage(page, report, 'installed');
-    page.on('framenavigated', frame => { if (frame === page.mainFrame()) (report.navigations ??= []).push({ at: Date.now(), url: cleanUrl(frame.url()), checksCompleted: report.checks.length }); });
     await delayNativeHistory(page, report);
     await page.goto(host.authenticatedUrl, { waitUntil: 'domcontentloaded' });
     await page.waitForURL(url => !url.searchParams.has('token'));
