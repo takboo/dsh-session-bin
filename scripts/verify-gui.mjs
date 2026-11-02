@@ -1479,7 +1479,7 @@ async function main() {
       report.startupNetwork = [];
       const cdp = await browserContext.newCDPSession(page);
       const record = (kind, data) => {
-        if (report.startupNetwork.length < 300) report.startupNetwork.push({ at: Date.now(), kind, ...data });
+        if (report.startupNetwork.length < 1200) report.startupNetwork.push({ at: Date.now(), kind, ...data });
       };
       const frame = (direction, event) => {
         let data;
@@ -1503,6 +1503,16 @@ async function main() {
     await page.waitForURL(url => !url.searchParams.has('token'));
     assert.equal(new URL(page.url()).origin, new URL(host.cleanUrl).origin);
     if (process.env.DSH_DIAG_STARTUP_ONLY === 'true') {
+      // URL authentication alone does not prove the real Client is connected.
+      await button(page, ui.panel).waitFor({ state: 'visible' });
+      await assertDocumentLanguage(page);
+      const preview = page.getByRole('dialog', { name: ui.preview, exact: true });
+      await preview.waitFor({ state: 'visible', timeout: 10000 });
+      await button(preview, ui.continue).click();
+      await preview.waitFor({ state: 'hidden' });
+      await skipModelSetup(page);
+      await showAllSessions(page);
+      await assertPanelCopy(page, 2);
       report.startupReadyMs = Date.now() - report.startupAt;
       await drainDiagnostics();
       assert.deepEqual(report.pageErrors, []);
