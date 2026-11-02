@@ -1,6 +1,6 @@
 # 客户端与 Remote 接口
 
-插件 `0.2.7` 使用精确 DSH `0.2.1-rc.5`；CLI/Web、官方 macOS ARM64 桌面运行时及冷重启升级见[rc.5 验证](verification/dsh-0.2.1-rc5.md)。插件 `0.2.6` 对应 rc.3；删除占用释放与具体原因保留于[定点释放验证](verification/targeted-deletion-drain.md)，此前正式组合见[rc.3 验证](verification/dsh-0.2.1-rc3.md)。此前 rc.2 桌面准入与跨运行时恢复证据保留于[桌面验证](verification/desktop-runtime.md)。
+插件 `0.2.8` 使用精确 DSH `0.2.1-rc.5`；CLI/Web、官方 macOS ARM64 桌面运行时及冷重启升级见[rc.5 验证](verification/dsh-0.2.1-rc5.md)。`0.2.8` 仅修复配置类型导出，保留 `0.2.7` 的运行时及删除准入；[alpha.2 检查](verification/dsh-0.2.2-alpha2.md)不授予新版支持。插件 `0.2.6` 对应 rc.3；删除占用释放与具体原因保留于[定点释放验证](verification/targeted-deletion-drain.md)，此前正式组合见[rc.3 验证](verification/dsh-0.2.1-rc3.md)。此前 rc.2 桌面准入与跨运行时恢复证据保留于[桌面验证](verification/desktop-runtime.md)。
 
 删除拒绝分别显示目标存储 reader、writer、pending 操作、日志迁移准备、query 快照、history 订阅、无法定点识别的旧订阅和 cache 待写入原因，中英文均提供对应建议。旧 `native/persistence-retained` 回执继续显示兼容提示；活动任务单独显示原生活动保护。关闭已知目标订阅不等同于强制关闭其他插件的独立 reader。
 
@@ -76,7 +76,7 @@ Host follow 订阅原生 Workspace 与插件元数据变化，先订阅后取 ba
 - `mise run verify:gui`：顺序验收中文与 English，独立临时 DSH_HOME 中用公开 CLI 安装 tarball、启动真正 `dsh web`，检查原生 Archive/Undo、已有归档、取消归档、固定选择批量操作、语言切换、浅深色、窄屏和卸载。
 - `DSH_GUI_LOCALE=zh-CN` 或 `en-US` 与 `mise run verify:gui:locale`：单语诊断。
 
-GUI 检查先运行 `mise run install` 安装项目锁定依赖；新 Web profile 的安装使用 `--prefer-offline` 复用缓存并补齐独立解析的依赖，需要 npm registry 网络访问。需要可用 Chrome，可由 `DSH_GUI_BROWSER_EXECUTABLE` 指定 Chromium。脚本的 Host 使用系统空闲端口；只连接自己的独立测试宿主，不使用当前 GUI/profile。Linux 浏览器使用独立的 `/tmp/dsh-gui-*` 短临时目录，避免较长 CI 工作区路径超过 Chromium Unix socket 长度限制，关闭后清理并在报告中记录。卸载后的新 Web 启动使用新的浏览器数据目录，避免恢复连接旧测试端口的标签页。失败报告保留经脱敏的 stdout、stderr 和插件管理器日志；数据与截图保留在忽略的 `.local/gui/`。
+GUI 检查先运行 `mise run install` 安装项目锁定依赖；新 Web profile 的安装使用 `--prefer-offline` 复用缓存并补齐独立解析的依赖，需要 npm registry 网络访问。本机默认查找系统 Chrome/Chromium，也可由 `DSH_GUI_BROWSER_EXECUTABLE` 指定浏览器。`CI=true` 时只使用 Playwright 精确版本对应的 Chromium，先运行 `mise run verify:gui:browser`；浏览器缺失或显式 override 不可执行时直接失败，不能静默改用系统浏览器。报告记录实际路径、来源及版本，显式 override 的诊断结果不能冒充锁定浏览器的 CI 证据。脚本的 Host 使用系统空闲端口；只连接自己的独立测试宿主，不使用当前 GUI/profile。Linux 浏览器使用独立的 `/tmp/dsh-gui-*` 短临时目录，避免较长 CI 工作区路径超过 Chromium Unix socket 长度限制，关闭后清理并在报告中记录。卸载后的新 Web 启动使用新的浏览器数据目录，避免恢复连接旧测试端口的标签页。失败报告保留经脱敏的 stdout、stderr 和插件管理器日志；数据与截图保留在忽略的 `.local/gui/`。
 
 ## 当前边界
 

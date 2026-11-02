@@ -12,7 +12,7 @@
 - 简洁的删除确认，可在设置中全局关闭；批量操作显示进度和日志，完成后保留简短统计及失败项。中断或断线后可查询结果并明确继续。
 - 中英文界面，使用宿主控件、浅色和深色主题。
 
-当前版本为 `0.2.7`，包名为 `@takboo/dsh-session-bin`。本版适配 DSH `0.2.1-rc.5`，修复可选 Query provider 初始化期间的插件启动竞态，并改进 macOS 文件系统验收证据采集；保留原有删除保护和支持范围。源码审阅与独立组合验收见 [rc.5 验证](docs/verification/dsh-0.2.1-rc5.md)。GitHub Release 提供预编译 tarball；npm 通过 trusted publishing 自动发布同一份产物。[dshmarket 收录流程](docs/release.md#dshmarket)独立于 npm 发布，须经目录检查与维护者审核。
+当前版本为 `0.2.8`，包名为 `@takboo/dsh-session-bin`。本版为配置 schema 导出声明显式公共类型，修复多版本 Schemastery 依赖下的 TypeScript 声明编译错误；继续适配 DSH `0.2.1-rc.5`，保留原有删除保护和支持范围。源码审阅与独立组合验收见 [rc.5 验证](docs/verification/dsh-0.2.1-rc5.md)，编译修复及 alpha.2 的未支持边界见[隔离验证](docs/verification/dsh-0.2.2-alpha2.md)。GitHub Release 提供预编译 tarball；npm 通过 trusted publishing 自动发布同一份产物。[dshmarket 收录流程](docs/release.md#dshmarket)独立于 npm 发布，须经目录检查与维护者审核。
 
 ## 界面预览
 
@@ -37,12 +37,14 @@
 
 新版 DSH 的自动检测、隔离候选验证与 Issue/草稿 PR 流程见[兼容性自动检查](docs/compatibility.md)。每小时检查上游发布渠道；匹配的官方 macOS ARM64 Desktop 到达后，在独立解压的 Electron/ASAR 载体上补充候选验证。npm 与 Desktop 分别去重，产物保留 14 天；候选结果不自动扩大永久删除准入，依赖 PR 保持草稿，不自动合并或发布。
 
+DSH `0.2.2-alpha.2` 的[隔离检查](docs/verification/dsh-0.2.2-alpha2.md)已确认配置类型导出问题及后续生命周期不兼容，尚未纳入正式支持。
+
 ## 安装
 
 从 npm 安装已发布的预编译包：
 
 ```sh
-dsh plugin --profile web add @takboo/dsh-session-bin@0.2.7
+dsh plugin --profile web add @takboo/dsh-session-bin@0.2.8
 ```
 
 以上命令使用已安装的 DSH `0.2.1-rc.5`，将完整插件 bundle 安装到 `web` profile。已验证的 macOS ARM64 桌面版请在 `desktop` profile 的插件管理页面安装同一个 npm 包，并重新启动该 profile 的宿主。启动或重新启动该 profile 后，从侧栏打开“会话回收站”（Session Bin）。发布包包含预编译 Host 和 Client，使用者安装时无需编译 TypeScript；其 tarball 已通过真实 CLI/GUI 验证。
@@ -53,7 +55,7 @@ dsh plugin --profile web add @takboo/dsh-session-bin@0.2.7
 dsh plugin --profile web remove @takboo/dsh-session-bin
 ```
 
-也可下载 [v0.2.7 Release](https://github.com/takboo/dsh-session-bin/releases/tag/v0.2.7) 中的三个附件，核对 `SHA256SUMS` 后运行 `dsh plugin --profile web add ./dsh-session-bin.tgz`。自行构建时，先完成下方[开发入门](#开发入门)，再运行 `mise exec -- pnpm exec npm pack --ignore-scripts`。
+也可下载 [v0.2.8 Release](https://github.com/takboo/dsh-session-bin/releases/tag/v0.2.8) 中的三个附件，核对 `SHA256SUMS` 后运行 `dsh plugin --profile web add ./dsh-session-bin.tgz`。自行构建时，先完成下方[开发入门](#开发入门)，再运行 `mise exec -- pnpm exec npm pack --ignore-scripts`。
 
 如安装过早期未加 scope 的开发包，先从同一 profile 卸载 `dsh-session-bin`，再安装 scoped 包，避免重复注册；原生归档和已有操作记录保留。分发契约见[发布文档](docs/release.md)。
 
@@ -104,7 +106,7 @@ mise run verify
 | `mise run verify:platform` | 记录实际操作系统的候选组合验收证据 |
 | `mise run verify:linux` | 在固定 Node 的 Linux 容器内验证，需要 Docker |
 
-GUI 验证需要可用 Chromium 和 npm registry 网络访问，准备方式见[客户端接口](docs/client-interface.md#构建和检查)。候选验收通过不会自动扩大生产支持矩阵。本地 `.local/` 存放研究快照及测试证据，不进入 Git 或发布包。
+GUI 验证需要 npm registry 网络访问。本机可使用系统 Chromium；`CI=true`（包括隔离候选检查）使用 Playwright 锁定的浏览器，先运行 `mise run verify:gui:browser`，缺失时直接拒绝，不回退到自动更新的系统 Chrome。准备方式见[客户端接口](docs/client-interface.md#构建和检查)。候选验收通过不会自动扩大生产支持矩阵。本地 `.local/` 存放研究快照及测试证据，不进入 Git 或发布包。
 
 ## 文档与贡献
 
