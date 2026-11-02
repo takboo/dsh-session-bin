@@ -5,24 +5,43 @@ permissions:
   contents: read
 jobs:
   diagnose:
+    name: ${{ matrix.name }}
     runs-on: macos-15-intel
-    timeout-minutes: 30
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: full-suite-then-locale
+            suite: true
+            bilingual: false
+          - name: bilingual-only
+            suite: false
+            bilingual: true
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3
       - run: mise run install
+      - run: mise run verify:platform
+        if: matrix.suite
       - run: mise run build
-      - name: Record GUI-only resource state
+        if: ${{ !matrix.suite }}
+      - name: Record resource state
         run: |
           sysctl -n hw.logicalcpu
           uptime
-          ps -axo pid,ppid,%cpu,etime,comm | rg '(PID|node|Chrom|chrome|DeepSeek)'
+          ps -axo pid,ppid,%cpu,etime,comm | /usr/bin/grep -E '(PID|node|Chrom|chrome|DeepSeek)'
       - run: mise run verify:gui:browser
+      - run: mise run verify:gui:locale
+        if: ${{ !matrix.bilingual }}
+        env:
+          DSH_GUI_LOCALE: zh-CN
       - run: mise run verify:gui
+        if: matrix.bilingual
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: intel-gui-diagnosis
+          name: ${{ matrix.name }}
           path: |
             .local/gui/**/verification.json
             .local/gui/**/artifacts/*.png
