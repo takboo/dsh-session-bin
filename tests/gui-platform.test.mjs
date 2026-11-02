@@ -72,6 +72,42 @@ test('readable browser selection honors override order and reports every failed 
     && error.failures.length === candidates.length && error.failures.every(row => row.code === 'EACCES'));
 });
 
+test('CI uses the locked Playwright browser even when system Chrome is readable', async () => {
+  const checked = [];
+  const candidates = browserExecutableCandidates({ platform: 'darwin', env: { CI: 'true' }, home: '/fixture',
+    fallbackExecutable: '/fixture/playwright/chromium' });
+  const selected = await selectReadableBrowser(candidates, async path => { checked.push(path); });
+  assert.equal(selected.path, '/fixture/playwright/chromium');
+  assert.equal(selected.source, 'configured-tool-cache');
+  assert.deepEqual(checked, ['/fixture/playwright/chromium']);
+});
+
+test('CI refuses a missing locked browser instead of silently using system Chrome', async () => {
+  const checked = [];
+  const candidates = browserExecutableCandidates({ platform: 'darwin', env: { CI: 'true' }, home: '/fixture',
+    fallbackExecutable: '/fixture/playwright/chromium' });
+  await assert.rejects(selectReadableBrowser(candidates, async path => {
+    checked.push(path);
+    if (path === '/fixture/playwright/chromium') throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+  }), error => error.code === 'DSH_GUI_BROWSER_NOT_FOUND');
+  assert.deepEqual(checked, ['/fixture/playwright/chromium']);
+  assert.throws(() => browserExecutableCandidates({ platform: 'darwin', env: { CI: 'true' }, home: '/fixture' }), /Playwright/);
+});
+
+test('an explicit CI browser override is authoritative and local discovery keeps system fallback', async () => {
+  const options = { platform: 'darwin', env: { CI: 'true', DSH_GUI_BROWSER_EXECUTABLE: '/fixture/explicit' },
+    home: '/fixture', fallbackExecutable: '/fixture/playwright/chromium' };
+  const checked = [];
+  await assert.rejects(selectReadableBrowser(browserExecutableCandidates(options), async path => {
+    checked.push(path);
+    if (path === '/fixture/explicit') throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+  }), error => error.code === 'DSH_GUI_BROWSER_NOT_FOUND');
+  assert.deepEqual(checked, ['/fixture/explicit']);
+  const local = browserExecutableCandidates({ ...options, env: {} });
+  assert.equal(local[0].source, 'system');
+  assert.equal(local.at(-1).source, 'configured-tool-cache');
+});
+
 test('GUI worker accepts only the exact bounded shutdown message', () => {
   assert.equal(isShutdownMessage(shutdownMessage), true);
   for (const value of [null, 'SIGTERM', {}, { ...shutdownMessage, extra: true },
