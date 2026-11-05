@@ -1,5 +1,26 @@
 # Host 生命周期实现验证
 
+## 缺锁旧 JSONL 会话的显式接入
+
+2026-11-05，基线为 `d83f36f0e24f5ac12e2e14d20dfdb99e2a3a4987` 加本轮未发布工作区变更。固定公开 SDK `0.2.1-rc.5`，当前本机为 macOS ARM64/APFS。新增 [20 项回归](../../tests/legacy-lock.test.mjs)通过；正式行为见 [Host 生命周期](../host-lifecycle.md)，决策见 [ADR 0013](../decisions/0013-legacy-jsonl-lock-preparation.md)。
+
+回归从独立构造、没有锁的 V0 raw/zstd 日志开始，经生产 `preparePurge/executePurge` 接口验证：显式准备建立稳定锁，原日志 bytes、inode、birthtime、size 和修改时间保持，不产生迁移代际；重复准备复用 inode，随后真实删除成功。启动、列举、对账不补锁；取消准备等价于不执行，日志和归档保留。带真实 projection cache 和 SQLite 的两个组合同时验证定点清除、原生归档收敛及 sibling 日志保留。
+
+拒绝场景覆盖活动、非归档、关闭永久删除、已绑定后丢锁（含完整重开）、V4/staging 缺锁、未知资源、torn header、重复 SID、symlink、额外 hard link 和非空锁。并发创建由原生 writer 获胜时，不覆盖锁且内核争用拒绝；补锁后的资源漂移拒绝并保留资源。未知 I/O 暂停到完整重开；真实 SIGKILL 发生在锁创建及同步后、见证提交前，重开观察不执行删除，新显式准备复用原 inode 后可完成删除。
+
+本轮完整检查结果如下，源码清单 SHA-256 均为 `3b25ad9fcfd574cdfb8545d9d470b84396cf6ee65b21a7843a97f9f9726615e2`，运行前后稳定：
+
+| 载体 | 检查及结果 | 本地证据 |
+| --- | --- | --- |
+| Node `24.18.1` / libuv `1.52.1`、macOS ARM64/APFS | 文档、市场静态检查、两端类型、构建、466 项测试（460 通过、6 项 Windows 专用跳过、0 失败）及真实 Loader/tarball 通过 | [平台报告](../../.local/platform/darwin-arm64-uZBjbC/verification.json)、[打包报告](../../.local/lifecycle/package-4yQABm/verification.json) |
+| 已安装 Electron `44.7.0` / Node `24.21.0` / libuv `1.52.1`、真实 ASAR SDK | 生产准入探针及同一 466 项全量回归通过（460 通过、6 跳过、0 失败） | [Desktop 报告](../../.local/desktop/darwin-arm64-iSD4wm/verification.json) |
+
+另将先前只读诊断保留的四个真实问题样本复制到新 fixture，以已安装 Electron/ASAR SDK 经生产 `preparePurge` 重放，四个均返回空 blockers、有效 binding/manifest，日志原字节保留且没有迁移或执行删除。该诊断重放不替代上表独立 fixture 的真实清除验收。
+
+执行使用 mise 固定的 Node、pnpm；因本机 mise task 的 PATH 顺序会优先 Homebrew Node，完整检查通过 `mise exec -- sh -c 'export PATH="/Users/jam/.local/share/mise/installs/node/24.18.1/bin:$PATH"; exec pnpm run verify:platform'` 和同样上下文的 `pnpm run verify:desktop` 运行，以报告内实际 Node 版本为准。打包产物仍标为工作区 `0.2.8`，不是新发布版本。未补验 Windows、Intel Mac、Linux 或完整 GUI/原生外壳；这些环境不得仅依据本机结果增加新资格。
+
+所有会话、锁、SQLite、缓存及破坏性场景均在独立临时 `DSH_HOME` 和 `.local/lifecycle/legacy-lock-*` fixture 中。没有操作真实用户会话、修改安装包或发布；不扩大生产支持矩阵，不把进程中断证据当作断电耐久保证。
+
 ## 0.2.4 桌面运行时兼容性
 
 当前 macOS ARM64 桌面运行时、真实 ASAR SDK、跨运行时回执与故障恢复结果见[桌面验证](desktop-runtime.md)。原有独立 Node 组合继续独立验收，下方保留历史版本的原始范围。

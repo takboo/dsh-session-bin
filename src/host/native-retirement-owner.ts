@@ -194,6 +194,9 @@ export class NativeRetirementOwner implements SessionRetirementOwnerV1 {
         const snapshot = await this.provider.stat(id);
         if (!snapshot) return 'session-not-found';
         if (snapshot.header.origin === 'subagent') return 'native/subagent-unsupported';
+        // Only explicit eligibility preparation can establish first-time legacy
+        // coordination. A durable witness must never have its lock recreated.
+        if (!this.witness(id)) await this.files.prepareLegacyLock(id, snapshot.header);
         const inventory = await this.files.inspect(id, snapshot.header);
         const lease = await this.files.acquire(inventory);
         try { await this.files.current(inventory); } finally { await lease.release(); }
