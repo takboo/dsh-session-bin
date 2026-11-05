@@ -197,7 +197,7 @@ export class NativeJsonlFiles {
     // The pinned SDK keeps the concrete class private. Verify its complete official npm
     // implementation instead of accepting a provider by a class-name match.
     if (createHash('sha256').update(Function.prototype.toString.call(nativeServiceInstance(provider).constructor)).digest('hex')
-      !== 'bb0e12b14bd21adec58c51934f00014e482380102f09aa5e935536c57c0d6e1e') return;
+      !== '3b266ac3f592216e5967eedce615630e07024c68637fe9f86ba152419805c3f7') return;
     const internals = provider as unknown as { root?: unknown; compression?: unknown; config?: { root?: unknown; compression?: unknown } };
     const config = internals.config;
     if (typeof internals.root !== 'string' || !isAbsolute(internals.root)
@@ -206,7 +206,7 @@ export class NativeJsonlFiles {
       || (config.compression ?? 'zstd') !== internals.compression) return;
     const require = createRequire(import.meta.url);
     const metadata: unknown = require('@deepseek-ai/dsh-session-persistence-jsonl/package.json');
-    if ((metadata as { version?: unknown }).version !== '0.2.1-rc.5') return;
+    if ((metadata as { version?: unknown }).version !== '0.2.2-rc.1') return;
     let root: string;
     try { root = await realpath(internals.root); }
     catch (error) { if (missing(error)) return; throw error; }

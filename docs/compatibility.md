@@ -47,11 +47,11 @@ Desktop job 下载 feed 声明的精确官方 macOS ARM64 ZIP，核对 SHA-512�
 4. 只在隔离副本中生成候选源码版本/摘要映射，保留 durable 协议身份。源码差异完整记录；JSONL 类身份、生命周期、活动保护、资源范围等断言不放宽。运行完整平台回归、旧冻结计划/中断样本恢复、真实 Loader 与双语 GUI。已知验证失败仍保留，并继续收集独立阶段证据。
 5. 候选报告标记 `candidate`，不能满足发布所需的 productionDeletionQualified / supported 条件。正式代码没有环境变量准入绕过入口。官方桌面到达后由独立组件补充 Electron/ASAR 候选检查；feed 未提供对应桌面包时记为等待，不复用旧版资格。正式源码审阅和生产组合准入仍另行决定。
 
-依赖提案仅包含 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`，报告 job 重新核对文件白名单、目标版本、原 manifest 和策略。草稿 PR 保持原有生产准入、运行时/平台范围与插件发布版本，关联对应 Issue。自动化不会覆盖已有提案或维护者修改；后续证据仍写入 Issue，维护者决定是否更新分支。
+依赖提案仅包含 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`，报告 job 重新核对文件白名单、目标版本、原 manifest 和策略。年龄豁免按 YAML 语义比较，保留全部已审阅项；新增项必须是冻结锁文件内从目标 DSH 根依赖可达的 `@deepseek-ai/*` 精确版本，pnpm 的 exact `||` 组合可拆分核对。任意范围、无关/不可达包及其他策略字段变更仍拒绝。该校验只允许生成供审阅的候选提案，不授予生产资格。草稿 PR 保持原有生产准入、运行时/平台范围与插件发布版本，关联对应 Issue。自动化不会覆盖已有提案或维护者修改；后续证据仍写入 Issue，维护者决定是否更新分支。
 
 候选通过不能自动晋级。准入变更必须经过源码审阅，并在对应实际组合上通过正式构建的删除及恢复验收；最终合并和发布仍由维护者决定。
 
-rc.4 本地结果与保留的失败见[自动化验证](verification/compatibility-automation.md)；alpha.2 的编译修复、正常删除拒绝及后续生命周期失败见[隔离验证](verification/dsh-0.2.2-alpha2.md)。
+rc.4 本地结果与保留的失败见[自动化验证](verification/compatibility-automation.md)；alpha.2 的编译修复、正常删除拒绝及后续生命周期失败见[隔离验证](verification/dsh-0.2.2-alpha2.md)。`0.3.0` 对较新的 `0.2.2-rc.1` 独立适配与旧回执迁移见[rc.1 验证](verification/dsh-0.2.2-rc1.md)；旧 alpha 不因此取得支持。
 
 ## 本地执行
 

@@ -245,8 +245,8 @@ test('disposing a real Cordis plugin during initialization releases its acquired
       await enteredBeforeAbort({ entered: constructed.promise }, t.signal);
       await fiber.dispose();
       const settled = await startup;
-      assert.equal(settled.error?.code, 'INACTIVE_EFFECT',
-        'the plugin must be cancelled before cleanup registration, rather than initialize normally');
+      assert.equal(settled.error, undefined);
+      assert.throws(() => fiber.assertActive(), error => error.code === 'INACTIVE_EFFECT');
       assert.equal(fixture.ctx.get('sessionBin'), undefined);
       assert((await lstat(join(coordinationDirectory, 'writer.lock'))).isFile(),
         'cancelled initialization must have reached acquisition, not skipped it');

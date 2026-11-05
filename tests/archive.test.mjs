@@ -274,8 +274,10 @@ for (const mode of ['failure', 'cancel']) test(`third archive domain open ${mode
       disposing = fiber.dispose();
       await assert.rejects(product.acquireBinLease(join(fixture.root, 'coordination')), error => error.code === 'bin/lease-unavailable');
       gate.release();
-      assert.equal((await startup).error?.code, 'INACTIVE_EFFECT');
+      // Cordis 4.1 settles a cancelled startup without rethrowing its stale epoch.
+      assert.equal((await startup).error, null);
       await disposing;
+      assert.throws(() => fiber.assertActive(), error => error.code === 'INACTIVE_EFFECT');
     } else {
       assert(contains((await startup).error, 'third archive open failed'));
       await fiber.dispose();

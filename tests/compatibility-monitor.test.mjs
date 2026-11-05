@@ -131,3 +131,22 @@ test('candidate source copying excludes account config, environment files and un
   for (const path of ['README.md', 'package.json', 'src/host/native-retirement-sdk.ts', 'scripts/compatibility/common.mjs']) assert.equal(isWorkspaceInput(path), true);
   for (const path of ['.npmrc', '.mise.local.toml', '.env', '.env.example', 'credentials.json', '.aws/credentials', '.local/user-session.json', 'src/../credentials.json', 'scripts/.npmrc']) assert.equal(isWorkspaceInput(path), false);
 });
+
+test('proposal age exceptions accept only exact official SDK dependencies reachable in the frozen lock', () => {
+  const base = { engines: { dsh: '0.2.1-rc.5' }, devDependencies: { '@deepseek-ai/dsh': '0.2.1-rc.5' }, scripts: { build: 'fixed' } };
+  const v = '0.2.2-rc.1', sha = 'b'.repeat(40);
+  const policies = 'minimumReleaseAgeExclude:\n  - "@deepseek-ai/cordis@4.0.5"\n  - "@deepseek-ai/dsh@0.2.1-rc.5"\n';
+  const lock = 'lockfileVersion: 9.0\nimporters:\n  .:\n    devDependencies:\n      "@deepseek-ai/dsh":\n        specifier: 0.2.2-rc.1\n        version: 0.2.2-rc.1\npackages:\n  "@deepseek-ai/dsh@0.2.2-rc.1": {}\n  "@deepseek-ai/cordis@4.1.0": {}\nsnapshots:\n  "@deepseek-ai/dsh@0.2.2-rc.1":\n    dependencies:\n      "@deepseek-ai/cordis": 4.1.0\n  "@deepseek-ai/cordis@4.1.0": {}\n';
+  const proposal = { version: v, sourceCommit: sha, files: { 'package.json': JSON.stringify(targetManifest(base, v)), 'pnpm-lock.yaml': lock,
+    'pnpm-workspace.yaml': "minimumReleaseAgeExclude:\n  - '@deepseek-ai/cordis@4.0.5 || 4.1.0'\n  - '@deepseek-ai/dsh@0.2.2-rc.1'\n" } };
+  assert.doesNotThrow(() => validateProposal(proposal, base, policies, v, sha));
+  for (const unsafe of ['@deepseek-ai/cordis@*', '@deepseek-ai/cordis@^4.1.0', '@deepseek-ai/cordis@4.2.0', 'untrusted@1.0.0']) {
+    const changed = structuredClone(proposal);
+    changed.files['pnpm-workspace.yaml'] = proposal.files['pnpm-workspace.yaml'].replace('@deepseek-ai/cordis@4.0.5 || 4.1.0', '@deepseek-ai/cordis@4.0.5') + `  - '${unsafe}'\n`;
+    assert.throws(() => validateProposal(changed, base, policies, v, sha), unsafe);
+  }
+  const extra = structuredClone(proposal); extra.files['pnpm-workspace.yaml'] += 'minimumReleaseAge: 0\n';
+  assert.throws(() => validateProposal(extra, base, policies, v, sha));
+  const unreachable = structuredClone(proposal); unreachable.files['pnpm-lock.yaml'] = lock.replace('"@deepseek-ai/cordis": 4.1.0', '"@deepseek-ai/cordis": 4.0.5');
+  assert.throws(() => validateProposal(unreachable, base, policies, v, sha));
+});

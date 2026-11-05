@@ -17,7 +17,9 @@ const load = async name => import(pathToFileURL(sdkRequire.resolve(name)).href);
 const Projection = (await load('@deepseek-ai/dsh-session-projection')).default;
 const Cache = (await load('@deepseek-ai/dsh-session-projection-cache')).default;
 const Query = (await load('@deepseek-ai/dsh-session-query-sqlite')).default;
-const { SessionHistoryController } = await import(pathToFileURL(join(dirname(sdkRequire.resolve('@deepseek-ai/dsh-api-session-controller/package.json')), 'lib/types/history.js')).href);
+const controllerRoot = dirname(sdkRequire.resolve('@deepseek-ai/dsh-api-session-controller/package.json'));
+const { HistoryController } = await import(pathToFileURL(join(controllerRoot, 'lib/types/history/controller.js')).href);
+const { WebController } = await import(pathToFileURL(join(controllerRoot, 'lib/types/web/controller.js')).href);
 const { ApiSessionList } = await import(pathToFileURL(join(dirname(sdkRequire.resolve('@deepseek-ai/dsh-api-session-controller/package.json')), 'lib/types/list.js')).href);
 const artifactRoot = await createScratch('native-metadata-module-');
 const compiled = await build({ entryPoints: [join(workspaceRoot, 'src/host/native-retirement-metadata.ts')], bundle: true,
@@ -126,9 +128,9 @@ test('every platform refuses the retained whole-unit source that can bootstrap t
     // actual source which ordinary deletion must refuse, not a synthetic replay.
     await table.host.unit.deleteRecord('sessions', 'quiet');
     const reopened = await table.host.unit.loadAll();
-    assert.deepEqual(reopened.tables.sessions.quiet, payload);
+    assert.equal(reopened.tables.sessions.quiet, undefined);
     assert.equal(await readFile(legacyPath, 'utf8'), legacy, 'The SDK retains the bootstrap source.');
-    assert(await readFile(document), 'The real SDK republishes the last per-record document.');
+    await assert.rejects(readFile(document), error => error.code === 'ENOENT');
   } finally { await f.close(); }
 });
 
@@ -310,8 +312,8 @@ test('lost cache delete acknowledgement reuses the frozen medium scope and clear
     const cache = f.ctx.get('sessionProjectionCache'); const table = cache.requireTable(); const unit = table.host.unit;
     const row = { identity: { formatVersion: 4, createdAt: 10000, cwd: join(f.root, 'workspace'), isSeeded: false, inheritedEventCount: 0 }, rows: {} };
     await table.put('quiet', row); const snapshot = await f.adapter.capture('quiet');
-    const port = process.platform === 'win32' ? f.adapter : unit;
-    const method = process.platform === 'win32' ? 'removeCacheStage' : 'deleteRecord';
+    const port = f.adapter;
+    const method = process.platform === 'win32' ? 'removeCacheStage' : 'removeCacheDocument';
     const remove = port[method]; let injected = false;
     port[method] = async function (...args) {
       await remove.apply(this, args); injected = true; throw new Error('cache delete acknowledgement lost');
@@ -497,7 +499,8 @@ function installControlledApi(ctx) {
   }
   class SessionController {
     agents = new ApiSessionAgentController();
-    history = new SessionHistoryController(ctx, observation => observation[Symbol.dispose]());
+    historyController = new HistoryController(ctx);
+    webController = new WebController(ctx, this.historyController, observation => observation[Symbol.dispose]());
     listState = new ApiSessionList(ctx, 8);
     constructor() {
       const summarize = this.listState.summarizeCold.bind(this.listState);
@@ -568,7 +571,7 @@ test('idle release never takes an unowned Agent or an independent persistence re
 
 test('idle release drains the real target history stream without ending a sibling stream', async () => {
   const f = await fixture({ controller: true, realAdmission: true, query: true, cache: true });
-  const cancellation = new AbortController(); const history = f.ctx.get('sessionController').history;
+  const cancellation = new AbortController(); const history = f.ctx.get('sessionController').webController;
   let target; let sibling;
   try {
     target = history.follow({ address: { kind: 'session', sessionId: 'quiet' } }, cancellation.signal);
@@ -580,16 +583,16 @@ test('idle release drains the real target history stream without ending a siblin
     const release = await f.a.acquire('quiet');
     try { await f.adapter.releaseIdle('quiet'); await f.a.drain('quiet'); }
     finally { release(); }
-    assert.equal((await waiting).done, true); assert.equal(history.closeFollowers.size, 1);
+    assert.equal((await waiting).done, true); await assert.rejects(f.adapter.capture('sibling'), error => error.code === 'native/follow-retained');
     assert((await f.adapter.capture('quiet')).global.archived);
-    await assert.rejects(f.adapter.capture('sibling'), error => error.code === 'native/query-retained');
+    await assert.rejects(f.adapter.capture('sibling'), error => error.code === 'native/follow-retained');
     assert.deepEqual(f.runtime.disposed, ['quiet']);
   } finally { cancellation.abort(); await target?.return(); await sibling?.return(); await f.close(); }
 });
 
 test('target drain closes a cold history stream without an API Agent and preserves a sibling stream', async () => {
   const f = await fixture({ controller: true, realAdmission: true, query: true });
-  const cancellation = new AbortController(); const history = f.ctx.get('sessionController').history;
+  const cancellation = new AbortController(); const history = f.ctx.get('sessionController').webController;
   let target; let sibling;
   try {
     target = history.follow({ address: { kind: 'session', sessionId: 'quiet' } }, cancellation.signal);
@@ -600,7 +603,7 @@ test('target drain closes a cold history stream without an API Agent and preserv
     const release = await f.a.acquire('quiet');
     try { await f.adapter.releaseIdle('quiet'); await f.a.drain('quiet'); }
     finally { release(); }
-    assert.equal(history.closeFollowers.size, 1);
+    await assert.rejects(f.adapter.capture('sibling'), error => error.code === 'native/follow-retained');
     assert.equal((await waiting).done, true);
     assert((await f.adapter.capture('quiet')).global.archived);
     assert.deepEqual(f.runtime.disposed, []);
@@ -612,36 +615,30 @@ test('target drain leaves subscriptions untouched when activity exists without a
   const f = await fixture({ controller: true, realAdmission: true, query: true });
   const cancellation = new AbortController(); let stream;
   try {
-    stream = f.ctx.get('sessionController').history.follow({ address: { kind: 'session', sessionId: 'quiet' } }, cancellation.signal);
+    stream = f.ctx.get('sessionController').webController.follow({ address: { kind: 'session', sessionId: 'quiet' } }, cancellation.signal);
     await stream.next(); f.state.activity.set('quiet', ['job']);
     const release = await f.a.acquire('quiet');
     try { await assert.rejects(f.adapter.releaseIdle('quiet'), error => error.code === 'native/session-active'); }
     finally { release(); }
-    assert.equal(f.ctx.get('sessionController').history.closeFollowers.size, 1);
+    await assert.rejects(f.adapter.capture('quiet'), error => error.code === 'native/follow-retained');
     assert.deepEqual(f.runtime.disposed, []);
   } finally { cancellation.abort(); await stream?.return(); await f.close(); }
 });
 
-for (const id of ['quiet', 'sibling']) test(`pre-install cold history for ${id} only protects its own query observation`, async () => {
+for (const id of ['quiet', 'sibling']) test(`pre-install passive history for ${id} releases its snapshot without stopping the subscription`, async () => {
   const cancellation = new AbortController(); let stream;
   const f = await fixture({ controller: true, realAdmission: true, query: true, beforeInstall: async ({ ctx }) => {
-    stream = ctx.get('sessionController').history.follow({ address: { kind: 'session', sessionId: id } }, cancellation.signal);
-    await stream.next();
+    stream = ctx.get('sessionController').webController.follow({ address: { kind: 'session', sessionId: id } }, cancellation.signal);
+    assert.equal((await stream.next()).value.type, 'snapshot');
   } });
   try {
-    assert.equal(f.ctx.get('sessionController').history.closeFollowers.size, 1);
-    await assert.rejects(f.adapter.capture(id), error => error.code === 'native/query-retained');
-    if (id === 'sibling') assert((await f.adapter.capture('quiet')).global.archived);
-    else {
-      const release = await f.a.acquire('quiet');
-      try { await f.adapter.releaseIdle('quiet'); }
-      finally { release(); }
-      await assert.rejects(f.adapter.capture('quiet'), error => error.code === 'native/query-retained');
-    }
-    // Unowned streams are never stopped to make a different target deletable.
-    assert.equal(f.ctx.get('sessionController').history.closeFollowers.size, 1);
-    cancellation.abort(); await stream.return(); stream = undefined;
+    assert.equal(f.ctx.get('sessionQuery')._observations.cache.get(id).refs, 0);
     assert((await f.adapter.capture('quiet')).global.archived);
+    const release = await f.a.acquire('quiet');
+    try { await f.adapter.releaseIdle('quiet'); } finally { release(); }
+    // Opening observers from before installation remain passive and unowned.
+    assert.equal(f.ctx.get('sessionQuery')._observations.cache.get(id).refs, 0);
+    assert.deepEqual(f.runtime.disposed, []);
   } finally { cancellation.abort(); await stream?.return(); await f.close(); }
 });
 
@@ -649,7 +646,7 @@ test('a pre-install live history snapshot cannot reactivate a retired target aft
   const cancellation = new AbortController(); let stream; let handle;
   const f = await fixture({ controller: true, realAdmission: true, query: true, beforeInstall: async ({ ctx }) => {
     handle = await ctx.agents.resume({ resumeSessionId: 'quiet' });
-    stream = ctx.get('sessionController').history.follow({ address: { kind: 'session', sessionId: 'quiet' } }, cancellation.signal);
+    stream = ctx.get('sessionController').webController.follow({ address: { kind: 'session', sessionId: 'quiet' } }, cancellation.signal);
     await stream.next();
   } });
   try {
@@ -684,60 +681,78 @@ test('persistence eligibility classifies target ownership and ignores another SI
   provider.tracker.writers.delete('quiet'); assert.equal(adapter.busyReason('quiet'), null);
 });
 
-test('history without an audited query witness retains the unknown-follower refusal', async () => {
-  const f = await fixture({ controller: true }); const stop = () => {};
-  const history = f.ctx.get('sessionController').history;
+test('an in-flight pre-install history snapshot retains its query witness until disposal', async () => {
+  const gate = latch(); let reading;
+  const signal = new AbortController().signal;
+  const f = await fixture({ controller: true, realAdmission: true, query: true, beforeInstall: async ({ ctx }) => {
+    reading = ctx.get('sessionController').historyController.usingObservation({ sessionId: 'quiet', projection: false }, signal, async observation => {
+      await gate.pause(); return observation.header.id;
+    });
+    await gate.entered;
+  } });
   try {
-    history.closeFollowers.add(stop);
-    await assert.rejects(f.adapter.capture('quiet'), error => error.code === 'native/unknown-follow');
-  } finally { history.closeFollowers.delete(stop); await f.close(); }
+    await assert.rejects(f.adapter.capture('quiet'), error => error.code === 'native/query-retained');
+    gate.release(); assert.equal(await reading, 'quiet');
+    assert((await f.adapter.capture('quiet')).global.archived);
+  } finally { gate.release(); await reading; await f.close(); }
 });
 
 test('subagent history admission uses the child SID instead of an absent session SID', async () => {
   const f = await fixture({ controller: true, realAdmission: true, query: true });
   try {
     f.a.markRetired('quiet');
-    assert.throws(() => f.ctx.get('sessionController').history.follow({ address: {
+    assert.throws(() => f.ctx.get('sessionController').webController.follow({ address: {
       kind: 'subagent', parentSessionId: 'sibling', childSessionId: 'quiet', mode: 'unknown',
     } }, new AbortController().signal), /retirement|reserved/);
-    assert.equal(f.ctx.get('sessionController').history.closeFollowers.size, 0);
+    assert.equal(f.adapter.followers.size, 0);
   } finally { await f.close(); }
 });
 
-test('a pre-install prepared history revision cannot promote after the current cache revision is retired', { timeout: 15000 }, async () => {
-  const cancellation = new AbortController(); let stream; let oldEntry; let promotion; let refused;
-  const f = await fixture({ controller: true, realAdmission: true, query: true, beforeInstall: async ({ ctx }) => {
-    const history = ctx.get('sessionController').history;
-    // Exercise the SDK's post-snapshot promotion route against the guarded API.
-    history.promote = observation => {
-      promotion = (async () => {
-        try { await ctx.get('sessionController').agents.resumeObserved('quiet'); }
-        catch (error) { refused = error; }
-        finally { observation[Symbol.dispose](); }
-      })();
-    };
-    stream = history.follow({ address: { kind: 'session', sessionId: 'quiet' } }, cancellation.signal);
-    await stream.next(); oldEntry = ctx.get('sessionQuery')._observations.cache.get('quiet');
-    const writer = await ctx.sessionPersistence.open(SessionId('quiet'), 'write');
-    try {
-      await writer.append([
-        { type: 'turn/start', seq: 2, time: 3, data: { turn: 2 } },
-        { type: 'turn/end', seq: 3, time: 4, data: { turn: 2, reason: { kind: 'completed' } } },
-      ]); await writer.flush();
-    } finally { await writer.close(); }
-    const current = await ctx.get('sessionQuery').observeSession(SessionId('quiet'), { projectionMode: 'none' });
-    current[Symbol.dispose]();
+test('a captured pre-install Web follow cannot activate a retired target', { timeout: 15000 }, async () => {
+  let follow;
+  const f = await fixture({ controller: true, realAdmission: true, query: true, beforeInstall: ({ ctx }) => {
+    follow = ctx.get('sessionController').webController.follow.bind(ctx.get('sessionController').webController);
   } });
+  const cancellation = new AbortController();
   try {
-    assert.notEqual(f.ctx.get('sessionQuery')._observations.cache.get('quiet'), oldEntry);
-    assert.equal(oldEntry.refs, 1);
-    assert((await f.adapter.capture('quiet')).global.archived);
     f.a.markRetired('quiet');
-    const waiting = stream.next(); await promotion;
-    assert.match(refused?.message ?? '', /retirement|reserved/);
-    cancellation.abort(); assert.equal((await waiting).done, true);
-    assert.equal(oldEntry.refs, 0);
+    const stream = follow({ address: { kind: 'session', sessionId: 'quiet' }, activate: true }, cancellation.signal);
+    await assert.rejects(stream.next(), /retirement|reserved/);
     assert.equal(f.runtime.handles.size, 0);
     assert.equal(f.ctx.sessions.get(SessionId('quiet')), undefined);
-  } finally { cancellation.abort(); await stream?.return(); await f.close(); }
+  } finally { cancellation.abort(); await f.close(); }
+});
+
+test('cache deletion staging residue blocks success and is never silently retained', async () => {
+  const f = await fixture({ cache: true });
+  try {
+    const table = f.ctx.get('sessionProjectionCache').requireTable();
+    const directory = table.host.unit.tableDir('sessions');
+    const { mkdir } = await import('node:fs/promises'); await mkdir(directory, { recursive: true });
+    const path = join(directory, 'quiet.json.deleting');
+    await writeFile(path, 'unconfirmed session cache payload', { flag: 'wx' });
+    await assert.rejects(f.adapter.capture('quiet'), error => error.code === 'native/cache-unclassified-resource');
+    assert.equal(await readFile(path, 'utf8'), 'unconfirmed session cache payload');
+  } finally { await f.close(); }
+});
+
+for (const method of ['observeEvent', 'observeProjections']) test(`explicit target drain closes only its passive ${method} subscription`, async () => {
+  const f = await fixture({ controller: true, realAdmission: true, query: true });
+  const cancellation = new AbortController(); let target; let sibling;
+  const request = id => method === 'observeEvent' ? { address: { kind: 'session', sessionId: id } } : { sessionId: id };
+  try {
+    const history = f.ctx.get('sessionController').historyController;
+    target = history[method](request('quiet'), cancellation.signal);
+    sibling = history[method](request('sibling'), cancellation.signal);
+    assert.equal((await target.next()).value.type, 'ready');
+    assert.equal((await sibling.next()).value.type, 'ready');
+    const waiting = target.next();
+    const release = await f.a.acquire('quiet');
+    try { await f.adapter.releaseIdle('quiet'); await f.a.drain('quiet'); } finally { release(); }
+    assert.equal((await waiting).done, true);
+    assert((await f.adapter.capture('quiet')).global.archived);
+    await assert.rejects(f.adapter.capture('sibling'), error => error.code === 'native/follow-retained');
+    f.a.markRetired('quiet');
+    assert.throws(() => history[method](request('quiet'), cancellation.signal), /retirement|reserved/);
+  } finally { cancellation.abort(); await target?.return(); await sibling?.return(); await f.close(); }
 });
