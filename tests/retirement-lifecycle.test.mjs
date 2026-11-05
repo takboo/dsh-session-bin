@@ -64,8 +64,9 @@ test('cancellation during the second domain open holds lease until initializatio
     disposing = fiber.dispose();
     await assert.rejects(acquireBinLease(join(root, 'coordination')), error => error.code === 'bin/lease-unavailable');
     gate.release();
-    assert.equal((await startup).error?.code, 'INACTIVE_EFFECT');
+    assert.equal((await startup).error, null);
     await disposing;
+    assert.throws(() => fiber.assertActive(), error => error.code === 'INACTIVE_EFFECT');
     assert.equal(fixture.ctx.storageDomain.get('session_bin'), undefined);
     assert.equal(fixture.ctx.storageDomain.get('session_bin_purge'), undefined);
     assert.equal(fixture.ctx.get('sessionBin'), undefined);

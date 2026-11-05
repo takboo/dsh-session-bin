@@ -85,6 +85,7 @@ export class NativeMetadataAdapter {
   private readonly cacheDirectory: string | undefined;
   private readonly agents: ObjectPort | undefined;
   private moveCacheDocument = renameWindowsWriteThrough;
+  private removeCacheDocument = unlink;
   private clearCacheStage = async (handle: FileHandle): Promise<void> => { await handle.truncate(0); await handle.sync(); };
   private removeCacheStage = unlink;
 
@@ -134,8 +135,10 @@ export class NativeMetadataAdapter {
         || !methods(query, ['searchSessions', 'listSessions', 'observeSession', '_serialized']) || !(query._observations?.cache instanceof Map)
         || !methods(query._observations, ['read', 'store'])) return undefined;
     }
-    if (controller && (controller.constructor.name !== 'SessionController' || !(controller.history?.closeFollowers instanceof Set)
-      || !methods(controller.history, ['page', 'follow', 'sourceFor'])
+    if (controller && (controller.constructor.name !== 'SessionController'
+      || controller.historyController?.constructor.name !== 'HistoryController'
+      || !methods(controller.historyController, ['events', 'usingObservation', 'observeEvent', 'observeProjections'])
+      || controller.webController?.constructor.name !== 'WebController' || !methods(controller.webController, ['follow'])
       || controller.agents?.constructor.name !== 'ApiSessionAgentController'
       || !methods(controller.agents, ['resumeObserved', 'claim', 'createAgent'])
       || !methods(controller.listState ?? {}, ['summarizeCold'])
@@ -189,14 +192,9 @@ export class NativeMetadataAdapter {
     const cached = this.query?._observations.cache.get(id);
     if (cached?.refs > 0 || (this.retained.get(id) ?? 0) > 0) this.refuse('native/query-retained', 'A retained query observation still owns this session.');
     if ((this.followers.get(id) ?? 0) > 0) this.refuse('native/follow-retained', 'A history follower still owns this session.');
-    // Pinned history sources retain a query observation until iterator disposal.
-    // Its target refs above protect pre-install cold sources; a former live
-    // source is only a read-only memory snapshot once its Agent/handles close.
-    // All later activation/write routes remain fenced. A global follower count
-    // cannot identify this SID and must not block an unrelated cold target.
-    // Without the audited query witness keep the conservative fallback.
-    const knownFollowers = [...this.followers.values()].reduce((sum, count) => sum + count, 0);
-    if (!this.query && (this.controller?.history.closeFollowers.size ?? 0) > knownFollowers) this.refuse('native/unknown-follow', 'A history follower has no verified target observation.');
+    // rc.1 history releases its observation before publishing an opening
+    // snapshot. Passive pre-install listeners retain no persistence handle;
+    // in-flight snapshots and activation still hold the query refs above.
     if (this.cache && [...this.cache.dirty.keys()].some(session => session.id === id)) this.refuse('native/cache-dirty', 'Target cache write-behind is not quiescent.');
   }
   /** Explicit preparation drains known target history even without an Agent.
@@ -256,7 +254,7 @@ export class NativeMetadataAdapter {
     let names: string[];
     try { names = await readdir(tableDirectory); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; names = []; }
-    if (names.some(name => name.startsWith(`${id}.json.bak.`) || /^\.[a-f0-9-]+\.tmp$/.test(name)
+    if (names.some(name => name.startsWith(`${id}.json.bak.`) || name === `${id}.json.deleting` || /^\.[a-f0-9-]+\.tmp$/.test(name)
       || (name.startsWith(windowsCacheStagePrefix) && name !== acceptedStage))) {
       this.refuse('native/cache-unclassified-resource', 'A cache backup or unclassified staging document prevents complete target erasure.');
     }
@@ -375,7 +373,23 @@ export class NativeMetadataAdapter {
         || (!snapshot.present && current.present)) return false;
       // KvTable.delete skips the medium when memory lacks the key. This owner
       // endpoint must remove the exact record document even after lost put ack.
-      await table.host.unit.deleteRecord('sessions', id);
+      // rc.1 deleteRecord renames to .json.deleting and ignores cleanup failure.
+      // This owner must confirm actual removal, not just absence from readers.
+      // Stay in the provider's write queue and unlink only the verified target.
+      if (snapshot.documentDigest !== null && current.documentDigest !== null) {
+        const path = join(table.host.unit.tableDir('sessions'), `${id}.json`);
+        const handle = await this.openCacheDocument(path, 'read');
+        try {
+          const stat = await handle.stat({ bigint: true });
+          const bytes = await handle.readFile();
+          const actual = await lstat(path, { bigint: true });
+          if (!actual.isFile() || actual.nlink !== 1n || stat.dev !== actual.dev || stat.ino !== actual.ino
+            || stat.birthtimeNs !== actual.birthtimeNs || stat.size !== actual.size
+            || stat.mtimeNs !== actual.mtimeNs || stat.ctimeNs !== actual.ctimeNs
+            || createHash('sha256').update(bytes).digest('hex') !== snapshot.documentDigest) return false;
+          await this.removeCacheDocument(path);
+        } finally { await handle.close(); }
+      }
       const tableDirectory: string = table.host.unit.tableDir('sessions');
       try { await syncDirectory(tableDirectory); }
       catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
@@ -545,28 +559,31 @@ export class NativeMetadataAdapter {
         this.restores.push((this.ctx.on as Method)('agent/disposed', ({ agent }: { agent: ObjectPort }) => {
           if (this.apiHandles.get(agent.id)?.agent === agent) this.apiHandles.delete(agent.id);
         }, { global: true }));
-        this.wrap(this.controller.history, 'follow', original => function (request: ObjectPort, signal: AbortSignal) {
-          const id = String(request.address.kind === 'session' ? request.address.sessionId : request.address.childSessionId);
-          adapter.assert(id);
-          return (async function* () {
-            adapter.assert(id); adapter.increment(adapter.followers, id, 1);
-            const cancellation = new AbortController();
-            const iterator = original(request, AbortSignal.any([signal, cancellation.signal]));
-            const stops = adapter.followerStops.get(id) ?? new Set<() => Promise<void>>();
-            adapter.followerStops.set(id, stops);
-            let finished = false;
-            const finish = () => {
-              if (finished) return;
-              finished = true;
-              adapter.increment(adapter.followers, id, -1);
-              stops.delete(stop); if (!stops.size) adapter.followerStops.delete(id);
-            };
-            const stop = async () => { cancellation.abort(); await iterator.return(); finish(); };
-            stops.add(stop);
-            try { for await (const frame of iterator) { adapter.assert(id); yield frame; } }
-            finally { finish(); }
-          })();
-        });
+        for (const [port, name] of [[this.controller.webController, 'follow'],
+          [this.controller.historyController, 'observeEvent'], [this.controller.historyController, 'observeProjections']] as const) {
+          this.wrap(port, name, original => function (request: ObjectPort, signal: AbortSignal) {
+            const id = String(request.address ? request.address.kind === 'session' ? request.address.sessionId : request.address.childSessionId : request.sessionId);
+            adapter.assert(id);
+            return (async function* () {
+              adapter.assert(id); adapter.increment(adapter.followers, id, 1);
+              const cancellation = new AbortController();
+              const iterator = original(request, AbortSignal.any([signal, cancellation.signal]));
+              const stops = adapter.followerStops.get(id) ?? new Set<() => Promise<void>>();
+              adapter.followerStops.set(id, stops);
+              let finished = false;
+              const finish = () => {
+                if (finished) return;
+                finished = true;
+                adapter.increment(adapter.followers, id, -1);
+                stops.delete(stop); if (!stops.size) adapter.followerStops.delete(id);
+              };
+              const stop = async () => { cancellation.abort(); await iterator.return(); finish(); };
+              stops.add(stop);
+              try { for await (const frame of iterator) { adapter.assert(id); yield frame; } }
+              finally { finish(); }
+            })();
+          });
+        }
       }
     } catch (error) {
       for (const restore of [...this.restores].reverse()) restore();
