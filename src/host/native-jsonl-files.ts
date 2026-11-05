@@ -1,5 +1,5 @@
-import type { BigIntStats } from 'node:fs';
-import { lstat, realpath, readdir, unlink } from 'node:fs/promises';
+import { constants, type BigIntStats } from 'node:fs';
+import { lstat, open, realpath, readdir, unlink } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -235,6 +235,62 @@ export class NativeJsonlFiles {
     return nativeJsonlInventorySchema.parse(inventory);
   }
 
+  /** Only explicit preparation of a cold, archived, never-bound target may call
+   * this under the Host admission fence. Ordinary inspection remains read-only.
+   * Current/staging artifacts without a lock are not legacy bootstrap candidates. */
+  async prepareLegacyLock(sessionId: string, header: SessionHeader): Promise<void> {
+    if (process.platform === 'win32') return;
+    if (header.version !== SESSION_FORMAT_VERSION || header.id !== sessionId) refuse('jsonl/identity-invalid', 'Legacy coordination requires the current logical target header.');
+    const identity = headerIdentity(header);
+    const directory = join(project(identity.cwd), segment(sessionId));
+    const base = await this.directory(directory, sessionId, identity);
+    const path = join(base.path, 'session.lock');
+    try { await lstat(path); return; }
+    catch (error) { if (!missing(error)) throw error; }
+
+    // Validate the entire old scope before creating anything. No writer-open or
+    // migration is needed; retain the original bytes and physical generations.
+    const files = await this.rows(base.path, identity, undefined, true);
+    if (!files.length) refuse('jsonl/session-not-found', 'No identified committed generation exists.');
+    if (files.some(row => row.kind !== 'generation' || row.formatVersion >= SESSION_FORMAT_VERSION)) {
+      refuse('jsonl/lock-missing', 'Only historical committed generations may establish missing coordination.');
+    }
+    const checkDirectory = async () => {
+      const current = await this.directory(directory, sessionId, identity);
+      if (!same(current.identity, base.identity)) refuse('jsonl/directory-changed', 'The legacy directory changed while preparing coordination.');
+    };
+    await checkDirectory();
+    let fd: FileHandle;
+    try { fd = await open(path, constants.O_RDWR | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600); }
+    catch (error) {
+      // A concurrent creator owns that inode. Normal inspection/acquisition must
+      // validate it and reject a live writer; never replace or truncate it.
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') return;
+      throw error;
+    }
+    try {
+      const lock = lockIdentity(await fd.stat({ bigint: true }));
+      try { await tryLockExclusive(fd.fd); }
+      catch (error) {
+        if (['EAGAIN', 'EWOULDBLOCK'].includes((error as NodeJS.ErrnoException).code ?? '')) refuse('jsonl/writer-active', 'Another writer acquired the new stable lock.');
+        throw error;
+      }
+      await fd.sync();
+      await syncDirectory(base.path);
+      await checkDirectory();
+      if (!same(lock, await this.lockIdentity(base.path))) refuse('jsonl/lock-changed', 'The new stable lock changed before confirmation.');
+      if (!same(files, await this.rows(base.path, identity))) refuse('jsonl/scope-changed', 'Legacy resources changed while preparing coordination.');
+      await checkDirectory();
+      if (!same(lock, lockIdentity(await fd.stat({ bigint: true }))) || !same(lock, await this.lockIdentity(base.path))) {
+        refuse('jsonl/lock-changed', 'The new stable lock changed while verifying resources.');
+      }
+    } finally {
+      // Keep the stable inode even on refusal, cancellation or unknown I/O.
+      // Removing it could split exclusion with a writer waiting on that inode.
+      await fd.close();
+    }
+  }
+
   /** Re-enumerate the entire scope without changing its original durable anchor. */
   async current(input: NativeJsonlInventory): Promise<NativeJsonlInventory> {
     const inventory = this.validate(input);
@@ -410,11 +466,11 @@ export class NativeJsonlFiles {
       } finally { await handle.close(); }
     } catch (error) { if (missing(error)) return false; throw error; }
   }
-  private async rows(directory: string, header: HeaderIdentity, frozen?: NativeJsonlInventory): Promise<NativeJsonlFileRow[]> {
+  private async rows(directory: string, header: HeaderIdentity, frozen?: NativeJsonlInventory, allowMissingLock = false): Promise<NativeJsonlFileRow[]> {
     const names = (await readdir(directory)).sort();
     if (names.length > 4097) refuse('jsonl/scope-too-large', 'Session scope exceeds the bounded inventory.');
     const posix = process.platform !== 'win32';
-    if (posix && !names.includes('session.lock')) refuse('jsonl/lock-missing', 'The existing stable writer lock is required.');
+    if (posix && !allowMissingLock && !names.includes('session.lock')) refuse('jsonl/lock-missing', 'The existing stable writer lock is required.');
     const rows: NativeJsonlFileRow[] = [];
     for (const name of names) {
       if (posix && name === 'session.lock') continue;
