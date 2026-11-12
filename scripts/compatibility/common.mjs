@@ -103,7 +103,7 @@ export function subprocessStatus({ code, signal, error, timedOut, setup, log = '
   return 'failed';
 }
 
-const rootInputs = new Set(['.gitignore', '.gitattributes', '.editorconfig', '.rgignore', 'README.md', 'AGENTS.md', 'CONTRIBUTING.md', 'LICENSE', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'mise.toml', 'screenshots.json', 'tsconfig.json', 'tsconfig.client.json', 'cordis.patch.yml']);
+const rootInputs = new Set(['.gitignore', '.gitattributes', '.editorconfig', '.rgignore', 'README.md', 'AGENTS.md', 'CONTRIBUTING.md', 'LICENSE', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'mise.toml', 'dsh-engineering.lock.json', 'screenshots.json', 'tsconfig.json', 'tsconfig.client.json', 'cordis.patch.yml']);
 export function isWorkspaceInput(path) {
   return !path.split('/').some(part => part === '..' || part === '.env' || part === '.npmrc')
     && (rootInputs.has(path) || /^(src|scripts|tests|docs|locale|market|\.github)\//.test(path));

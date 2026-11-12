@@ -22,6 +22,8 @@
 
 [CI 配置](.github/workflows/host-lifecycle.yml)使用固定 mise 工具、frozen lockfile、禁用安装脚本和实际验证任务。PR 的检查结果以对应提交的运行记录为准；发布使用已通过检查的提交。远程仓库使用 required checks、PR 审阅和 release 环境规则，不绕过失败的检查。
 
+共享验收入口和已锁定的基座版本见[接入验证](docs/verification/shared-engineering.md)。正式组合和发布仍使用上述 CI 工作流，新宿主由[兼容性巡检](docs/compatibility.md)跟踪。
+
 ## 文档与许可
 
 README 保持简洁的项目说明、功能、安装和兼容范围；实现细节写入专题契约。研究文档保存带版本与出处的事实，设计提案保存候选方案，ADR 保存已落实且影响后续工作的决定，验证报告保存明确基线的检查结果与限制。临时会话交接、代理分工和下一轮安排留在会话、issue/PR 或提交说明中，不写入长期文档。用户安装说明和兼容性表依据实际安装证据，复用代码附来源并保留上游版权。
