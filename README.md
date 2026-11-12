@@ -12,7 +12,7 @@
 - 简洁的删除确认，可在设置中全局关闭；批量操作显示进度和日志，完成后保留简短统计及失败项。中断或断线后可查询结果并明确继续。
 - 中英文界面，使用宿主控件、浅色和深色主题。
 
-当前版本为 `0.3.0`，包名为 `@takboo/dsh-session-bin`。本版支持在显式删除准备时为缺锁的 V0–V3 旧日志安全建立稳定锁，无需先恢复并加载会话；不修改或迁移日志，保留活动、资源身份和生命周期检查。本版适配 DSH `0.2.2-rc.1` 的历史/被动订阅与 Cordis `4.1.0`，并确认实际缓存文件清除；完整检查见 [rc.1 验证](docs/verification/dsh-0.2.2-rc1.md)。DSH `0.2.1-rc.5` 请安装同含缺锁修复的 `0.2.9`。GitHub Release 提供预编译 tarball；npm 通过 trusted publishing 自动发布同一份产物。[dshmarket 收录流程](docs/release.md#dshmarket)独立于 npm 发布，须经目录检查与维护者审核。
+当前版本为 `0.3.1`，包名为 `@takboo/dsh-session-bin`。本版适配 DSH `0.2.2-rc.2`，将新版 Session 查询检查纳入永久删除围栏，并保留旧日志、冻结计划和回执的兼容行为。[rc.2 兼容性验证](docs/verification/dsh-0.2.2-rc2.md)记录运行证据。GitHub Release 和 npm 提供同一份预编译 tarball。[dshmarket 收录流程](docs/release.md#dshmarket)由目录检查与维护者审核。
 
 ## 界面预览
 
@@ -22,7 +22,7 @@
 
 ## 兼容性
 
-本版适配 DSH `0.2.2-rc.1`，覆盖 CLI/Web 与 macOS ARM64 桌面运行时；接口、旧回执升级及独立组合验收见[rc.1 兼容性验证](docs/verification/dsh-0.2.2-rc1.md)。DSH `0.2.1-rc.5` 对应含缺锁修复的插件 `0.2.9`，保留[rc.5 验证](docs/verification/dsh-0.2.1-rc5.md)与[缺锁修复证据](docs/verification/host-lifecycle.md#缺锁旧-jsonl-会话的显式接入)。DSH `0.2.1-rc.3` 请保留插件 `0.2.6`，证据见[rc.3 验证](docs/verification/dsh-0.2.1-rc3.md)。使用 DSH `0.2.1-rc.2` 时请保留插件 `0.2.4`，`0.2.1-rc.1` 对应插件 `0.2.1`；旧宿主 `0.2.0-rc.2` 对应插件 `0.2.0`。
+本版适配 DSH `0.2.2-rc.2`，覆盖 CLI/Web 与 macOS ARM64 桌面运行时。DSH `0.2.2-rc.1` 请保留插件 `0.3.0`，见[rc.1 验证](docs/verification/dsh-0.2.2-rc1.md)。DSH `0.2.1-rc.5` 对应含缺锁修复的插件 `0.2.9`，保留[rc.5 验证](docs/verification/dsh-0.2.1-rc5.md)与[缺锁修复证据](docs/verification/host-lifecycle.md#缺锁旧-jsonl-会话的显式接入)。DSH `0.2.1-rc.3` 请保留插件 `0.2.6`，证据见[rc.3 验证](docs/verification/dsh-0.2.1-rc3.md)。使用 DSH `0.2.1-rc.2` 时请保留插件 `0.2.4`，`0.2.1-rc.1` 对应插件 `0.2.1`；旧宿主 `0.2.0-rc.2` 对应插件 `0.2.0`。
 
 永久删除仅对以下精确运行时及环境启用，使用单 Host 和已验证的 JSONL raw/zstd 存储组合：
 
@@ -37,17 +37,17 @@
 
 新版 DSH 的自动检测、隔离候选验证与 Issue/草稿 PR 流程见[兼容性自动检查](docs/compatibility.md)。每小时检查上游发布渠道；匹配的官方 macOS ARM64 Desktop 到达后，在独立解压的 Electron/ASAR 载体上补充候选验证。npm 与 Desktop 分别去重，产物保留 14 天；候选结果不自动扩大永久删除准入，依赖 PR 保持草稿，不自动合并或发布。
 
-旧 DSH `0.2.2-alpha.2` / `alpha.3` 不在生产支持范围；请升级至已独立验收的 `0.2.2-rc.1`。原始失败记录保留在[alpha.2 隔离检查](docs/verification/dsh-0.2.2-alpha2.md)，不能将新版本通过改写为旧 alpha 已兼容。
+旧 DSH `0.2.2-alpha.2` / `alpha.3` 不在生产支持范围；请升级至已独立验收的 `0.2.2-rc.2`。原始失败记录保留在[alpha.2 隔离检查](docs/verification/dsh-0.2.2-alpha2.md)，不能将新版本通过改写为旧 alpha 已兼容。
 
 ## 安装
 
 从 npm 安装已发布的预编译包：
 
 ```sh
-dsh plugin --profile web add @takboo/dsh-session-bin@0.3.0
+dsh plugin --profile web add @takboo/dsh-session-bin@0.3.1
 ```
 
-以上命令使用已安装的 DSH `0.2.2-rc.1`，将完整插件 bundle 安装到 `web` profile。已验证的 macOS ARM64 桌面版请在 `desktop` profile 的插件管理页面安装同一个 npm 包，并重新启动该 profile 的宿主。启动或重新启动该 profile 后，从侧栏打开“会话回收站”（Session Bin）。发布包包含预编译 Host 和 Client，使用者安装时无需编译 TypeScript；其 tarball 已通过真实 CLI/GUI 验证。
+以上命令使用已安装的 DSH `0.2.2-rc.2`，将完整插件 bundle 安装到 `web` profile。已验证的 macOS ARM64 桌面版请在 `desktop` profile 的插件管理页面安装同一个 npm 包，并重新启动该 profile 的宿主。启动或重新启动该 profile 后，从侧栏打开“会话回收站”（Session Bin）。发布包包含预编译 Host 和 Client，使用者安装时无需编译 TypeScript；其 tarball 已通过真实 CLI/GUI 验证。
 
 卸载同一 profile 中的插件：
 
@@ -55,7 +55,7 @@ dsh plugin --profile web add @takboo/dsh-session-bin@0.3.0
 dsh plugin --profile web remove @takboo/dsh-session-bin
 ```
 
-也可下载 [v0.3.0 Release](https://github.com/takboo/dsh-session-bin/releases/tag/v0.3.0) 中的三个附件，核对 `SHA256SUMS` 后运行 `dsh plugin --profile web add ./dsh-session-bin.tgz`。自行构建时，先完成下方[开发入门](#开发入门)，再运行 `mise exec -- pnpm exec npm pack --ignore-scripts`。
+也可下载 [v0.3.1 Release](https://github.com/takboo/dsh-session-bin/releases/tag/v0.3.1) 中的三个附件，核对 `SHA256SUMS` 后运行 `dsh plugin --profile web add ./dsh-session-bin.tgz`。自行构建时，先完成下方[开发入门](#开发入门)，再运行 `mise exec -- pnpm exec npm pack --ignore-scripts`。
 
 如安装过早期未加 scope 的开发包，先从同一 profile 卸载 `dsh-session-bin`，再安装 scoped 包，避免重复注册；原生归档和已有操作记录保留。分发契约见[发布文档](docs/release.md)。
 

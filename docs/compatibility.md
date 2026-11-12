@@ -51,7 +51,7 @@ Desktop job 下载 feed 声明的精确官方 macOS ARM64 ZIP，核对 SHA-512�
 
 候选通过不能自动晋级。准入变更必须经过源码审阅，并在对应实际组合上通过正式构建的删除及恢复验收；最终合并和发布仍由维护者决定。
 
-rc.4 本地结果与保留的失败见[自动化验证](verification/compatibility-automation.md)；alpha.2 的编译修复、正常删除拒绝及后续生命周期失败见[隔离验证](verification/dsh-0.2.2-alpha2.md)。`0.3.0` 对较新的 `0.2.2-rc.1` 独立适配与旧回执迁移见[rc.1 验证](verification/dsh-0.2.2-rc1.md)；旧 alpha 不因此取得支持。
+rc.4 本地结果与保留的失败见[自动化验证](verification/compatibility-automation.md)；alpha.2 的编译修复、正常删除拒绝及后续生命周期失败见[隔离验证](verification/dsh-0.2.2-alpha2.md)。`0.3.0` 对较新的 `0.2.2-rc.1` 独立适配与旧回执迁移见[rc.1 验证](verification/dsh-0.2.2-rc1.md)。[rc.2 验证](verification/dsh-0.2.2-rc2.md)记录 `0.3.1` 的 Zod 对齐、目标查询围栏及旧计划恢复。
 
 ## 本地执行
 
