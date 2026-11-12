@@ -239,6 +239,21 @@ test('actual SQLite owner reconciliation removes target persisted rows and prepa
   } finally { restore?.(); await f.close(); }
 });
 
+test('a captured native query inspection cannot read a fenced prepared session', async () => {
+  let inspect;
+  const f = await fixture({ query: true, beforeInstall: ({ ctx }) => {
+    const query = ctx.get('sessionQuery');
+    inspect = query.inspectSession.bind(query);
+  } });
+  try {
+    assert.equal(await inspect(SessionId('quiet'), session => session.id), 'quiet');
+    assert.equal(f.ctx.sessions.get(SessionId('quiet')), undefined);
+    retire(f);
+    await assert.rejects(inspect(SessionId('quiet'), () => assert.fail('Fenced inspection ran its getter')), /fenced/);
+    assert.equal(await inspect(SessionId('sibling'), session => session.id), 'sibling');
+  } finally { await f.close(); }
+});
+
 test('cache row scope drift returns known pending instead of deleting a newly published checkpoint', async () => {
   const f = await fixture({ cache: true });
   try {

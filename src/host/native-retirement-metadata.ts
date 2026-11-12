@@ -132,8 +132,8 @@ export class NativeMetadataAdapter {
         && query._db === undefined && query._ready === undefined;
       if (query.constructor.name !== 'SqliteSessionQueryEngine' || (!enabled && !disabledMemory)
         || typeof query.config?.path !== 'string'
-        || !methods(query, ['searchSessions', 'listSessions', 'observeSession', '_serialized']) || !(query._observations?.cache instanceof Map)
-        || !methods(query._observations, ['read', 'store'])) return undefined;
+        || !methods(query, ['searchSessions', 'listSessions', 'observeSession', 'inspectSession', '_serialized']) || !(query._observations?.cache instanceof Map)
+        || !methods(query._observations, ['read', 'inspect', 'store'])) return undefined;
     }
     if (controller && (controller.constructor.name !== 'SessionController'
       || controller.historyController?.constructor.name !== 'HistoryController'
@@ -192,7 +192,7 @@ export class NativeMetadataAdapter {
     const cached = this.query?._observations.cache.get(id);
     if (cached?.refs > 0 || (this.retained.get(id) ?? 0) > 0) this.refuse('native/query-retained', 'A retained query observation still owns this session.');
     if ((this.followers.get(id) ?? 0) > 0) this.refuse('native/follow-retained', 'A history follower still owns this session.');
-    // rc.1 history releases its observation before publishing an opening
+    // History releases its observation before publishing an opening
     // snapshot. Passive pre-install listeners retain no persistence handle;
     // in-flight snapshots and activation still hold the query refs above.
     if (this.cache && [...this.cache.dirty.keys()].some(session => session.id === id)) this.refuse('native/cache-dirty', 'Target cache write-behind is not quiescent.');
@@ -525,6 +525,12 @@ export class NativeMetadataAdapter {
           try { this.assert(id); return this.guardedObservation(id, observation); }
           catch (error) { observation[Symbol.dispose](); throw error; }
         }));
+        // The SDK's detached getter acquires its lease without going through read().
+        this.wrap(this.query._observations, 'inspect', original => (id: string, read: Method, signal?: AbortSignal) =>
+          this.tracked(id, () => original(id, (session: ObjectPort) => {
+            this.assert(id);
+            return read(session);
+          }, signal)));
         this.wrap(this.query._observations, 'store', original => (id: string, ...args: unknown[]) => { this.assert(id); return original(id, ...args); });
         for (const name of ['readSession', 'readTitle', 'readTitleSnapshot', 'listEvents', 'filterEvents', 'readSurface', 'traceSession']) {
           if (typeof this.query[name] === 'function') this.wrap(this.query, name, original => (id: string, ...args: unknown[]) =>

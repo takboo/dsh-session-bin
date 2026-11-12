@@ -10,10 +10,9 @@ import { createHash } from 'node:crypto';
 import { Context } from '@deepseek-ai/cordis';
 import Storage from '@deepseek-ai/dsh-storage';
 import * as storageJson from '@deepseek-ai/dsh-storage-json';
-import * as storageDomain from '@deepseek-ai/dsh-storage-domain';
 import { SessionStore, SessionId } from '@deepseek-ai/dsh-session';
 import * as Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl';
-import { WorkspaceRegistry, workspaceDomainSpec, workspaceDomainState, workspaceRecord } from '@deepseek-ai/dsh-workspace';
+import { workspaceDomainSpec, workspaceDomainState, workspaceRecord } from '@deepseek-ai/dsh-workspace';
 import { chromium } from 'playwright-core';
 import { nativePlatformVerified, windowsSemaphoreName } from '../dist/index.js';
 import { discoverBrowserExecutable } from './browser-executable.mjs';
@@ -21,21 +20,16 @@ import { shutdownMessage } from './gui-host-worker.mjs';
 import { configuredPackageManager, nodeRuntimeArgs } from './package-manager.mjs';
 import { workflowError } from './ci-diagnostics.mjs';
 import { delayNativeHistory } from './gui-history-delay.mjs';
+import { fixtures, fixtureWorkspaces, openSdkFixture } from './gui-fixture.mjs';
+import { archiveSession, panel, panelEntry, rowMenu, showAllSessions } from './gui-archive-actions.mjs';
 
 const require = createRequire(import.meta.url);
 const workspace = fileURLToPath(new URL('../', import.meta.url));
 const guiHostWorker = fileURLToPath(new URL('./gui-host-worker.mjs', import.meta.url));
 const expectedSdk = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')).engines.dsh;
-const fixtures = [
-  { id: 'gui-quiet', title: '待整理的设计讨论', workspace: 'primary' },
-  { id: 'gui-sibling', title: '接口实现记录', workspace: 'primary' },
-  { id: 'gui-native-only', title: '原生归档保留', workspace: 'primary', archived: true },
-  { id: 'gui-prearchived', title: '原先已归档的讨论', workspace: 'secondary', archived: true },
-];
 const browserLocale = process.env.DSH_GUI_LOCALE ?? 'zh-CN';
 assert(['zh-CN', 'en-US'].includes(browserLocale), 'DSH_GUI_LOCALE must be zh-CN or en-US');
 const requestedLanguage = browserLocale === 'zh-CN' ? 'zh' : 'en';
-const fixtureWorkspaces = { primary: 'GUI 主工作区', secondary: 'GUI 第二工作区' };
 // Expectations are independent of the product dictionaries. A run must display
 // its selected language, rather than pass by accepting either translation.
 const copy = {
@@ -387,79 +381,6 @@ async function startHost(cli, environment, cwd, logName) {
   finally { clearTimeout(timer); cancellation.signal.removeEventListener('abort', onAbort); }
 }
 
-async function openSdkFixture(paths, seed = false) {
-  const ctx = new Context();
-  const mounted = [];
-  const mount = async (implementation, config) => {
-    const fiber = ctx.plugin(implementation, config);
-    mounted.push(fiber);
-    await fiber;
-  };
-  const close = async () => {
-    const failures = [];
-    for (const fiber of [...mounted].reverse()) {
-      try { await fiber.dispose(); } catch (error) { failures.push(error); }
-    }
-    try { await ctx.fiber.dispose(); } catch (error) { failures.push(error); }
-    if (failures.length) throw new AggregateError(failures, 'GUI seed Context cleanup failed');
-  };
-  try {
-    await mount(Storage);
-    await mount(storageJson, { root: paths.storages });
-    await mount(storageDomain, { backend: 'json' });
-    await mount(SessionStore);
-    await mount(Jsonl, { root: paths.sessions, compression: 'zstd' });
-    if (seed) {
-      const cliLookup = createRequire(require.resolve('@deepseek-ai/dsh/package.json'));
-      const baseLookup = createRequire(cliLookup.resolve('@deepseek-ai/dsh-base/package.json'));
-      const projections = await import(pathToFileURL(baseLookup.resolve('@deepseek-ai/dsh-session-projection')).href);
-      const title = await import(pathToFileURL(baseLookup.resolve('@deepseek-ai/dsh-session-title')).href);
-      const cache = await import(pathToFileURL(baseLookup.resolve('@deepseek-ai/dsh-session-projection-cache')).href);
-      await mount(projections.default);
-      ctx.sessionProjections.register(title.titleProjectionDefinition);
-      await mount(cache.default, { writeEveryEvents: 200, writeIntervalMs: 5000 });
-      for (const [index, fixture] of fixtures.entries()) {
-        const session = ctx.sessions.prepare(SessionId(fixture.id), {
-          meta: { cwd: paths[fixture.workspace], createdAt: Date.now() - index * 1000 },
-        });
-        const handle = await ctx.sessionPersistence.create(session.header);
-        try {
-          // Native session-list metadata treats a log without turn/start as a
-          // provisional blank. A completed fixture turn makes its row/menu real;
-          // the public user title remains log-only and activates no model.
-          const time = Date.now();
-          await handle.append([
-            { type: 'turn/start', seq: 0, time, data: { turn: 1 } },
-            { type: 'turn/end', seq: 1, time: time + 1, data: { turn: 1, reason: { kind: 'completed' } } },
-            { type: 'turn/start', seq: 2, time: time + 2, data: { turn: 2 } },
-            { type: 'turn/end', seq: 3, time: time + 3, data: { turn: 2, reason: { kind: 'completed' } } },
-            { type: 'session/title', seq: 4, time: time + 4, data: {
-              title: fixture.title, messageSeqs: [], source: { kind: 'user' },
-            } },
-          ]);
-          await handle.flush();
-          const persisted = await handle.read();
-          ctx.sessionProjectionCache.coldSnapshot(handle.header, handle.inheritedEventCount, persisted.events);
-          await eventually(async () => {
-            assert.equal(ctx.sessionProjectionCache.cachedSnapshot(handle.header)?.values.title, fixture.title);
-          }, 'Title projection must become durable before the real Web startup');
-        } finally { await handle.close(); }
-      }
-    }
-    await mount(WorkspaceRegistry);
-    if (seed) {
-      const primary = await ctx.workspaceRegistry.resolveByPath(paths.primary);
-      const secondary = await ctx.workspaceRegistry.resolveByPath(paths.secondary);
-      assert(primary && secondary, 'Seeded real headers must bootstrap both workspaces');
-      await primary.setTitle(fixtureWorkspaces.primary);
-      await secondary.setTitle(fixtureWorkspaces.secondary);
-      for (const fixture of fixtures.filter(item => item.archived)) {
-        await ctx.workspaceRegistry.archiveSession(SessionId(fixture.id));
-      }
-    }
-    return { ctx, close };
-  } catch (error) { await close(); throw error; }
-}
 // A second read-only JSONL context observes committed bytes without opening
 // Workspace/domain services or activating an Agent in the live Web Host.
 async function openTranscriptReader(paths) {
@@ -611,25 +532,6 @@ async function eventually(assertion, description, timeout = 15000) {
   }
   throw new Error(`${description}: ${redact(last?.message ?? last)}`, { cause: last });
 }
-async function clickChoice(page, label) {
-  const choice = menuItem(page, label);
-  if (await choice.count()) await choice.click();
-  else await text(page, label).click();
-}
-async function showAllSessions(page) {
-  await button(page, ui.viewOptions).click();
-  await clickChoice(page, ui.showArchived);
-  await button(page, ui.viewOptions).click();
-  await clickChoice(page, ui.flat);
-}
-async function rowMenu(page, id) {
-  const row = page.locator(`[data-row-key="session:${id}"]`).first();
-  await row.waitFor({ state: 'visible' });
-  await row.hover();
-  const anchor = row.getByRole('button').first();
-  await anchor.click();
-  return anchor;
-}
 async function openNativeHistory(page, item, report) {
   await page.locator(`[data-row-key="session:${item.id}"]`).getByText(item.title, { exact: true }).click();
   const conversation = page.locator(`[data-conversation-content][data-conversation-session="${item.id}"]`).first();
@@ -648,14 +550,6 @@ async function assertToastCopy(page, message) {
     [...node.childNodes].filter(child => child.nodeType === Node.TEXT_NODE).map(child => child.textContent).join('')));
   assert(directMessages.includes(message), `Native Toast message must exactly equal ${JSON.stringify(message)}`);
 }
-async function archiveSession(page, id) {
-  await rowMenu(page, id);
-  assert.equal(await menuItem(page, 'Move to Session Bin').count(), 0);
-  assert.equal(await menuItem(page, '移入回收站').count(), 0);
-  await menuItem(page, ui.archive).click();
-  await eventually(async () => assert(await page.locator(`[data-row-key="session:${id}"]`).getAttribute('aria-description')),
-    'Native Archive updates the native row');
-}
 async function skipOptionalModelSetup(page) {
   const dialog = page.getByRole('dialog', { name: ui.keySetup, exact: true });
   if (await dialog.waitFor({ state: 'visible', timeout: 3000 }).then(() => true, error => {
@@ -663,18 +557,8 @@ async function skipOptionalModelSetup(page) {
     throw error;
   })) await button(dialog, ui.settingsClose).click();
 }
-async function panel(page) {
-  const search = textbox(page, ui.search);
-  await button(page, ui.panel).waitFor({ state: 'visible' });
-  if (!await search.isVisible()) await button(page, ui.panel).click();
-  await search.waitFor({ state: 'visible' });
-  return page.getByRole('region', { name: ui.panel, exact: true });
-}
 async function panelCount(root, count) {
   await eventually(async () => assert.equal(await root.getByRole('list', { name: ui.entries, exact: true }).getByRole('listitem').count(), count), 'Bin row count');
-}
-function panelEntry(root, title) {
-  return root.getByRole('list', { name: ui.entries, exact: true }).getByRole('listitem').filter({ has: root.page().getByText(title, { exact: true }) });
 }
 async function screenshot(page, paths, name) {
   const path = join(paths.artifacts, `${name}-${language}.png`);
@@ -696,7 +580,7 @@ async function assertNoArchiveDate(root) {
 }
 async function assertPanelCopy(page, count, { visibleCount = count, selectedCount = 0, draft = '' } = {}) {
   await assertDocumentLanguage(page);
-  const root = await panel(page);
+  const root = await panel(page, ui);
   await panelCount(root, visibleCount);
   await root.getByRole('heading', { level: 1, name: ui.panel, exact: true }).waitFor({ state: 'visible' });
   await text(root, ui.description).waitFor({ state: 'visible' });
@@ -903,14 +787,14 @@ async function runGui(page, paths, report, beforePhysical, preservation) {
   await button(preview, ui.continue).click();
   await preview.waitFor({ state: 'hidden' });
   await skipModelSetup(page);
-  await showAllSessions(page);
+  await showAllSessions(page, ui);
   let root = await assertPanelCopy(page, 2);
   for (const item of [nativeOnly, prearchived]) await text(root, item.title).waitFor({ state: 'visible' });
   report.checks.push('Preexisting native archives appear directly without a plugin Move action');
   report.coverage.push('native archived collection baseline', 'exact title/description/count/search/filter copy', 'absence of invented archive timestamps');
 
   await assertMenuCopy(page, quiet.id, false);
-  await archiveSession(page, quiet.id);
+  await archiveSession(page, quiet.id, ui);
   root = await assertPanelCopy(page, 3);
   const undo = button(page, ui.undo);
   await undo.waitFor({ state: 'visible' });
@@ -920,13 +804,13 @@ async function runGui(page, paths, report, beforePhysical, preservation) {
   report.checks.push('Native Archive is the sole menu entry and its native Undo updates the plugin collection');
   report.coverage.push('native Archive/Undo', 'no plugin Move menu', 'native menu keyboard focus');
 
-  await archiveSession(page, quiet.id);
+  await archiveSession(page, quiet.id, ui);
   root = await assertPanelCopy(page, 3);
-  await button(panelEntry(root, quiet.title), ui.restore).click();
+  await button(panelEntry(root, quiet.title, ui), ui.restore).click();
   await assertToastCopy(page, ui.restored);
   root = await assertPanelCopy(page, 2);
   report.checks.push('Single unarchive removes the native mark and reports confirmed success');
-  for (const item of [quiet, sibling]) await archiveSession(page, item.id);
+  for (const item of [quiet, sibling]) await archiveSession(page, item.id, ui);
   root = await assertPanelCopy(page, 4);
   for (const item of fixtures) await text(root, item.title).waitFor({ state: 'visible' });
 
@@ -964,7 +848,7 @@ async function runGui(page, paths, report, beforePhysical, preservation) {
   report.coverage.push('default workspace grouping');
 
   const choose = async () => {
-    for (const item of [quiet, sibling]) await panelEntry(root, item.title).getByRole('checkbox', { name: ui.select(item.title), exact: true }).check();
+    for (const item of [quiet, sibling]) await panelEntry(root, item.title, ui).getByRole('checkbox', { name: ui.select(item.title), exact: true }).check();
     root = await assertPanelCopy(page, 4, { selectedCount: 2 });
   };
   await choose();
@@ -976,7 +860,7 @@ async function runGui(page, paths, report, beforePhysical, preservation) {
   for (const target of ['en', 'zh']) {
     if (language !== target) await switchLanguage(page, target, report);
     root = await assertPanelCopy(page, 4, { visibleCount: 1, selectedCount: 2, draft: '接口' });
-    assert.equal(await panelEntry(root, sibling.title).getByRole('checkbox', { name: ui.select(sibling.title), exact: true }).isChecked(), true);
+    assert.equal(await panelEntry(root, sibling.title, ui).getByRole('checkbox', { name: ui.select(sibling.title), exact: true }).isChecked(), true);
     await assertMenuCopy(page, quiet.id, true);
     report.screenshots[`switched-${target}`] = await screenshot(page, paths, 'session-bin-language-switch');
   }
@@ -984,7 +868,7 @@ async function runGui(page, paths, report, beforePhysical, preservation) {
   report.coverage.push('language switch and stable selection', 'no old archive-state badge');
   const hostPreference = requestedLanguage === 'zh' ? 'en' : 'zh';
   await switchLanguage(page, hostPreference, report);
-  root = await panel(page);
+  root = await panel(page, ui);
   await button(root, ui.settings).click();
   await root.getByRole('checkbox', { name: ui.confirmSetting, exact: true }).uncheck();
   const executionsBeforeReload = report.deletionExecutions.length;
@@ -1020,9 +904,9 @@ async function runGui(page, paths, report, beforePhysical, preservation) {
   assert.equal(await text(root, quiet.title).count(), 0);
   assert.equal(await text(root, sibling.title).count(), 0);
   report.checks.push('Batch unarchive processes the fixed selection and leaves other archives intact');
-  await button(panelEntry(root, prearchived.title), ui.restore).click();
+  await button(panelEntry(root, prearchived.title, ui), ui.restore).click();
   root = await assertPanelCopy(page, 1);
-  await button(panelEntry(root, nativeOnly.title), ui.restore).click();
+  await button(panelEntry(root, nativeOnly.title, ui), ui.restore).click();
   root = await assertPanelCopy(page, 0);
   for (const item of fixtures) assert.equal(await page.locator(`[data-row-key="session:${item.id}"]`).getAttribute('aria-description'), null);
   report.checks.push('Preexisting archives unarchive normally and the empty collection shows native Archive guidance');
@@ -1031,12 +915,12 @@ async function runGui(page, paths, report, beforePhysical, preservation) {
   let historyStartedAt = Date.now();
   await openNativeHistory(page, nativeOnly, report);
   report.coverage.push('open native history before archive and permanent deletion');
-  await archiveSession(page, nativeOnly.id);
+  await archiveSession(page, nativeOnly.id, ui);
   await skipOptionalModelSetup(page);
   root = await assertPanelCopy(page, 1);
   report.membershipBeforeDeletion = await readWorkspaceMembership(paths);
   if (report.deletionQualification === 'unsupported') await preservation.begin({ sessionId: nativeOnly.id, startedAt: historyStartedAt });
-  await button(panelEntry(root, nativeOnly.title), ui.deleteAction(nativeOnly.title)).click();
+  await button(panelEntry(root, nativeOnly.title, ui), ui.deleteAction(nativeOnly.title)).click();
   let deletion = page.getByRole('dialog', { name: ui.deleteTitle(nativeOnly.title), exact: true });
   await deletion.waitFor({ state: 'visible' });
   await eventually(async () => assert(await button(deletion, ui.deleteCancel).evaluate(element => element === document.activeElement)), 'Deletion initially focuses Cancel');
@@ -1046,16 +930,16 @@ async function runGui(page, paths, report, beforePhysical, preservation) {
   await deletion.waitFor({ state: 'hidden' }); await panelCount(root, 1);
   assert.equal(report.deletionExecutions.length, 0, 'Cancel must never submit the destructive request');
   if (report.deletionQualification === 'unsupported') await preservation.end('cancelled-first-single');
-  await button(panelEntry(root, nativeOnly.title), ui.restore).click();
+  await button(panelEntry(root, nativeOnly.title, ui), ui.restore).click();
   await assertPanelCopy(page, 0);
   historyStartedAt = Date.now();
   await openNativeHistory(page, nativeOnly, report);
-  await archiveSession(page, nativeOnly.id);
+  await archiveSession(page, nativeOnly.id, ui);
   await skipOptionalModelSetup(page);
   root = await assertPanelCopy(page, 1);
   report.coverage.push('cancel deletion, unarchive, reopen, and archive the released lifecycle again');
   if (report.deletionQualification === 'unsupported') await preservation.begin({ sessionId: nativeOnly.id, startedAt: historyStartedAt });
-  await button(panelEntry(root, nativeOnly.title), ui.deleteAction(nativeOnly.title)).click();
+  await button(panelEntry(root, nativeOnly.title, ui), ui.deleteAction(nativeOnly.title)).click();
   deletion = page.getByRole('dialog', { name: ui.deleteTitle(nativeOnly.title), exact: true });
   await deletion.waitFor({ state: 'visible' });
   const confirmButton = button(deletion, ui.deleteConfirm);
@@ -1092,10 +976,10 @@ async function runGui(page, paths, report, beforePhysical, preservation) {
     report.checks.push('Qualified single deletion uses a frozen owner plan, explicit confirmation, Cancel focus and a complete owner receipt');
     report.coverage.push('single: fixed request and owner receipt', 'single: Cancel executes zero', 'single: native row removal');
 
-    for (const item of [quiet, sibling]) await archiveSession(page, item.id);
+    for (const item of [quiet, sibling]) await archiveSession(page, item.id, ui);
     root = await assertPanelCopy(page, 2);
     for (const item of [quiet, sibling]) {
-      await panelEntry(root, item.title).getByRole('checkbox', { name: ui.select(item.title), exact: true }).check();
+      await panelEntry(root, item.title, ui).getByRole('checkbox', { name: ui.select(item.title), exact: true }).check();
     }
     root = await assertPanelCopy(page, 2, { selectedCount: 2 });
     const batchPrepareStart = report.deletionPrepares.length;
@@ -1180,7 +1064,7 @@ async function runGui(page, paths, report, beforePhysical, preservation) {
     report.coverage.push('batch: selection scope two', 'batch: Cancel and unconfirmed execute zero',
       'batch: strict serial owner success', 'batch: unselected SHA unchanged');
 
-    await archiveSession(page, prearchived.id);
+    await archiveSession(page, prearchived.id, ui);
     root = await assertPanelCopy(page, 1);
     search = textbox(root, ui.search);
     await search.fill('原先');
@@ -1266,16 +1150,16 @@ async function runGui(page, paths, report, beforePhysical, preservation) {
     await button(deletion, ui.deleteCancel).click();
     await deletion.waitFor({ state: 'hidden' });
     await preservation.end('cancelled-second-single');
-    await button(panelEntry(root, nativeOnly.title), ui.restore).click();
+    await button(panelEntry(root, nativeOnly.title, ui), ui.restore).click();
     await assertToastCopy(page, ui.restored);
     root = await assertPanelCopy(page, 0);
     report.checks.push('Unqualified single deletion renders its blocker and executes zero requests before normal unarchive');
     report.coverage.push('single unsupported: blocker, disabled controls and zero execute');
 
-    for (const item of [quiet, sibling]) await archiveSession(page, item.id);
+    for (const item of [quiet, sibling]) await archiveSession(page, item.id, ui);
     root = await assertPanelCopy(page, 2);
     for (const item of [quiet, sibling]) {
-      await panelEntry(root, item.title).getByRole('checkbox', { name: ui.select(item.title), exact: true }).check();
+      await panelEntry(root, item.title, ui).getByRole('checkbox', { name: ui.select(item.title), exact: true }).check();
     }
     root = await assertPanelCopy(page, 2, { selectedCount: 2 });
     const batchPrepareStart = report.deletionPrepares.length;
@@ -1301,7 +1185,7 @@ async function runGui(page, paths, report, beforePhysical, preservation) {
     report.checks.push('Unqualified batch renders a fixed two-item M0 scope and Cancel sends no purge request');
     report.coverage.push('batch unsupported: scope two, M0, disabled confirmation and zero execute');
 
-    await archiveSession(page, prearchived.id);
+    await archiveSession(page, prearchived.id, ui);
     root = await assertPanelCopy(page, 3);
     search = textbox(root, ui.search);
     await search.fill('原先');
@@ -1351,7 +1235,7 @@ async function runGui(page, paths, report, beforePhysical, preservation) {
     await description.waitFor({ state: 'visible' });
     assert.equal(await description.textContent(), ui.packageDescription);
     report.metadata.push({ language: target, title: ui.panel, description: ui.packageDescription });
-    await panel(page);
+    await panel(page, ui);
   }
   if (language !== requestedLanguage) await switchLanguage(page, requestedLanguage, report);
   await page.reload();

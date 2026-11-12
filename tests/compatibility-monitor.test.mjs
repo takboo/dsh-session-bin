@@ -108,7 +108,7 @@ test('document validation remains valid in a clean relocated checkout without lo
   const { fileURLToPath } = await import('node:url');
   const { execFileSync } = await import('node:child_process');
   const root = dirname(dirname(fileURLToPath(import.meta.url)));
-  const tracked = new Set(['README.md', 'AGENTS.md', 'CONTRIBUTING.md', 'LICENSE', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'mise.toml', 'screenshots.json', 'tsconfig.json', 'tsconfig.client.json', 'cordis.patch.yml', '.gitignore']);
+  const tracked = new Set(['README.md', 'AGENTS.md', 'CONTRIBUTING.md', 'LICENSE', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'mise.toml', 'dsh-engineering.lock.json', 'screenshots.json', 'tsconfig.json', 'tsconfig.client.json', 'cordis.patch.yml', '.gitignore']);
   const scratch = await mkdtemp(join(tmpdir(), 'dsh-compat-docs-'));
   for (const entry of await readdir(root, { withFileTypes: true })) {
     if (entry.isFile() && tracked.has(entry.name)) await cp(join(root, entry.name), join(scratch, entry.name));
@@ -128,7 +128,7 @@ test('GitHub-first publication remains a retryable target until npm metadata arr
 });
 
 test('candidate source copying excludes account config, environment files and unrelated root data', () => {
-  for (const path of ['README.md', 'package.json', 'src/host/native-retirement-sdk.ts', 'scripts/compatibility/common.mjs']) assert.equal(isWorkspaceInput(path), true);
+  for (const path of ['README.md', 'package.json', 'dsh-engineering.lock.json', 'src/host/native-retirement-sdk.ts', 'scripts/compatibility/common.mjs']) assert.equal(isWorkspaceInput(path), true);
   for (const path of ['.npmrc', '.mise.local.toml', '.env', '.env.example', 'credentials.json', '.aws/credentials', '.local/user-session.json', 'src/../credentials.json', 'scripts/.npmrc']) assert.equal(isWorkspaceInput(path), false);
 });
 

@@ -113,3 +113,7 @@ run = "pnpm run compat:desktop"
 [tasks."verify:docs"]
 description = "Check current document links and anchors"
 run = "pnpm run verify:docs"
+
+[tasks."verify:engineering"]
+description = "Verify a single clean-source package with the pinned shared engineering base"
+run = "mise exec -- node scripts/engineering/verify.mjs"
