@@ -48,6 +48,7 @@ npm `repository` 指回 [takboo/dsh-session-bin](https://github.com/takboo/dsh-s
 2. 在需要发布的提交创建并推送 `v<version>` tag，例如版本为 `0.1.0` 时使用 `v0.1.0`。推送版本 tag 会触发公开发布；普通提交不会。
 3. workflow 检查 tag 与 manifest 版本完全一致、tag 提交属于 `origin/main` 历史，再执行五个平台验收。
 4. 全部通过后，独立 Release job 下载本次 `release-payload`，再次检查 SHA-256、包名、版本、tag 和提交身份，然后创建 GitHub Release。只有该 job 获得 `contents: write`，使用 GitHub 自动提供的 `GITHUB_TOKEN`，无需额外 PAT 或 npm 凭据。
+5. 最后一笔发布相关提交的 CI 通过后，在日常工作目录使用 `git ls-remote --symref origin HEAD` 核对远端默认分支。工作区干净且 `main` 可快进时，获取远端引用和标签并使用 `git merge --ff-only origin/main` 同步。存在未提交改动或分叉时，保留现场并记录待同步原因。交付摘要分别记录本地与远端 `main` 的 SHA，以及本地和远端发布标签解引用后的提交是否与原发布提交一致。[基座分发规范](https://github.com/takboo/dsh-plugin-engineering/blob/38223312c931658b8abab917577adefb5b101110/docs/distribution.md)
 
 Release 附件为固定名称 `dsh-session-bin.tgz`、`SHA256SUMS` 和 `release.json`；metadata 记录包名、版本、提交、运行时、文件系统与 payload 验收来源。下载三个文件后运行 `sha256sum --check SHA256SUMS`。macOS 可使用 `shasum -a 256 -c SHA256SUMS`；Windows 可用 `Get-FileHash -Algorithm SHA256` 与校验文件逐项比对。
 
