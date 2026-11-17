@@ -2,7 +2,7 @@
 
 ## 复跑
 
-在项目根目录使用 [mise 工具链](../../mise.toml)。[基座锁](../../dsh-engineering.lock.json)固定 `takboo/dsh-plugin-engineering` 的 v0.1.0-rc.4 和提交 `eabb38152196fdbf3a5a5d470609675bbfecc8c5`。基座 checkout 需要持有锁定 tag。将 checkout 的绝对路径设为 `DSH_ENGINEERING_CHECKOUT`，或写入 `${XDG_CONFIG_HOME:-$HOME/.config}/dsh-plugin-engineering/checkout`。工具核对 origin、tag 和完整提交，再从 Git 对象导出并核对执行文件，因此 checkout 当前分支可停在其他提交。[基座发布页](https://github.com/takboo/dsh-plugin-engineering/releases/tag/v0.1.0-rc.4)
+在项目根目录使用 [mise 工具链](../../mise.toml)。[基座锁](../../dsh-engineering.lock.json)固定 `takboo/dsh-plugin-engineering` 的 v0.1.0-rc.5 和提交 `38223312c931658b8abab917577adefb5b101110`。基座 checkout 需要持有锁定 tag。将 checkout 的绝对路径设为 `DSH_ENGINEERING_CHECKOUT`，或写入 `${XDG_CONFIG_HOME:-$HOME/.config}/dsh-plugin-engineering/checkout`。工具核对 origin、tag 和完整提交，再从 Git 对象导出并核对执行文件，因此 checkout 当前分支可停在其他提交。[基座发布页](https://github.com/takboo/dsh-plugin-engineering/releases/tag/v0.1.0-rc.5)
 
 ```sh
 mise run verify:engineering -- all
@@ -10,7 +10,7 @@ mise run verify:engineering -- all
 
 需要 Docker 和 npm registry 网络。默认从 `HEAD` 的 Git 归档做 frozen install、构建和打包，也可在 `all` 后指定源码提交。探针随当前项目工作区提供，产物、探针和报告保存到命令打印的 `.local/engineering/shared-*` 目录。共享 Web 使用基座固定的 Linux Chromium。托管 runner 的双语 GUI、五平台正式组合和发布仍由 [Session Bin lifecycle](../../.github/workflows/host-lifecycle.yml) 执行，新版宿主由[兼容性巡检](../compatibility.md)跟踪。
 
-[目标配置](../../scripts/engineering/targets.json)中的 `admit` 和 `refuse` 均设置 `ignoreInstallScripts: true`。rc.4 将 `--ignore-scripts` 传给官方 `dsh plugin add`，并在报告中核对每个目标的选项。准入由实际 DSH 按包内声明判定。
+[目标配置](../../scripts/engineering/targets.json)中的 `admit` 和 `refuse` 均设置 `ignoreInstallScripts: true`。基座从 rc.4 起将 `--ignore-scripts` 传给官方 `dsh plugin add`，并在报告中核对每个目标的选项。准入由实际 DSH 按包内声明判定。
 
 Apple Silicon 上使用配置好的共享 Tart 实验室。用 `DSH_TART_HOME` 或同一配置目录的 `tart-home` 指定实验室存储。原生探针需要目标版本官方 macOS ARM64 ZIP 和对应发布 feed 的 base64 SHA-512。来宾复核输入和签名，在临时项目与 `DSH_HOME` 中从候选包取出原样 `dist`，运行已有 Electron/ASAR production probe 和 raw/zstd 原生删除及恢复套件。项目也保留 `mise run verify:desktop` 和 `mise run verify:desktop:gui` 作为独立验收入口。
 
@@ -20,6 +20,14 @@ mise run verify:engineering -- tart-status
 mise run verify:engineering -- tart-readiness
 mise run verify:engineering -- tart-native "$shared_run_dir" "$official_desktop_zip" "$official_feed_sha512"
 ```
+
+## rc.5 接入记录（DSH rc.3，2026-11-17）
+
+基座 rc.5 更新了发布后的仓库同步规范。与 rc.4 比较，执行脚本和环境定义逐字节一致。[基座变更](https://github.com/takboo/dsh-plugin-engineering/compare/v0.1.0-rc.4...v0.1.0-rc.5)
+
+- `mise run verify:engineering -- all v0.3.2` 从 `7100f1f21d71ae4a64879c33e6475455f919b9d4` 重建 `@takboo/dsh-session-bin@0.3.2`。tarball SHA-256 为 `e25de03e62ccc3fef5e5cced266a110e761e36b88fd3abc0d81390a9691a6ab6`，与 [0.3.2 验收记录](dsh-0.2.2-rc3.md)一致。
+- Linux ARM64 容器使用 Node `24.22.2`、pnpm `11.28.5` 和 Chromium `141.0.7390.37`。DSH `0.2.2-rc.3` 的安装、四项隔离 Web 断言和卸载通过。DSH `0.2.2-rc.2` 按 `engines.dsh` 预期拒绝。报告的 Git 归档提交与 rc.5 锁一致，执行文件摘要和输入摘要已复核。[原始报告](../../.local/engineering/shared-NZVQgp/report.json)
+- 本轮复跑覆盖共享 CLI 和 Web。原生 Desktop 与正式平台资格见 [0.3.2 验证](dsh-0.2.2-rc3.md)。
 
 ## rc.4 接入记录（DSH rc.1，2026-11-12）
 
