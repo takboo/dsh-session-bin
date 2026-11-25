@@ -18,7 +18,7 @@
 
 日期：2026-10-10。版本 `0.2.0`，Linux x64、Node `24.18.1`、pnpm `11.23.0`、DSH `0.2.0-rc.2`。最终类型检查、构建与真实 Loader 打包加载通过；全量隔离回归共 377 项，371 项通过，6 项为当前系统不适用的 Windows 检查；单项和批量客户端回归覆盖默认确认、全局关闭后仅新鲜点击执行、阻止项拒绝、准备期间重连或重新开启确认、偏好保存与同源窗口同步、未知结果暂停及重载零重发。UI 回归验证工作区分组、一次确认按钮、完成后只保留失败项，以及运行中不展示误导性的未知结果续办按钮。
 
-[中文 GUI 报告](../../.local/gui/client-zh-4793LZ/verification.json)和[English GUI 报告](../../.local/gui/client-en-1AprXi/verification.json)各 17 项检查通过；两份报告及[Loader 报告](../../.local/lifecycle/package-H1l0AD/verification.json)使用同字节 tarball，SHA-256 `49cfe4aadeb4de4ce17aadf5caab07e07a49fbf5f629d8910fe0b9f1b8c8d16f`。console/pageErrors 为空，四次 Host 关闭均 code 0、signal null、未强制终止。
+中文 GUI 报告 (`.local/gui/client-zh-4793LZ/verification.json`)和English GUI 报告 (`.local/gui/client-en-1AprXi/verification.json`)各 17 项检查通过；两份报告及Loader 报告 (`.local/lifecycle/package-H1l0AD/verification.json`)使用同字节 tarball，SHA-256 `49cfe4aadeb4de4ce17aadf5caab07e07a49fbf5f629d8910fe0b9f1b8c8d16f`。console/pageErrors 为空，四次 Host 关闭均 code 0、signal null、未强制终止。
 
 原生 LocaleRuntime 先更新画面，再经 ConfigFormController 串行保存 Host 偏好；语言重载验证等待对应 `settings/mutate` 的 locale 写入成功回执，而非仅等待翻译后的标签。
 
@@ -36,9 +36,9 @@
 
 ## Linux 云环境 CLI 与双语 GUI 复验
 
-日期：2026-10-09。基线及工具修复见[Host 同轮验证](host-lifecycle.md#跨平台-ci-与-pnpm-退出修复验证)。Linux x64、Node `24.18.1`、pnpm `11.23.0`、DSH `0.2.0-rc.2`；`mise run verify:gui` 完整退出 **0**。[中文报告](../../.local/gui/client-zh-F4JozK/verification.json)和[English 报告](../../.local/gui/client-en-EmERFo/verification.json)各 **17 检查通过**，browser console/pageErrors 为空；四次 Host 关闭均 code 0、signal null、未强制终止。
+日期：2026-10-09。基线及工具修复见[Host 同轮验证](host-lifecycle.md#跨平台-ci-与-pnpm-退出修复验证)。Linux x64、Node `24.18.1`、pnpm `11.23.0`、DSH `0.2.0-rc.2`；`mise run verify:gui` 完整退出 **0**。中文报告 (`.local/gui/client-zh-F4JozK/verification.json`)和English 报告 (`.local/gui/client-en-EmERFo/verification.json`)各 **17 检查通过**，browser console/pageErrors 为空；四次 Host 关闭均 code 0、signal null、未强制终止。
 
-对基线 `321dc2bd87b00d0154193210f6e55a34e74224eb` 的远程复验发现另一项 Linux runner 限制：工作区内 TMPDIR 太长，Chromium singleton socket 启动失败。隔离长路径探针在实际 Chromium 中复现 `Socket path too long`，使用独立 `/tmp` 短目录后启动与导航成功。修复后再次执行完整双语任务，[中文](../../.local/gui/client-zh-Hhjx2k/verification.json)及[English](../../.local/gui/client-en-T8y9j5/verification.json)仍各 17 项通过、错误为空、Host 均正常关闭；两份报告记录的浏览器短临时目录已在结束时删除。profile、SDK 数据及证据仍使用原有隔离工作区。
+对基线 `321dc2bd87b00d0154193210f6e55a34e74224eb` 的远程复验发现另一项 Linux runner 限制：工作区内 TMPDIR 太长，Chromium singleton socket 启动失败。隔离长路径探针在实际 Chromium 中复现 `Socket path too long`，使用独立 `/tmp` 短目录后启动与导航成功。修复后再次执行完整双语任务，中文 (`.local/gui/client-zh-Hhjx2k/verification.json`)及English (`.local/gui/client-en-T8y9j5/verification.json`)仍各 17 项通过、错误为空、Host 均正常关闭；两份报告记录的浏览器短临时目录已在结束时删除。profile、SDK 数据及证据仍使用原有隔离工作区。
 
 全新 profile 使用缓存优先的在线安装补齐独立解析的依赖；公开 CLI 安装、卸载及卸载后的新浏览器数据目录/真正 Web 启动均成功。验证覆盖原生 Archive/Undo、已有归档、单项及批量取消归档、筛选、语言与偏好重载、浅深色和窄屏。Linux 生产删除资格仍为 unsupported：单项、批量、清空确认拒绝并执行零次，SDK 重开后原始 transcript 字节保留。此结果解决此前 Linux CLI/GUI 安装与退出失败，不代表 Linux 删除已获生产资格，也不替代物理操作系统输入法验收。较早 macOS 删除验收与失败诊断保留各自基线。
 
@@ -50,10 +50,10 @@
 | --- | --- |
 | 类型、构建与 Host | 两端检查、构建、macOS 全量 342 项通过/6 项 Windows 专属跳过、Linux candidate 341 项通过/7 项跳过及两端真实 Loader/tarball 检查均退出 0；范围和跳过项见 Host 报告。 |
 | 模型、DOM 与严格 Remote | [批次模型](../../tests/native-deletion-batch.test.mjs)32 项、[批次 DOM](../../tests/native-deletion-batch-ui.test.mjs)5 项、[单项及 Remote](../../tests/native-deletion-client.test.mjs)30 项，共 **67/67 通过，0 跳过**，并进入同轮全量。 |
-| 中文实际 CLI/浏览器 | [zh-CN 报告](../../.local/gui/client-zh-NgXPYK/verification.json)：**17 检查/28 覆盖项通过**。 |
-| English 实际 CLI/浏览器 | [en-US 报告](../../.local/gui/client-en-XJItAB/verification.json)：**17 检查/28 覆盖项通过**。 |
+| 中文实际 CLI/浏览器 | zh-CN 报告 (`.local/gui/client-zh-NgXPYK/verification.json`)：**17 检查/28 覆盖项通过**。 |
+| English 实际 CLI/浏览器 | en-US 报告 (`.local/gui/client-en-XJItAB/verification.json`)：**17 检查/28 覆盖项通过**。 |
 
-两个全新独立 profile 由 `mise run verify:gui` 顺序运行，退出码 **0**。环境：SDK `0.2.0-rc.2`、Node `24.18.1`、pnpm `11.7.0`、macOS ARM64、系统 Chrome **155.0.8059.39**。两份 GUI 与[macOS 打包报告](../../.local/lifecycle/package-qCagP3/verification.json)、[Linux 打包报告](../../.local/platform/linux-container-rcnaCX/lifecycle/package-T1O92G/verification.json)使用同字节 `0.1.0-dev.2` 包，SHA-256 为 `9fa5d571d38a9458ac48dbf92250af477b8f1b49bdcecc9fc7484e4523e2ca67`。browser console/pageErrors 均为空；四次 Host 关闭均 code 0、signal null、未强制终止。
+两个全新独立 profile 由 `mise run verify:gui` 顺序运行，退出码 **0**。环境：SDK `0.2.0-rc.2`、Node `24.18.1`、pnpm `11.7.0`、macOS ARM64、系统 Chrome **155.0.8059.39**。两份 GUI 与macOS 打包报告 (`.local/lifecycle/package-qCagP3/verification.json`)、Linux 打包报告 (`.local/platform/linux-container-rcnaCX/lifecycle/package-T1O92G/verification.json`)使用同字节 `0.1.0-dev.2` 包，SHA-256 为 `9fa5d571d38a9458ac48dbf92250af477b8f1b49bdcecc9fc7484e4523e2ca67`。browser console/pageErrors 均为空；四次 Host 关闭均 code 0、signal null、未强制终止。
 
 真实 GUI 覆盖原生 Archive 唯一入口/Undo、已有归档、单项/批量取消归档、元数据搜索及筛选、语言切换保留草稿与选择、Host 偏好重载、浅深色、390px 窄屏，以及下列真实删除效果：
 
@@ -64,11 +64,11 @@
 
 新增恢复回归覆盖 missing 批次项在停止、关闭和重载后的独立 fresh preparation/confirmation；取消确认仍保留旧 guard，执行新确认才替换，provenance 始终禁止 discard，observed/uncertain grant 与替换观察仍拒绝。断线中的 success/rejected/conflict 当前项完整排空，后续项暂停；新 baseline 先于当前回复到达也不自动恢复。公开订阅通知重入 refresh、stop/dismiss，以及异步 journal 查询跨连接代次后不能发送或重新打开确认。以上故障窗口由实际 Model/Remote/DOM 回归验收，正常真实 GUI 流程不被写成这些故障的网络注入证据。
 
-实际截图：[中文浅色](../../.local/gui/client-zh-NgXPYK/artifacts/session-bin-light-zh.png)、[中文深色](../../.local/gui/client-zh-NgXPYK/artifacts/session-bin-dark-zh.png)、[中文批量确认](../../.local/gui/client-zh-NgXPYK/artifacts/session-bin-batch-delete-confirmation-zh.png)、[中文清空确认](../../.local/gui/client-zh-NgXPYK/artifacts/session-bin-clear-all-confirmation-zh.png)；[English 浅色](../../.local/gui/client-en-XJItAB/artifacts/session-bin-light-en.png)、[English 深色](../../.local/gui/client-en-XJItAB/artifacts/session-bin-dark-en.png)、[English 窄屏](../../.local/gui/client-en-XJItAB/artifacts/session-bin-narrow-en.png)。
+实际截图：中文浅色 (`.local/gui/client-zh-NgXPYK/artifacts/session-bin-light-zh.png`)、中文深色 (`.local/gui/client-zh-NgXPYK/artifacts/session-bin-dark-zh.png`)、中文批量确认 (`.local/gui/client-zh-NgXPYK/artifacts/session-bin-batch-delete-confirmation-zh.png`)、中文清空确认 (`.local/gui/client-zh-NgXPYK/artifacts/session-bin-clear-all-confirmation-zh.png`)；English 浅色 (`.local/gui/client-en-XJItAB/artifacts/session-bin-light-en.png`)、English 深色 (`.local/gui/client-en-XJItAB/artifacts/session-bin-dark-en.png`)、English 窄屏 (`.local/gui/client-en-XJItAB/artifacts/session-bin-narrow-en.png`)。
 
 Linux CLI 的额外 add/remove 补验没有通过：profile 缓存预热后安装成功，但 Corepack 与同版本原生 pnpm 对照的卸载均未满足自然退出断言。该失败与本节 macOS 双语 GUI 通过分别记录，详见[Host 补验与限制](host-lifecycle.md#linux-cli-补验与未通过边界)；没有据此扩大 Linux 生产资格。
 
-固定交付物为[dev.2 安装包](../../.local/packages/dsh-session-bin-0.1.0-dev.2.tgz)，大小 **501702 bytes**，与上述验收包逐字节一致，附[SHA-256 校验文件](../../.local/packages/dsh-session-bin-0.1.0-dev.2.tgz.sha256)。本轮整理交付物，没有安装到用户正在运行的 Harness。
+固定交付物为dev.2 安装包 (`.local/packages/dsh-session-bin-0.1.0-dev.2.tgz`)，大小 **501702 bytes**，与上述验收包逐字节一致，附SHA-256 校验文件 (`.local/packages/dsh-session-bin-0.1.0-dev.2.tgz.sha256`)。本轮整理交付物，没有安装到用户正在运行的 Harness。
 
 测试只连接脚本启动的临时端口 `58929/59071`，未连接当前 `19387` GUI或安装到真实用户 profile。合成 composition 不证明物理 OS 输入法会话。默认生产删除仍只限声明的 macOS ARM64 组合；Linux 容器 candidate、Windows 与其他架构的 GUI/实际删除资格保持独立，尚未满足三平台公开发布条件。
 
@@ -92,11 +92,11 @@ Linux CLI 的额外 add/remove 补验没有通过：profile 缓存预热后安�
 
 最终源码基线、31 文件指纹和故障检查见[Host 重构验证](host-lifecycle.md#原生归档管理重构验证)。`mise run verify` 的两端类型检查、构建、**161/161 项测试**和 tarball 检查通过。随后对最终构建执行既有 `mise exec -- pnpm run verify:gui`（完整任务 `mise run verify:gui` 另包含构建），中文和 English 各 **14 检查 / 15 覆盖项通过**，退出码 0。
 
-[中文报告](../../.local/gui/client-zh-LN3ZAO/verification.json)、[English 报告](../../.local/gui/client-en-1wqHFE/verification.json)与[Host tarball 报告](../../.local/lifecycle/package-aUVuyj/verification.json)使用相同 tarball SHA-256：`dc7e1a5970634ba941edb04acd9c25444b1a09c1cbea38cfd3684bdc10bd4cee`。SDK `0.2.0-rc.2`、Node `24.18.1`、macOS ARM64、系统 Chrome `154.0.8037.98`；console/pageErrors 均为空。
+中文报告 (`.local/gui/client-zh-LN3ZAO/verification.json`)、English 报告 (`.local/gui/client-en-1wqHFE/verification.json`)与Host tarball 报告 (`.local/lifecycle/package-aUVuyj/verification.json`)使用相同 tarball SHA-256：`dc7e1a5970634ba941edb04acd9c25444b1a09c1cbea38cfd3684bdc10bd4cee`。SDK `0.2.0-rc.2`、Node `24.18.1`、macOS ARM64、系统 Chrome `154.0.8037.98`；console/pageErrors 均为空。
 
 实际覆盖：插件安装前的原生归档直接显示、菜单无 Move 贡献、原生 Archive 与其唯一 Undo、确认成功的单项取消归档、固定选择批量取消归档、搜索/工作区筛选、composition/Escape/Tab、原生 Settings 语言切换时保留选择及草稿、语言偏好刷新保留、浅深色、390px 控件、原生插件 metadata、SDK 重开时 native archive 与日志一致，以及 CLI 卸载后的真正 Web 重启。两次最终测试 Host 位于 `49866/49979`，均正常退出；未连接当前 `19387` GUI。
 
-真实截图：[中文浅色](../../.local/gui/client-zh-LN3ZAO/artifacts/session-bin-light-zh.png)、[中文深色](../../.local/gui/client-zh-LN3ZAO/artifacts/session-bin-dark-zh.png)、[中文窄屏](../../.local/gui/client-zh-LN3ZAO/artifacts/session-bin-narrow-zh.png)；[English 浅色](../../.local/gui/client-en-1wqHFE/artifacts/session-bin-light-en.png)、[English 深色](../../.local/gui/client-en-1wqHFE/artifacts/session-bin-dark-en.png)、[English 窄屏](../../.local/gui/client-en-1wqHFE/artifacts/session-bin-narrow-en.png)。
+真实截图：中文浅色 (`.local/gui/client-zh-LN3ZAO/artifacts/session-bin-light-zh.png`)、中文深色 (`.local/gui/client-zh-LN3ZAO/artifacts/session-bin-dark-zh.png`)、中文窄屏 (`.local/gui/client-zh-LN3ZAO/artifacts/session-bin-narrow-zh.png`)；English 浅色 (`.local/gui/client-en-1wqHFE/artifacts/session-bin-light-en.png`)、English 深色 (`.local/gui/client-en-1wqHFE/artifacts/session-bin-dark-en.png`)、English 窄屏 (`.local/gui/client-en-1wqHFE/artifacts/session-bin-narrow-en.png`)。
 
 初次浏览器运行在空状态文案断言处失败，原因是脚本仍期待旧 Bin 文案；校正独立中英文期望后完整双语流程通过。随后补齐 Host 同步观察读取故障保护，再对最终同一 tarball 完整复验，以上报告只指最终运行。此证据不扩大永久删除、真实 OS 输入法、多 Host 或其他平台支持。
 
@@ -104,7 +104,7 @@ Linux CLI 的额外 add/remove 补验没有通过：profile 缓存预热后安�
 
 原生归档重构验收后，为区分用户本地的旧包，开发版本递增为 `0.1.0-dev.1`；功能源码与上述最终验收一致，打包脚本的版本校验改为读取项目 manifest，避免另存固定版本。使用固定工具运行 `mise run check` 和 `mise run verify:package`，两端类型检查、重新构建、文件白名单、公开导出与真实 Loader 加载/取消归档/卸载/重载全部通过，退出码 0。
 
-[安装包](../../.local/packages/dsh-session-bin-0.1.0-dev.1.tgz)为本轮[打包报告](../../.local/lifecycle/package-CXjVh4/verification.json)中 tarball 的同字节副本，SHA-256 为 `72d08c9073dfc9a8a71c61e2799452712e0dac73ae40b6b7176ba6cd53251d95`，大小 340629 bytes，附[校验摘要](../../.local/packages/dsh-session-bin-0.1.0-dev.1.tgz.sha256)。本轮只编译和验证交付物，没有安装到用户正在运行的 Harness；前述真实双语 GUI 证据仍对应 `0.1.0-dev.0` 重构验收包。
+安装包 (`.local/packages/dsh-session-bin-0.1.0-dev.1.tgz`)为本轮打包报告 (`.local/lifecycle/package-CXjVh4/verification.json`)中 tarball 的同字节副本，SHA-256 为 `72d08c9073dfc9a8a71c61e2799452712e0dac73ae40b6b7176ba6cd53251d95`，大小 340629 bytes，附校验摘要 (`.local/packages/dsh-session-bin-0.1.0-dev.1.tgz.sha256`)。本轮只编译和验证交付物，没有安装到用户正在运行的 Harness；前述真实双语 GUI 证据仍对应 `0.1.0-dev.0` 重构验收包。
 
 ## 验证基线
 
@@ -141,13 +141,13 @@ Linux CLI 的额外 add/remove 补验没有通过：profile 缓存预热后安�
 | 插件管理页标题与描述、中英资源导出及 tarball 解析 | 通过 | 通过 | 真正 Plugins 页面 + 公开 readPluginMeta 读取实际打包资源。 |
 | 浅色、深色、390×844 窄屏、搜索组合输入、Escape/Tab、完整交互、重载与 CLI 卸载后新启动 | 通过 | 通过 | 两轮完整 Chrome 验收，console/pageErrors 均为空，进程正常关闭。 |
 
-完整报告：[中文 zh-CN](../../.local/gui/client-zh-KqGJxp/verification.json)、[English en-US](../../.local/gui/client-en-Z67Apn/verification.json)。两轮均包含 18 项实际检查和 27 个覆盖项。
+完整报告：中文 zh-CN (`.local/gui/client-zh-KqGJxp/verification.json`)、English en-US (`.local/gui/client-en-Z67Apn/verification.json`)。两轮均包含 18 项实际检查和 27 个覆盖项。
 
-实际截图：[中文浅色](../../.local/gui/client-zh-KqGJxp/artifacts/session-bin-light-zh.png)、[中文深色](../../.local/gui/client-zh-KqGJxp/artifacts/session-bin-dark-zh.png)、[中文窄屏](../../.local/gui/client-zh-KqGJxp/artifacts/session-bin-narrow-zh.png)；[English 浅色](../../.local/gui/client-en-Z67Apn/artifacts/session-bin-light-en.png)、[English 深色](../../.local/gui/client-en-Z67Apn/artifacts/session-bin-dark-en.png)、[English 窄屏](../../.local/gui/client-en-Z67Apn/artifacts/session-bin-narrow-en.png)。报告还保存切换语言时的截图与选择/搜索状态。
+实际截图：中文浅色 (`.local/gui/client-zh-KqGJxp/artifacts/session-bin-light-zh.png`)、中文深色 (`.local/gui/client-zh-KqGJxp/artifacts/session-bin-dark-zh.png`)、中文窄屏 (`.local/gui/client-zh-KqGJxp/artifacts/session-bin-narrow-zh.png`)；English 浅色 (`.local/gui/client-en-Z67Apn/artifacts/session-bin-light-en.png`)、English 深色 (`.local/gui/client-en-Z67Apn/artifacts/session-bin-dark-en.png`)、English 窄屏 (`.local/gui/client-en-Z67Apn/artifacts/session-bin-narrow-en.png`)。报告还保存切换语言时的截图与选择/搜索状态。
 
 同一实际日期值在 English 显示如 `Oct 7, 2026, 10:25 AM`，中文显示如 `2026年10月7日 10:25`；断言逐项比较 `Intl.DateTimeFormat(activeLocale, { dateStyle: 'medium', timeStyle: 'short' })`。English 单项现在是 `1 conversation`、`1 operation result needs confirmation.`；空名已分组工作区显示 `Untitled workspace / 未命名工作区`，不会误称为 Ungrouped。
 
-两轮[中文 GUI tarball](../../.local/gui/client-zh-KqGJxp/dsh-session-bin-0.1.0-dev.0.tgz)与[English GUI tarball](../../.local/gui/client-en-Z67Apn/dsh-session-bin-0.1.0-dev.0.tgz)使用相同 SHA-256：`df2531e165f856b4b6e3682462858680ffff4ad793c99a22ff7453604466b496`。本轮之后仅改文档会改变摘要，其他运行以各自报告为准。
+两轮中文 GUI tarball (`.local/gui/client-zh-KqGJxp/dsh-session-bin-0.1.0-dev.0.tgz`)与English GUI tarball (`.local/gui/client-en-Z67Apn/dsh-session-bin-0.1.0-dev.0.tgz`)使用相同 SHA-256：`df2531e165f856b4b6e3682462858680ffff4ad793c99a22ff7453604466b496`。本轮之后仅改文档会改变摘要，其他运行以各自报告为准。
 
 这个矩阵证明当前支持的中文/English 产品界面与元数据完整适配，不把未使用的字典键或未实现的功能虚构为额外能力，也不扩展到第三种语言、RTL、其他平台或实际操作系统输入法会话。
 
@@ -174,7 +174,7 @@ Linux CLI 的额外 add/remove 补验没有通过：profile 缓存预热后安�
 
 `mise run verify` 的两端检查、构建、**90/90 项测试**与真实 Loader/tarball 验证通过。`mise run verify:gui` 随后用默认无 owner 的 Service 组合，在两个全新临时 Web/Chrome profile 顺序验证中文和 English：每轮 18 项检查和 27 个覆盖项均通过，browser console/pageErrors 为空。
 
-实际报告：[中文](../../.local/gui/client-zh-GA2y5b/verification.json)、[English](../../.local/gui/client-en-RRLeCz/verification.json)。实际截图：[中文浅色](../../.local/gui/client-zh-GA2y5b/artifacts/session-bin-light-zh.png)、[中文深色](../../.local/gui/client-zh-GA2y5b/artifacts/session-bin-dark-zh.png)、[中文窄屏](../../.local/gui/client-zh-GA2y5b/artifacts/session-bin-narrow-zh.png)；[English 浅色](../../.local/gui/client-en-RRLeCz/artifacts/session-bin-light-en.png)、[English 深色](../../.local/gui/client-en-RRLeCz/artifacts/session-bin-dark-en.png)、[English 窄屏](../../.local/gui/client-en-RRLeCz/artifacts/session-bin-narrow-en.png)。两轮与 Host tarball 的 SHA-256 相同：`d1680640ad92c36396b271b24c5a5cde0acb7b13221b7c7e05ec86dde8a02beb`。
+实际报告：中文 (`.local/gui/client-zh-GA2y5b/verification.json`)、English (`.local/gui/client-en-RRLeCz/verification.json`)。实际截图：中文浅色 (`.local/gui/client-zh-GA2y5b/artifacts/session-bin-light-zh.png`)、中文深色 (`.local/gui/client-zh-GA2y5b/artifacts/session-bin-dark-zh.png`)、中文窄屏 (`.local/gui/client-zh-GA2y5b/artifacts/session-bin-narrow-zh.png`)；English 浅色 (`.local/gui/client-en-RRLeCz/artifacts/session-bin-light-en.png`)、English 深色 (`.local/gui/client-en-RRLeCz/artifacts/session-bin-dark-en.png`)、English 窄屏 (`.local/gui/client-en-RRLeCz/artifacts/session-bin-narrow-en.png`)。两轮与 Host tarball 的 SHA-256 相同：`d1680640ad92c36396b271b24c5a5cde0acb7b13221b7c7e05ec86dde8a02beb`。
 
 复验涵盖新 sidecar 下的启动/卸载、原生菜单、移入/Undo、单项与固定选择批量恢复、搜索/工作区筛选、真实 Settings 语言切换、日期/metadata、浅深色和 390px 窄屏、重载、SDK 重开及卸载后的新启动。测试端口为 `62576/62694`，仅连接脚本启动的临时 Host，未连接 `19387`，测试进程均由脚本关闭。
 
@@ -184,7 +184,7 @@ Linux CLI 的额外 add/remove 补验没有通过：profile 缓存预热后安�
 
 日期：2026-10-07。基线为检查点 `8f0dc3d` 加 owner 协调器及端口适配的未提交变更，精确源码和 33 项新增 owner 检查见[Host 验证](host-lifecycle.md#可复用资源-owner-协调验证)。`mise run verify` 的两端检查、构建、**123/123** 测试及 tarball 通过；`mise run verify:gui` 的中文和 English 两个独立 profile 各 18 检查/27 覆盖项通过，console/pageErrors 为空。
 
-实际报告：[中文](../../.local/gui/client-zh-WaxHrq/verification.json)、[English](../../.local/gui/client-en-dbREN7/verification.json)。浅深色、窄屏和切换截图位于各自报告的 artifacts；两轮与 Host tarball 的 SHA-256 同为 `68efcf15e636f126bbd99d87d5c3433633f0aa55ad9428c4f9e0d86675f6fdd7`。测试端口 `64909/65062` 仅属脚本临时 Host，均已关闭，未连接 `19387`。
+实际报告：中文 (`.local/gui/client-zh-WaxHrq/verification.json`)、English (`.local/gui/client-en-dbREN7/verification.json`)。浅深色、窄屏和切换截图位于各自报告的 artifacts；两轮与 Host tarball 的 SHA-256 同为 `68efcf15e636f126bbd99d87d5c3433633f0aa55ad9428c4f9e0d86675f6fdd7`。测试端口 `64909/65062` 仅属脚本临时 Host，均已关闭，未连接 `19387`。
 
 客户端及严格 Remote DTO 未扩展删除。GUI 仍验证默认无 owner 的安装/卸载、既有移入/Undo、恢复、筛选、固定选择批量恢复、语言偏好、浅深色/390px 布局及重开；没有据此声明 native 删除、删除 Modal/批量/清空或其他平台已支持。环境及操作系统输入法限制与前节一致。
 
@@ -197,10 +197,10 @@ Linux CLI 的额外 add/remove 补验没有通过：profile 缓存预热后安�
 
 | 探针 | 范围 | 结果 |
 | --- | --- | --- |
-| [旧全连接代理](../../.local/gui/client-zh-6Qy7sd/verification.json) | 初始原生归档视图 | 失败，出现原生 3000ms 就绪警告 |
-| [旧代理重复](../../.local/gui/client-zh-FotZhw/verification.json) | 相同初始连接探针 | 再次失败，出现同一警告 |
-| [原生连接对照](../../.local/gui/client-zh-kji7PF/verification.json) | 相同初始连接探针 | 通过，零警告 |
-| [浏览器定点历史延迟](../../.local/gui/client-zh-UpKff4/verification.json) | 完整中文 GUI | 18 项通过，零 console/pageErrors；两次真实历史延迟和两个正常 Host 退出 |
+| 旧全连接代理 (`.local/gui/client-zh-6Qy7sd/verification.json`) | 初始原生归档视图 | 失败，出现原生 3000ms 就绪警告 |
+| 旧代理重复 (`.local/gui/client-zh-FotZhw/verification.json`) | 相同初始连接探针 | 再次失败，出现同一警告 |
+| 原生连接对照 (`.local/gui/client-zh-kji7PF/verification.json`) | 相同初始连接探针 | 通过，零警告 |
+| 浏览器定点历史延迟 (`.local/gui/client-zh-UpKff4/verification.json`) | 完整中文 GUI | 18 项通过，零 console/pageErrors；两次真实历史延迟和两个正常 Host 退出 |
 
 固定故障试验明确复现了控制进程代理阻塞握手的机制。原 main Windows 的两轮失败分别为初始 15 秒超时与完整 GUI 主体后收集到的 3 秒告警；旧报告未记录控制进程停顿，不能证明那两轮的具体停顿来源。原始失败与后续采样见 [PR #22](https://github.com/takboo/dsh-session-bin/pull/22)。
 

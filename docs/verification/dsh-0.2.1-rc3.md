@@ -12,16 +12,16 @@
 
 环境：macOS `15.7.9` ARM64、APFS（type `0x1a`）。使用 mise 固定 Node `24.18.1` / libuv `1.52.1`、pnpm `11.23.0`。机器全局工具与固定工具不同，本轮通过设置工作区 `MISE_DATA_DIR` / `MISE_STATE_DIR` / `MISE_CACHE_DIR` 后执行同一 `mise.toml` 任务，核对实际版本。
 
-- `mise run verify:platform`：391 项，385 通过、0 失败、6 项 Windows 专用检查跳过；类型、构建、市场元数据、Host/Client/Remote、raw/zstd、cache/SQLite、真实进程中断与重开和 tarball 检查通过。源码前后稳定，SHA-256 为 `82ead27850f2ba17e9750f8dac8eed7d9af71b45f7840104931de781ac8f5dd9`。[平台报告](../../.local/platform/darwin-arm64-jdPG1L/verification.json)
-- `mise run verify:desktop`：官方 rc.3 ZIP 解压到独立目录后指定 `DSH_SESSION_BIN_DESKTOP_APP`；391 项，385 通过、0 失败、6 跳过。真实 ASAR Host、18 个 SDK 文件、原生模块及生产准备路径通过；源码摘要与独立 Node 报告一致。[桌面报告](../../.local/desktop/darwin-arm64-fTpN9u/verification.json)
+- `mise run verify:platform`：391 项，385 通过、0 失败、6 项 Windows 专用检查跳过；类型、构建、市场元数据、Host/Client/Remote、raw/zstd、cache/SQLite、真实进程中断与重开和 tarball 检查通过。源码前后稳定，SHA-256 为 `82ead27850f2ba17e9750f8dac8eed7d9af71b45f7840104931de781ac8f5dd9`。平台报告 (`.local/platform/darwin-arm64-jdPG1L/verification.json`)
+- `mise run verify:desktop`：官方 rc.3 ZIP 解压到独立目录后指定 `DSH_SESSION_BIN_DESKTOP_APP`；391 项，385 通过、0 失败、6 跳过。真实 ASAR Host、18 个 SDK 文件、原生模块及生产准备路径通过；源码摘要与独立 Node 报告一致。桌面报告 (`.local/desktop/darwin-arm64-fTpN9u/verification.json`)
 
 桌面实际载体为 Electron `44.7.0` / Node `24.21.0` / libuv `1.52.1`，SQLite `3.53.4`、Zstd `1.6.0`、ABI `149`；测试不设置 candidate 资格回调。四组浏览器 Client fixture 使用公开 npm 的客户端产物，Host 测试使用 ASAR SDK 与原生模块。该证据只授予 macOS ARM64/APFS 的精确桌面组合，不推导其他桌面架构。
 
 ## 双语 CLI/GUI 与正式 tarball
 
-最终用户说明及契约更新后，重新执行 `mise run verify:package`，正式 tarball 的真实 Loader 归档、取消归档、单项删除、卸载及重新激活通过，`productionDeletionQualified: true`。[Loader 报告](../../.local/lifecycle/package-cwNwvE/verification.json)
+最终用户说明及契约更新后，重新执行 `mise run verify:package`，正式 tarball 的真实 Loader 归档、取消归档、单项删除、卸载及重新激活通过，`productionDeletionQualified: true`。Loader 报告 (`.local/lifecycle/package-cwNwvE/verification.json`)
 
-`mise run verify:gui` 的[中文](../../.local/gui/client-zh-ZnlLfE/verification.json)与[English](../../.local/gui/client-en-c7oHnH/verification.json)各 17 项通过，均为 `deletionQualification: supported`。`mise run verify:desktop:gui` 使用官方 rc.3 Electron 载体运行隔离 npm Web Host/Client，ASAR production probe 另行复核源码及准入；[桌面汇总](../../.local/desktop/darwin-arm64-o0QUbH/verification.json)通过、源码稳定，[中文](../../.local/gui/client-zh-Wmdhzs/verification.json)与[English](../../.local/gui/client-en-9xxnGe/verification.json)也各 17 项通过。
+`mise run verify:gui` 的中文 (`.local/gui/client-zh-ZnlLfE/verification.json`)与English (`.local/gui/client-en-c7oHnH/verification.json`)各 17 项通过，均为 `deletionQualification: supported`。`mise run verify:desktop:gui` 使用官方 rc.3 Electron 载体运行隔离 npm Web Host/Client，ASAR production probe 另行复核源码及准入；桌面汇总 (`.local/desktop/darwin-arm64-o0QUbH/verification.json`)通过、源码稳定，中文 (`.local/gui/client-zh-Wmdhzs/verification.json`)与English (`.local/gui/client-en-9xxnGe/verification.json`)也各 17 项通过。
 
 四份 GUI 与上述 Loader 使用同字节 tarball，SHA-256 为 `fde0b741303add8a42fc8c0ad3843a932062f1011418c54996f4154b26707940`。均覆盖原生归档/Undo、已有归档、搜索/分组/筛选、取消归档、打开真实历史后的空闲 Agent 释放、固定批量与完整清空范围、确认偏好、重载不重发、浅深色、窄屏、键盘和 composition。关闭并重开 Host 后复核日志和派生索引清除、其他会话保留；安装/卸载正常退出。四份 GUI 的 console/pageErrors 均为空，八次 Host 关闭全部 code 0、signal null、forced false。
 
@@ -38,7 +38,7 @@
 | owner-fenced，raw/zstd | 旧进程真实 SIGKILL，沿用原授权恢复同一操作 | 两种编码通过 |
 | resource-effect，raw/zstd | 实际擦除后、确认前 SIGKILL，重开对账日志/cache/SQLite | 两种编码通过 |
 
-四个中断样本逐项保持旧 request、manifest、authorizationId；目标日志与派生记录缺失，sibling transcript 完整，重复 execute 只返回原回执。恢复不生成新目标或删除授权。[升级报告](../../.local/rc3-upgrade-verification.json)、[中断恢复报告](../../.local/rc3-upgrade-crash-verification.json)。
+四个中断样本逐项保持旧 request、manifest、authorizationId；目标日志与派生记录缺失，sibling transcript 完整，重复 execute 只返回原回执。恢复不生成新目标或删除授权。升级报告 (`.local/rc3-upgrade-verification.json`)、中断恢复报告 (`.local/rc3-upgrade-crash-verification.json`)。
 
 ## 五平台独立运行资格
 
@@ -52,7 +52,7 @@
 | Ubuntu 24.04 | ARM64 | ext2/ext3/ext4，type `0xef53` | 全部通过 |
 | Ubuntu 24.04 | x64 | ext2/ext3/ext4，type `0xef53` | 全部通过 |
 
-POSIX 源码清单 SHA-256 为 `82ead27850f2ba17e9750f8dac8eed7d9af71b45f7840104931de781ac8f5dd9`；Windows checkout 行尾对应清单为 `2d128296b413eb26509099c6576492237121c43ffc5e77fc877394c01e00d064`。平台内部的 Loader 与双语 GUI tarball 摘要一致：POSIX 为 `fde0b741303add8a42fc8c0ad3843a932062f1011418c54996f4154b26707940`，Windows 为 `f079461b7fdfab16022d0ba84aac10e609ab593b85808a39929369dac737e646`。中文/English 各 17 项通过，console/pageErrors 为空，20 次 Host 关闭全部正常且未强制终止。Windows 使用隔离 IPC 投递 SDK 原有 SIGTERM handler，POSIX 使用 OS 信号。[报告汇总](../../.local/ci-rc3-implementation/summary.json)
+POSIX 源码清单 SHA-256 为 `82ead27850f2ba17e9750f8dac8eed7d9af71b45f7840104931de781ac8f5dd9`；Windows checkout 行尾对应清单为 `2d128296b413eb26509099c6576492237121c43ffc5e77fc877394c01e00d064`。平台内部的 Loader 与双语 GUI tarball 摘要一致：POSIX 为 `fde0b741303add8a42fc8c0ad3843a932062f1011418c54996f4154b26707940`，Windows 为 `f079461b7fdfab16022d0ba84aac10e609ab593b85808a39929369dac737e646`。中文/English 各 17 项通过，console/pageErrors 为空，20 次 Host 关闭全部正常且未强制终止。Windows 使用隔离 IPC 投递 SDK 原有 SIGTERM handler，POSIX 使用 OS 信号。报告汇总 (`.local/ci-rc3-implementation/summary.json`)
 
 后续提交只补充本验证文档；实现清单摘要保持一致。上述独立运行授予 rc.3 的对应生产组合资格，不授予其他平台或 Electron 组合。正式标签仍重跑五平台完整验收后发布。
 

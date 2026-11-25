@@ -53,6 +53,7 @@
     "build": "tsc --emitDeclarationOnly && tsc --project tsconfig.client.json --emitDeclarationOnly && node scripts/build.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
     "verify:package": "node scripts/verify-package.mjs",
+    "verify:pack": "node scripts/engineering/pack-host.mjs",
     "verify:market": "node scripts/verify-market.mjs",
     "verify:gui:browser": "playwright-core install --with-deps chromium",
     "verify:gui": "node scripts/verify-gui-locales.mjs",

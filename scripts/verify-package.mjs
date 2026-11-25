@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
-import { mkdir, readFile, writeFile, realpath } from 'node:fs/promises';
-import { join } from 'node:path';
+import { copyFile, mkdir, readFile, rename, rm, writeFile, realpath } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { Loader } from '@deepseek-ai/cordis-plugin-loader';
@@ -15,6 +15,23 @@ import { SessionId } from '@deepseek-ai/dsh-session';
 import { createScratch, openFixture, workspaceRoot } from '../tests/helpers/fixture.mjs';
 
 const exec = promisify(execFile);
+let saveTarball = null;
+let saveReport = null;
+const argv = process.argv.slice(2);
+for (let i = 0; i < argv.length; i += 1) {
+  const flag = argv[i];
+  assert(flag === '--save-tarball' || flag === '--save-report', `Unknown argument: ${flag}`);
+  const dest = argv[++i];
+  assert(dest && dest.trim() && !dest.startsWith('-'), `Provide a non-empty destination path for ${flag}.`);
+  if (flag === '--save-tarball') saveTarball = resolve(dest);
+  else saveReport = resolve(dest);
+}
+async function writeAtomicFile(dest, writeTemp) {
+  await mkdir(dirname(dest), { recursive: true });
+  const temp = `${dest}.tmp-${process.pid}`;
+  try { await writeTemp(temp); await rename(temp, dest); }
+  catch (error) { await rm(temp, { force: true }); throw error; }
+}
 const scratch = await createScratch('package-');
 const userconfig = join(scratch, 'user.npmrc');
 const globalconfig = join(scratch, 'global.npmrc');
@@ -128,5 +145,8 @@ const report = {
   scope: `Packed public exports and bundle patch; real Cordis Loader activation, native archive/unarchive, ${qualification.qualified ? 'actual single-conversation JSONL deletion' : 'explicit unsupported deletion with transcript preservation'}, disposal and reactivation on temporary sessions.`,
   limits: 'SDK dependencies supplied by the pinned repository install; not a clean profile/CLI install or a real GUI test.',
 };
-await writeFile(join(scratch, 'verification.json'), JSON.stringify(report, null, 2) + '\n');
-console.log(JSON.stringify(report, null, 2));
+const reportJson = JSON.stringify(report, null, 2) + '\n';
+await writeFile(join(scratch, 'verification.json'), reportJson);
+if (saveTarball) await writeAtomicFile(saveTarball, (temp) => copyFile(tarball, temp));
+if (saveReport) await writeAtomicFile(saveReport, (temp) => writeFile(temp, reportJson));
+console.log(reportJson.trimEnd());

@@ -10,7 +10,7 @@
 
 ## 变更与验证
 
-使用 [mise.toml](mise.toml) 的固定工具。`mise run verify` 执行两端类型检查、构建、隔离行为测试与 tarball 检查；`mise run verify:gui` 在独立 CLI profile 与系统 Chromium 中验证真实交互。单项任务及前提见[客户端接口](docs/client-interface.md)。
+使用 [mise.toml](mise.toml) 的固定工具，完整任务矩阵与证据分级见[开发与验证流程](docs/workflow.md)。`mise run check` 执行统一壳层（`check:shell`）、文档、市场与类型检查；`mise run verify` 执行本地文档、市场、类型、构建、隔离行为测试与 tarball 检查；`mise run verify:host` 在锁定 Linux 宿主容器内验证同一候选包；`mise run verify:gui` 在独立 CLI profile 与系统 Chromium 中验证真实交互。单项任务及前提见[客户端接口](docs/client-interface.md)。
 
 会话状态变更需要从公共 Interface 检查成功、拒绝、重复提交和中断恢复。存储操作增加临时数据上的宿主集成验证，证明日志、查询索引和会话列表的一致性。界面验证覆盖原生浅色/深色、键盘、中文输入法和窄屏布局。对普通文案或样式调整采用与影响相称的检查。
 

@@ -12,7 +12,7 @@ rc.5 的[五平台候选检查](https://github.com/takboo/dsh-session-bin/action
 
 SDK 宿主、参与包与 JSONL adapter 的精确版本检查升级至 rc.5；18 个实现文件 SHA-256、私有类检查、运行时/平台/文件系统/存储范围和 schema-1 durable 身份保持。所有检查使用独立 fixture 和临时 DSH_HOME。
 
-首轮本机正式 Node 与官方 ASAR 全量检查各 429 项，423 通过、6 项 Windows 检查跳过；该实现的 source inventory SHA-256 为 `c94c32216175d8dd25bb9694e10f6e09f1c4a9b352ffaf10fc1ce40c74aa427a`。随后一次 Node 中文 GUI 复验在首次加载面板时失败：预期两个已有归档，实际为 0；Host 日志显示 `NativeMetadataRefusal: Native metadata service composition changed`，未进入删除准备或执行。原始[失败报告](../../.local/gui/client-zh-xk8kcs/verification.json)与 Host 日志保留，不计作完成证据。
+首轮本机正式 Node 与官方 ASAR 全量检查各 429 项，423 通过、6 项 Windows 检查跳过；该实现的 source inventory SHA-256 为 `c94c32216175d8dd25bb9694e10f6e09f1c4a9b352ffaf10fc1ce40c74aa427a`。随后一次 Node 中文 GUI 复验在首次加载面板时失败：预期两个已有归档，实际为 0；Host 日志显示 `NativeMetadataRefusal: Native metadata service composition changed`，未进入删除准备或执行。原始失败报告 (`.local/gui/client-zh-xk8kcs/verification.json`)与 Host 日志保留，不计作完成证据。
 
 以真实 SQLite Query provider 在 owner journal 的异步 open 期间就绪为触发条件，新增确定性回归；旧实现约 0.34 秒复现同一 `native/composition-changed` 启动失败。修复把最终服务快照放在异步 domain/journal/owner 初始化之后，复核可见 pending provider，再同步捕获并安装保护。没有延长 GUI 断言超时、忽略归档数、删除实例检查或自动重发删除。
 
@@ -25,21 +25,21 @@ macOS `15.8.1` ARM64、APFS。使用 mise 固定 Node `24.18.1` / libuv `1.52.1`
 | 正式构建检查 | 结果与证据 |
 | --- | --- |
 | 类型、启动回归及相关 Host/元数据 | 类型通过，确定性回归通过，53 项相关检查通过；运行时配置漂移仍拒绝删除。 |
-| 官方 ASAR 全量 | 430 项，424 通过、0 失败、6 项 Windows 检查跳过；源码前后稳定，对应上述最终清单。[完整报告](../../.local/desktop/darwin-arm64-vWywRn/verification.json) |
-| Node 真实 Loader | 归档、取消归档、实际删除、卸载与再次激活通过；`productionDeletionQualified: true`、candidate 为 false。[报告](../../.local/lifecycle/package-QThzIA/verification.json) |
-| 官方 ASAR 真实 Loader | 相同正式 tarball、实际 ASAR Host 上通过，production 为 true、candidate 为 false。[报告](../../.local/lifecycle/package-ktuWjo/verification.json) |
-| Node 双语 GUI | [中文](../../.local/gui/client-zh-kY3qzT/verification.json)与 [English](../../.local/gui/client-en-EkjibK/verification.json)各 17 项通过，均为 `supported`、production 为 true。 |
-| 官方 Electron 双语 GUI | [汇总](../../.local/desktop/darwin-arm64-tnvd97/verification.json)源码稳定；[中文](../../.local/gui/client-zh-aSMD8l/verification.json)与 [English](../../.local/gui/client-en-OqYdth/verification.json)各 17 项通过，均为 `supported`、production 为 true、candidate 为 false。 |
+| 官方 ASAR 全量 | 430 项，424 通过、0 失败、6 项 Windows 检查跳过；源码前后稳定，对应上述最终清单。完整报告 (`.local/desktop/darwin-arm64-vWywRn/verification.json`) |
+| Node 真实 Loader | 归档、取消归档、实际删除、卸载与再次激活通过；`productionDeletionQualified: true`、candidate 为 false。报告 (`.local/lifecycle/package-QThzIA/verification.json`) |
+| 官方 ASAR 真实 Loader | 相同正式 tarball、实际 ASAR Host 上通过，production 为 true、candidate 为 false。报告 (`.local/lifecycle/package-ktuWjo/verification.json`) |
+| Node 双语 GUI | 中文 (`.local/gui/client-zh-kY3qzT/verification.json`)与 English (`.local/gui/client-en-EkjibK/verification.json`)各 17 项通过，均为 `supported`、production 为 true。 |
+| 官方 Electron 双语 GUI | 汇总 (`.local/desktop/darwin-arm64-tnvd97/verification.json`)源码稳定；中文 (`.local/gui/client-zh-aSMD8l/verification.json`)与 English (`.local/gui/client-en-OqYdth/verification.json`)各 17 项通过，均为 `supported`、production 为 true、candidate 为 false。 |
 
 两份 Loader 和四份 GUI 使用同字节 tarball，SHA-256 为 `070d6bb6f48d64f71d1d492376eec6110265117b4e538543b35ad88819c8ed42`。GUI 覆盖原生归档/Undo、既有归档、搜索分组筛选、取消归档、两次延迟真实历史打开、空闲占用释放、固定批量与完整清空、确认设置、重载不重发、双语浅深色、窄屏、键盘和 composition。四份报告 console/pageErrors 为空，八次 Host 关闭均为 code 0、signal null、forced false。关闭并重开后，公共 SDK 复核目标日志及派生索引清除、非目标日志和 Workspace 成员保留。
 
-本地独立报告检查器逐份核对运行时、源码清单、production/candidate 标记、GUI 检查和 Host 关闭结果，并要求六份 tarball 摘要一致；汇总见[本机证据](../../.local/rc5-review/accepted-local.json)。
+本地独立报告检查器逐份核对运行时、源码清单、production/candidate 标记、GUI 检查和 Host 关闭结果，并要求六份 tarball 摘要一致；汇总见本机证据 (`.local/rc5-review/accepted-local.json`)。
 
 ### rc.3 → rc.5 冷升级
 
 从干净 rc.3 / 已发布 `0.2.6` 的构建重新生成两套独立样本，旧 Context/进程完全关闭后，在同一路径升级为最终正式源码及精确 rc.5 依赖，frozen install、禁用安装脚本。不使用 candidate overlay 或平台资格回调。
 
-Node 和官方 ASAR 各 8 组通过：prepared、done、owner-fenced、resource-effect 分别覆盖 raw/zstd。中断样本为真实 SIGKILL；恢复沿用原 plan、operationId、授权与资源清单，重复执行返回同一回执，目标日志缺失而 sibling 保留。没有生成新删除授权或因重开自动重发。实际结果分别见 [Node 日志](../../.local/rc5-review/postfix-upgrade-node-verify.log)、[ASAR 日志](../../.local/rc5-review/postfix-upgrade-desktop-verify.log)。
+Node 和官方 ASAR 各 8 组通过：prepared、done、owner-fenced、resource-effect 分别覆盖 raw/zstd。中断样本为真实 SIGKILL；恢复沿用原 plan、operationId、授权与资源清单，重复执行返回同一回执，目标日志缺失而 sibling 保留。没有生成新删除授权或因重开自动重发。实际结果分别见 Node 日志 (`.local/rc5-review/postfix-upgrade-node-verify.log`)、ASAR 日志 (`.local/rc5-review/postfix-upgrade-desktop-verify.log`)。
 
 ### 未计入验收的本机运行
 
@@ -61,9 +61,9 @@ Node 和官方 ASAR 各 8 组通过：prepared、done、owner-fenced、resource-
 
 ## 最终正式验收与 0.2.7 发布基线
 
-最终实现提交 `6199c0e7b6090c0c4c67573384c46d6be9120647` 的[完整 PR CI 40995615703](https://github.com/takboo/dsh-session-bin/actions/runs/40995615703)五个平台全部通过，两个发布 job 均跳过。已下载并独立校验全部 20 份平台、Loader、中文和 English 报告；Windows x64 的实际文件系统为 NTFS，macOS ARM64/Intel 均采集到 `apfs`，Linux ARM64/x64 为 ext2/ext3/ext4 family（`0xef53`）。所有报告的精确 SDK、Node/libuv、架构、源码稳定性及 production/candidate 标记均匹配正式资格；十份 GUI 各 17 项通过，console/pageErrors 为空，20 次 Host 关闭均正常且无强制终止。各平台 Loader 与两种语言 GUI 使用同字节 tarball，汇总见[CI 证据](../../.local/rc5-review/accepted-ci.json)。
+最终实现提交 `6199c0e7b6090c0c4c67573384c46d6be9120647` 的[完整 PR CI 40995615703](https://github.com/takboo/dsh-session-bin/actions/runs/40995615703)五个平台全部通过，两个发布 job 均跳过。已下载并独立校验全部 20 份平台、Loader、中文和 English 报告；Windows x64 的实际文件系统为 NTFS，macOS ARM64/Intel 均采集到 `apfs`，Linux ARM64/x64 为 ext2/ext3/ext4 family（`0xef53`）。所有报告的精确 SDK、Node/libuv、架构、源码稳定性及 production/candidate 标记均匹配正式资格；十份 GUI 各 17 项通过，console/pageErrors 为空，20 次 Host 关闭均正常且无强制终止。各平台 Loader 与两种语言 GUI 使用同字节 tarball，汇总见CI 证据 (`.local/rc5-review/accepted-ci.json`)。
 
-最终完整清单上的官方 ASAR 回归为 435 项，429 通过、0 失败、6 项 Windows 专用检查跳过，[报告](../../.local/desktop/darwin-arm64-um5wVh/verification.json)源码稳定、production 为 true、candidate 为 false；最终官方 Electron 双语 GUI [报告](../../.local/desktop/darwin-arm64-PZSGrY/verification.json)同样通过。此轮全量取代前述 430 项运行作为最终实现的完成证据，原始历史保留。
+最终完整清单上的官方 ASAR 回归为 435 项，429 通过、0 失败、6 项 Windows 专用检查跳过，报告 (`.local/desktop/darwin-arm64-um5wVh/verification.json`)源码稳定、production 为 true、candidate 为 false；最终官方 Electron 双语 GUI 报告 (`.local/desktop/darwin-arm64-PZSGrY/verification.json`)同样通过。此轮全量取代前述 430 项运行作为最终实现的完成证据，原始历史保留。
 
 `0.2.7` 发布准备只递增包版本并同步文档；SDK、产品实现及资格表与上述已验收提交一致。版本变化会产生新的 tarball 摘要，不能沿用本页 `0.2.6` 基线 tarball 的摘要。tag 工作流须重新完成五平台验收，并将 Linux x64 同轮 Loader 和双语 GUI 测试过的同一份 tarball 发布到 GitHub Release 与 npm；桌面运行时的生产实现证据仍由上述真实 ASAR 验收限定。
 

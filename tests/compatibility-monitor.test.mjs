@@ -115,7 +115,7 @@ test('document validation remains valid in a clean relocated checkout without lo
     if (entry.isDirectory() && ['docs', 'src', 'scripts', 'tests', '.github', 'market', 'locale'].includes(entry.name)) await cp(join(root, entry.name), join(scratch, entry.name), { recursive: true });
   }
   const result = JSON.parse(execFileSync(process.execPath, [join(scratch, 'scripts/verify-docs.mjs')], { cwd: scratch, encoding: 'utf8' }));
-  assert.equal(result.status, 'passed'); assert(result.localLinks > 500);
+  assert.equal(result.status, 'passed'); assert(result.localLinks > 350); assert.equal(result.unavailableLocalEvidence, 0);
 });
 
 test('GitHub-first publication remains a retryable target until npm metadata arrives', () => {

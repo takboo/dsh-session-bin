@@ -6,9 +6,9 @@
 
 `v0.2.3` 的[正式标签验收](https://github.com/takboo/dsh-session-bin/actions/runs/39095814612)中，四个平台通过；Windows 第一次英文、第二次中文 GUI 均因 `Sidebar Session opening failed: Session reference "gui-native-only" is released` 未通过。两次的全量平台及 Loader 检查均通过，但 GUI 未完成 SDK 重开与卸载验收，因此发布门禁正确阻止了 GitHub Release 和 npm；`v0.2.3` 标签保留，不移动或替换。
 
-上游 `SidebarSessionView` 订阅 `reference.ready` 的拒绝并记录错误；`ClientSessionReference.release()` 会拒绝仍未完成的 ready。直接使用 rc.2 原始类、仅擦除 TypeScript 类型、不加载本插件即可重现相同警告。[独立复现](../../.local/debug/sidebar-release-repro.json)；一手代码见 [SidebarSessionView](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/client/ui-sidebar-right/src/client/session-view.ts)、[ClientSessionReference](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/api/session-controller/src/client/sessions/service.ts)。
+上游 `SidebarSessionView` 订阅 `reference.ready` 的拒绝并记录错误；`ClientSessionReference.release()` 会拒绝仍未完成的 ready。直接使用 rc.2 原始类、仅擦除 TypeScript 类型、不加载本插件即可重现相同警告。独立复现 (`.local/debug/sidebar-release-repro.json`)；一手代码见 [SidebarSessionView](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/client/ui-sidebar-right/src/client/session-view.ts)、[ClientSessionReference](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/api/session-controller/src/client/sessions/service.ts)。
 
-旧 GUI 脚本点击历史后仅检查任意 tab 和 editor 可见，没有证明所选 Session 历史已就绪。在 Gateway 的真实 `session/follow` WebSocket 打开帧上增加 1.5 秒延迟后，本地也出现同一警告；继续过早操作还触发资源作用域变化拒绝，未越过身份保护。[修复前报告](../../.local/gui/client-en-iREVEk/verification.json)
+旧 GUI 脚本点击历史后仅检查任意 tab 和 editor 可见，没有证明所选 Session 历史已就绪。在 Gateway 的真实 `session/follow` WebSocket 打开帧上增加 1.5 秒延迟后，本地也出现同一警告；继续过早操作还触发资源作用域变化拒绝，未越过身份保护。修复前报告 (`.local/gui/client-en-iREVEk/verification.json`)
 
 ## 修正与定向回归
 
@@ -16,19 +16,19 @@
 
 正式 GUI 保留慢历史流回归：只延迟独立样本的打开帧，同流后续帧按顺序转发；其余流及服务端响应不变，数据来自真实 Host。报告必须证明实际延迟已发生、两次打开各确认两轮已加载历史，原 17 项检查、零 console/pageErrors、固定删除请求、物理日志、SDK 重开及正常卸载退出全部保留。
 
-同一延迟复现场景修正后通过：2 次延迟、2 次就绪证明、17 项检查，零 console/pageErrors，两个 Host 均正常退出。[修复后报告](../../.local/gui/client-en-sZbYVu/verification.json)
+同一延迟复现场景修正后通过：2 次延迟、2 次就绪证明、17 项检查，零 console/pageErrors，两个 Host 均正常退出。修复后报告 (`.local/gui/client-en-sZbYVu/verification.json`)
 
 ## 0.2.4 本地完整验收
 
-最终实现提交为 `a91224e153d31755a6ca76709f9d942272862ecc`；源码清单 SHA-256 为 `5897ad233ae290ab31b3cb8d9d8428dc82fd5ca2d324408a4cbb67f481c13c66`。固定 Node `24.18.1` 的[完整平台报告](../../.local/platform/darwin-arm64-asIIVH/verification.json)通过类型、构建、391 项回归及实际 tarball Loader；实际桌面 Electron `44.7.0` / Node `24.21.0`、真实 ASAR SDK/native modules 的[完整报告](../../.local/desktop/darwin-arm64-LVVABv/verification.json)也通过。两者均为 385 通过、0 失败、6 项 Windows 专用检查跳过，源码前后稳定。
+最终实现提交为 `a91224e153d31755a6ca76709f9d942272862ecc`；源码清单 SHA-256 为 `5897ad233ae290ab31b3cb8d9d8428dc82fd5ca2d324408a4cbb67f481c13c66`。固定 Node `24.18.1` 的完整平台报告 (`.local/platform/darwin-arm64-asIIVH/verification.json`)通过类型、构建、391 项回归及实际 tarball Loader；实际桌面 Electron `44.7.0` / Node `24.21.0`、真实 ASAR SDK/native modules 的完整报告 (`.local/desktop/darwin-arm64-LVVABv/verification.json`)也通过。两者均为 385 通过、0 失败、6 项 Windows 专用检查跳过，源码前后稳定。
 
-实际 Electron 载体上的 npm Web Host/Client [双语 GUI 报告](../../.local/desktop/darwin-arm64-fXOvUE/verification.json)通过。中文、英文各 17 项，分别记录 2 次真实历史流延迟、2 次目标历史就绪；console/pageErrors 为空，四次 Host 均正常退出。ASAR production probe 仍逐项核对 18 个 SDK 文件，生产准备无 blocker。Loader 与两种 GUI 使用相同 tarball，SHA-256 为 `1aecdda6acf2fedc31d5a235d6e713e96c716f48973fcb7918c14ad5713ed3b5`。
+实际 Electron 载体上的 npm Web Host/Client 双语 GUI 报告 (`.local/desktop/darwin-arm64-fXOvUE/verification.json`)通过。中文、英文各 17 项，分别记录 2 次真实历史流延迟、2 次目标历史就绪；console/pageErrors 为空，四次 Host 均正常退出。ASAR production probe 仍逐项核对 18 个 SDK 文件，生产准备无 blocker。Loader 与两种 GUI 使用相同 tarball，SHA-256 为 `1aecdda6acf2fedc31d5a235d6e713e96c716f48973fcb7918c14ad5713ed3b5`。
 
-再次从已发布 `0.2.2` 的 dist / Node `24.18.1` 建立独立旧样本，用本次构建及实际 Electron/ASAR 冷重开；prepared、done、raw/zstd 的 owner-fenced、resource-effect 共 6 个场景全部通过，原授权和回执保持，sibling 完整。[升级报告](../../.local/desktop-upgrade-verification.json)、[中断恢复报告](../../.local/desktop-upgrade-crash-verification.json)
+再次从已发布 `0.2.2` 的 dist / Node `24.18.1` 建立独立旧样本，用本次构建及实际 Electron/ASAR 冷重开；prepared、done、raw/zstd 的 owner-fenced、resource-effect 共 6 个场景全部通过，原授权和回执保持，sibling 完整。升级报告 (`.local/desktop-upgrade-verification.json`)、中断恢复报告 (`.local/desktop-upgrade-crash-verification.json`)
 
 ## 五平台完整 CI
 
-[PR #12 验收](https://github.com/takboo/dsh-session-bin/actions/runs/39097691205)在上述实现提交上首次全部通过。下载并核对全部 20 份报告：DSH `0.2.1-rc.2`、独立 Node `24.18.1`，源码前后稳定，生产 Loader 资格成立，双语各 17 项，分别包含 2 次真实慢历史流与 2 次就绪证明，console/pageErrors 为空，Host 安装及卸载后均正常退出。[汇总](../../.local/ci-history-pr/summary.json)
+[PR #12 验收](https://github.com/takboo/dsh-session-bin/actions/runs/39097691205)在上述实现提交上首次全部通过。下载并核对全部 20 份报告：DSH `0.2.1-rc.2`、独立 Node `24.18.1`，源码前后稳定，生产 Loader 资格成立，双语各 17 项，分别包含 2 次真实慢历史流与 2 次就绪证明，console/pageErrors 为空，Host 安装及卸载后均正常退出。汇总 (`.local/ci-history-pr/summary.json`)
 
 | 平台 | 文件系统 | 全量、Loader、中文和英文 GUI |
 | --- | --- | --- |
