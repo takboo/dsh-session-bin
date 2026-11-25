@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { configuredNodeVersion, configuredPackageManager } from '../package-manager.mjs';
 
@@ -56,10 +56,14 @@ export function assertCleanPackInputs(root = repoRoot) {
 
 export async function exportCleanHead(root, cleanSource, sourceCommit) {
   assert.match(sourceCommit ?? '', /^[a-f0-9]{40}$/, 'exportCleanHead requires a 40-hex sourceCommit.');
-  await mkdir(cleanSource, { recursive: true });
-  const archive = `${cleanSource}.tar`;
-  execFileSync('git', ['--no-replace-objects', '-C', root, 'archive', '--format=tar', `--output=${archive}`, sourceCommit]);
-  try { execFileSync('tar', ['-xf', archive, '-C', cleanSource]); }
+  const targetDir = resolve(cleanSource);
+  const parentDir = dirname(targetDir);
+  const dirName = basename(targetDir);
+  const archiveName = `${dirName}.tar`;
+  const archive = join(parentDir, archiveName);
+  await mkdir(targetDir, { recursive: true });
+  execFileSync('git', ['--no-replace-objects', '-c', 'core.autocrlf=false', '-C', root, 'archive', '--format=tar', `--output=${archive}`, sourceCommit]);
+  try { execFileSync('tar', ['-xf', archiveName, '-C', dirName], { cwd: parentDir }); }
   finally { await rm(archive, { force: true }); }
 }
 

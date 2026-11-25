@@ -17,7 +17,7 @@
 
 另将先前只读诊断保留的四个真实问题样本复制到新 fixture，以已安装 Electron/ASAR SDK 经生产 `preparePurge` 重放，四个均返回空 blockers、有效 binding/manifest，日志原字节保留且没有迁移或执行删除。该诊断重放不替代上表独立 fixture 的真实清除验收。
 
-执行使用 mise 固定的 Node、pnpm；因本机 mise task 的 PATH 顺序会优先 Homebrew Node，完整检查通过 `mise exec -- sh -c 'export PATH="/Users/jam/.local/share/mise/installs/node/24.18.1/bin:$PATH"; exec pnpm run verify:platform'` 和同样上下文的 `pnpm run verify:desktop` 运行，以报告内实际 Node 版本为准。打包产物仍标为工作区 `0.2.8`，不是新发布版本。未补验 Windows、Intel Mac、Linux 或完整 GUI/原生外壳；这些环境不得仅依据本机结果增加新资格。
+执行使用 mise 固定的 Node、pnpm；因本机 mise task 的 PATH 顺序会优先 Homebrew Node，完整检查通过 `mise exec -- sh -c 'export PATH="<mise-node-24.18.1-bin>:$PATH"; exec pnpm run verify:platform'` 和同样上下文的 `pnpm run verify:desktop` 运行，以报告内实际 Node 版本为准。打包产物仍标为工作区 `0.2.8`，不是新发布版本。未补验 Windows、Intel Mac、Linux 或完整 GUI/原生外壳；这些环境不得仅依据本机结果增加新资格。
 
 所有会话、锁、SQLite、缓存及破坏性场景均在独立临时 `DSH_HOME` 和 `.local/lifecycle/legacy-lock-*` fixture 中。没有操作真实用户会话、修改安装包或发布；不扩大生产支持矩阵，不把进程中断证据当作断电耐久保证。
 

@@ -2,6 +2,15 @@
 
 本文档定义 `@takboo/dsh-session-bin` 的统一工程入口、任务依赖、证据分级与变更验证要求。所有工具版本与任务定义以根目录 [mise.toml](../mise.toml) 为唯一事实来源，共享工程基座版本由 [dsh-engineering.lock.json](../dsh-engineering.lock.json) 锁定。
 
+## 共享治理继承与插件自治
+
+本仓通过 [dsh-engineering.lock.json](../dsh-engineering.lock.json) 锁定共享基座 `v0.2.0`，继承其 `docs/engineering-contract.md` 共享治理原则（不全文复写）：
+
+- **`Verification is all you need`**：统一通过 `mise` 固定运行时与入口验证，严守 E0–E4 诚实分级（未跑标 `not-run`），并以同一候选 `.tgz` 串联 E1 与 E2/E3。
+- **EGM 磁盘真相与产品 `README.md` 保护**：遵循文档分层与退场规则，工程治理改动不改写对外产品 [README.md](../README.md) 定位。
+- **YAGNI 与受控交付**：优先删减冗余，变更须经独立只读复核后再提交；未经明确授权不自动 `git push` 或打版本 tag。
+- **插件自治边界**：业务内核、依赖与包管理器、构建/测试框架、支持矩阵及发版节奏由本仓自治，基座门禁不侵入 `src/`。
+
 ## 环境准备与共享基座预检
 
 1. 安装固定工具链与依赖（禁用生命周期脚本）：

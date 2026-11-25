@@ -2,7 +2,7 @@
 
 ## 复跑
 
-在项目根目录使用 [mise 工具链](../../mise.toml)（完整任务矩阵与证据分级见 [开发与验证流程](../workflow.md)）。[基座锁](../../dsh-engineering.lock.json)固定 `takboo/dsh-plugin-engineering` 的 `v0.2.0-rc.1` 与提交 `5380365eedf23e199ce7e8d0cb96b183b8660a80`。基座 checkout 必须持有锁定 tag。[基座发布页](https://github.com/takboo/dsh-plugin-engineering/releases/tag/v0.2.0-rc.1)
+在项目根目录使用 [mise 工具链](../../mise.toml)（完整任务矩阵与证据分级见 [开发与验证流程](../workflow.md)）。[基座锁](../../dsh-engineering.lock.json)固定 `takboo/dsh-plugin-engineering` 的 `v0.2.0` 与提交 `7477a5dc7e8c062b24deb32a28d8357f92dd6b61`。基座 checkout 必须持有锁定 tag。[基座发布页](https://github.com/takboo/dsh-plugin-engineering/releases/tag/v0.2.0)
 
 **必需前置条件**：`locked-run.mjs` 仅接受 `--checkout <abs-path>`、环境变量 `DSH_ENGINEERING_CHECKOUT`（绝对路径，不含 `..`）或 `${XDG_CONFIG_HOME:-$HOME/.config}/dsh-plugin-engineering/checkout`（单行绝对路径，不含 `..`）解析基座 checkout。`mise.toml` 中的 `../dsh-plugin-engineering` 仅在 `DSH_ENGINEERING_CHECKOUT` 未设置且本地 `checkout` 配置文件已就绪时定位 runner 脚本，不能单独满足 checkout 解析。统一入口 `locked-run.mjs` 会核对 origin、tag 与完整提交，从 Git 对象导出并校验执行文件，再在报告中复核 `provenance`。
 

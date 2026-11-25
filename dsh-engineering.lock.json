@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/takboo/dsh-plugin-engineering.git",
-  "tag": "v0.2.0-rc.1",
-  "commit": "5380365eedf23e199ce7e8d0cb96b183b8660a80"
+  "tag": "v0.2.0",
+  "commit": "7477a5dc7e8c062b24deb32a28d8357f92dd6b61"
 }

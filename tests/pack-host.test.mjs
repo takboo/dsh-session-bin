@@ -13,7 +13,7 @@ const hasMise = spawnSync('mise', ['--version'], { stdio: 'ignore' }).status ===
 
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 const git = (cwd, args) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }).trim();
-const lockCommit = '5380365eedf23e199ce7e8d0cb96b183b8660a80';
+const lockCommit = '7477a5dc7e8c062b24deb32a28d8357f92dd6b61';
 
 async function createTempRepo() {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-host-'));
@@ -22,10 +22,12 @@ async function createTempRepo() {
     writeFile(join(dir, '.gitignore'), 'dist/\n'),
     writeFile(join(dir, 'README.md'), '# temp A\n'),
     writeFile(join(dir, 'package.json'), '{"name":"temp","version":"0.0.1"}\n'),
-    writeFile(join(dir, 'dsh-engineering.lock.json'), JSON.stringify({ schemaVersion: 1, repository: 'https://github.com/takboo/dsh-plugin-engineering.git', tag: 'v0.2.0-rc.1', commit: lockCommit }) + '\n'),
+    writeFile(join(dir, 'dsh-engineering.lock.json'), JSON.stringify({ schemaVersion: 1, repository: 'https://github.com/takboo/dsh-plugin-engineering.git', tag: 'v0.2.0', commit: lockCommit }) + '\n'),
     writeFile(join(dir, 'scripts/engineering/targets.json'), '{"admit":{"version":"0.2.2-rc.3"}}\n'),
   ]);
   git(dir, ['init']);
+  git(dir, ['config', 'core.autocrlf', 'false']);
+  git(dir, ['config', 'core.eol', 'lf']);
   git(dir, ['add', '.']);
   git(dir, ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'init']);
   return { dir, head: git(dir, ['rev-parse', '--verify', 'HEAD']) };
@@ -45,7 +47,7 @@ test('assertCleanPackInputs passes on committed HEAD and fails closed when packa
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test('exportCleanHead pins to captured sourceCommit SHA and excludes stale gitignored dist files', async () => {
+test('exportCleanHead pins to captured sourceCommit SHA, preserves LF under core.autocrlf=true, and excludes stale gitignored dist files', async () => {
   const { dir, head: commitA } = await createTempRepo();
   const cleanSource = join(dir, '.exported-commit-a');
   try {
@@ -54,6 +56,7 @@ test('exportCleanHead pins to captured sourceCommit SHA and excludes stale gitig
     git(dir, ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'second']);
     await mkdir(join(dir, 'dist'), { recursive: true });
     await writeFile(join(dir, 'dist/previous-checkout.d.ts'), 'export declare const stale: true;\n');
+    git(dir, ['config', 'core.autocrlf', 'true']);
     await exportCleanHead(dir, cleanSource, commitA);
     assert.equal(await readFile(join(cleanSource, 'README.md'), 'utf8'), '# temp A\n');
     await assert.rejects(() => access(join(cleanSource, 'dist/previous-checkout.d.ts')), { code: 'ENOENT' });
@@ -127,7 +130,7 @@ test('mise env inherited DSH_ENGINEERING_ACTIVE_RUN_DIR still allocates fresh pe
   delete cleanEnv.DSH_ENGINEERING_RUN_DIR;
   delete cleanEnv.DSH_ENGINEERING_ACTIVE_RUN_DIR;
   const loaded = JSON.parse(execFileSync('mise', ['env', '--json'], { cwd: repoRoot, env: cleanEnv, encoding: 'utf8' }));
-  assert.match(loaded.DSH_ENGINEERING_ACTIVE_RUN_DIR ?? '', /\/\.local\/engineering\/run-\d+-\d+$/);
+  assert.match(loaded.DSH_ENGINEERING_ACTIVE_RUN_DIR ?? '', /[\\/]\.local[\\/]engineering[\\/]run-\d+-\d+$/);
   assert.equal(loaded.DSH_ENGINEERING_RUN_DIR, undefined);
   const inheritedEnv = { ...cleanEnv, DSH_ENGINEERING_ACTIVE_RUN_DIR: loaded.DSH_ENGINEERING_ACTIVE_RUN_DIR };
   const readActive = (env) => execFileSync('mise', ['exec', '--', 'node', '-p', 'process.env.DSH_ENGINEERING_ACTIVE_RUN_DIR'], { cwd: repoRoot, env, encoding: 'utf8' }).trim();

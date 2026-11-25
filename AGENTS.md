@@ -12,6 +12,7 @@
 
 ## 工作要求
 
+- 继承 [dsh-engineering.lock.json](dsh-engineering.lock.json) 锁定基座（`v0.2.0`）`docs/engineering-contract.md` 的共享治理原则：**`Verification is all you need`**（`mise` 固定运行时、统一入口、E0–E4 诚实分级与同包 E1/E2 串联）、EGM 磁盘真相与产品 [README.md](README.md) 保护、YAGNI、变更须经独立只读复核后再提交，且未经明确授权不自动 push 或打 tag；业务内核、依赖与支持矩阵保持插件自治。
 - 使用 [mise.toml](mise.toml) 的固定工具和任务，按 [开发与验证流程](docs/workflow.md) 的变更矩阵验证：常规检查通过 `mise run check`（含 `check:shell`），宿主容器 E2 验证通过 `mise run verify:host`；记录基线、结果与限制，同步契约及 README。界面使用原生控件和语义 token。
 - 会话/存储检查使用临时 `DSH_HOME` 和独立 fixture；破坏性操作涉及真实会话时，必须有当前会话的明确授权。
 - 正式构建使用声明的 SDK 和依赖；`.local/` 排除于 Git 与发布物。复用上游代码保留版权和许可。
