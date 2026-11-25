@@ -12,8 +12,8 @@ pnpm frozen lockfile 安装禁用生命周期脚本；release-age 例外仅包�
 
 环境：macOS `15.7.9` ARM64、APFS（type `0x1a`）、Node `24.18.1` / libuv `1.52.1`、pnpm `11.23.0`，均使用 mise 固定工具。
 
-- `mise run verify:platform`：389 项，383 通过、6 项 Windows 专用检查跳过；类型、构建、市场元数据、raw/zstd、真实进程中断与重开、owner/cache/SQLite、Remote/Client 及 tarball 检查通过。源码前后稳定，清单 SHA-256 为 `00550264bc37c5690589c1a7ce4ea2b032d6b4aa56b549253da98f5ac728c25d`。[平台报告](../../.local/platform/darwin-arm64-X0CeKG/verification.json)
-- 真实 Loader 加载正式 tarball，实际完成单项永久删除、关闭与重新激活；`productionDeletionQualified: true`，包 SHA-256 为 `a2f61b561878c649b3bef9c194baad5940d29511abeea98e29c5535576ddb848`。[打包报告](../../.local/lifecycle/package-UowKWb/verification.json)
+- `mise run verify:platform`：389 项，383 通过、6 项 Windows 专用检查跳过；类型、构建、市场元数据、raw/zstd、真实进程中断与重开、owner/cache/SQLite、Remote/Client 及 tarball 检查通过。源码前后稳定，清单 SHA-256 为 `00550264bc37c5690589c1a7ce4ea2b032d6b4aa56b549253da98f5ac728c25d`。平台报告 (`.local/platform/darwin-arm64-X0CeKG/verification.json`)
+- 真实 Loader 加载正式 tarball，实际完成单项永久删除、关闭与重新激活；`productionDeletionQualified: true`，包 SHA-256 为 `a2f61b561878c649b3bef9c194baad5940d29511abeea98e29c5535576ddb848`。打包报告 (`.local/lifecycle/package-UowKWb/verification.json`)
 
 本地平台只证明本机组合，其他平台以独立 runner 的实际验收为准，candidate 通过不自动授予生产资格。
 
@@ -35,7 +35,7 @@ POSIX 源码清单 SHA-256 为 `00550264bc37c5690589c1a7ce4ea2b032d6b4aa56b54925
 
 ## 本地双语 CLI/GUI
 
-`mise run verify:gui` 的[中文](../../.local/gui/client-zh-oMNhgk/verification.json)与[English](../../.local/gui/client-en-f8dRKZ/verification.json)各 17 项全部通过，均为 `deletionQualification: supported`。与上节 Loader 使用同字节 tarball；console/pageErrors 均为空，安装后及卸载后的四次 Host 关闭均 code 0、signal null、forced false。
+`mise run verify:gui` 的中文 (`.local/gui/client-zh-oMNhgk/verification.json`)与English (`.local/gui/client-en-f8dRKZ/verification.json`)各 17 项全部通过，均为 `deletionQualification: supported`。与上节 Loader 使用同字节 tarball；console/pageErrors 均为空，安装后及卸载后的四次 Host 关闭均 code 0、signal null、forced false。
 
 实际覆盖原生归档/Undo、已有归档、搜索/分组/筛选、取消归档、打开历史后的空闲 Agent 释放与取消准备、重新归档后的永久删除、固定批量及完整清空范围、确认偏好及重载不重发、中文/English、浅深色/窄屏/键盘/composition。真实关闭并重开 SDK 后确认目标日志及派生记录清除、其他会话保留；CLI 完整 bundle 安装和卸载自然退出。测试使用沙箱外 Chrome 与临时 profile，需要 registry 网络，不推导全新 profile 离线安装能力。
 
@@ -50,6 +50,6 @@ POSIX 源码清单 SHA-256 为 `00550264bc37c5690589c1a7ce4ea2b032d6b4aa56b54925
 | owner-fenced，raw/zstd | 真实 SIGKILL 后沿用已有授权恢复同一操作 | 两种编码通过 |
 | resource-effect，raw/zstd | 文件擦除后、回执确认前 SIGKILL；重开对账日志/cache/SQLite | 两种编码通过 |
 
-四个中断样本逐项比较旧 request、manifest、authorizationId；目标日志与派生记录缺失，sibling transcript 完整，重复 execute 仅返回既有回执。恢复没有生成新目标或删除授权。证据为[升级报告](../../.local/rc2-upgrade-verification.json)与[故障恢复报告](../../.local/rc2-upgrade-crash-verification.json)。
+四个中断样本逐项比较旧 request、manifest、authorizationId；目标日志与派生记录缺失，sibling transcript 完整，重复 execute 仅返回既有回执。恢复没有生成新目标或删除授权。证据为升级报告 (`.local/rc2-upgrade-verification.json`)与故障恢复报告 (`.local/rc2-upgrade-crash-verification.json`)。
 
 所有检查仅使用隔离数据，未操作真实用户会话。范围不含跨 SDK 热接管、多 Host、其他文件系统、共享附件 GC、安全擦除、掉电保证、原生桌面 shell 或物理 OS 输入法验收；Windows ARM64 继续不在支持范围内。

@@ -14,7 +14,7 @@ macOS ARM64/APFS，mise Node `24.18.1` / libuv `1.52.1`、pnpm `11.23.0`。所�
 - 跨 rc.3 → rc.4 冷升级：prepared、done、owner-fenced、resource-effect 各覆盖 raw/zstd，共 8 组通过；沿用原冻结计划与 operationId，重复执行返回相同回执，sibling 日志保持存在。
 - 候选中文与 English GUI 各 17 项通过，均标记 `candidate`，不能满足正式发布要求的 supported / productionDeletionQualified。
 
-完整[本地报告](../../.local/compatibility/darwin-arm64-kdO3Wq/report/report.json)、[源码比较](../../.local/compatibility/darwin-arm64-kdO3Wq/report/sdk-audit.json)、[升级日志](../../.local/compatibility/darwin-arm64-kdO3Wq/report/upgrade-verify.log)只属于本轮，忽略目录中的原始证据不随 Git 分发。
+完整本地报告 (`.local/compatibility/darwin-arm64-kdO3Wq/report/report.json`)、源码比较 (`.local/compatibility/darwin-arm64-kdO3Wq/report/sdk-audit.json`)、升级日志 (`.local/compatibility/darwin-arm64-kdO3Wq/report/upgrade-verify.log`)只属于本轮，忽略目录中的原始证据不随 Git 分发。
 
 ## 保留的失败
 

@@ -85,27 +85,30 @@ git clone https://github.com/takboo/dsh-session-bin.git
 cd dsh-session-bin
 mise trust
 mise install
-mise run install
+mise run setup
 mise run verify
 ```
 
-`mise run install` 按 frozen lockfile 安装依赖并禁用安装脚本。`mise run verify` 完成类型检查、构建、隔离行为测试和真实 tarball 加载检查；测试使用临时 `DSH_HOME` 与测试会话。
+`mise run setup`（依赖 `install`）按 frozen lockfile 安装依赖并禁用安装脚本。`mise run verify` 完成文档、市场、类型检查、构建、隔离行为测试和真实 tarball 加载检查；测试使用临时 `DSH_HOME` 与测试会话。完整工作流与 E0–E4 证据约定见[开发与验证流程](docs/workflow.md)。
 
 | 命令 | 用途 |
 | --- | --- |
 | `mise run env` | 查看固定工具版本 |
+| `mise run setup` | 按 frozen lockfile 无脚本安装锁定依赖 |
+| `mise run check` | 运行统一壳层（`check:shell`）、文档、市场与 Host/Client 类型检查 |
+| `mise run check:shell` | 对照锁定工程基座校验插件壳层与 EGM 文档 |
 | `mise run compat:discover -- --local` | 只读发现新版 DSH 与发布物身份 |
 | `DSH_VERSION=<精确版本> mise run compat:check` | 在独立副本检查新版，保持生产准入 |
 | `mise run verify:docs` | 检查文档链接与锚点 |
-| `mise run check` | 检查 Host 与 Client 类型 |
 | `mise run build` | 生成预编译产物和类型声明 |
 | `mise run verify` | 完整本地行为与打包验证 |
+| `mise run verify:pack` | 打包、E1 校验候选 tarball 并构建容器 Web 探针 |
+| `mise run verify:host` | 在锁定 Linux 宿主容器内验证同一候选包（CLI + Web） |
 | `mise run verify:gui` | 隔离 Web profile 中的双语 CLI/GUI 验证 |
 | `mise run verify:desktop` | 已安装桌面 Electron 与真实 ASAR Host 的隔离完整回归 |
 | `mise run verify:desktop:gui` | 在已安装桌面 Electron 上运行隔离 Web 双语 CLI/GUI |
 | `mise run verify:platform` | 记录实际操作系统的候选组合验收证据 |
 | `mise run verify:linux` | 在固定 Node 的 Linux 容器内验证，需要 Docker |
-| `mise run verify:engineering` | 从干净提交打包，复跑固定共享基座的安装、拒绝和 Web 检查 |
 
 GUI 验证需要 npm registry 网络访问。本机可使用系统 Chromium；`CI=true`（包括隔离候选检查）使用 Playwright 锁定的浏览器，先运行 `mise run verify:gui:browser`，缺失时直接拒绝，不回退到自动更新的系统 Chrome。探针保留原生 WebSocket，在控制进程停顿 3.5 秒时验证握手，并在浏览器内定点延迟测试历史流。准备方式见[客户端接口](docs/client-interface.md#构建和检查)。候选验收通过不会自动扩大生产支持矩阵。本地 `.local/` 存放研究快照及测试证据，不进入 Git 或发布包。
 
@@ -115,6 +118,7 @@ GUI 验证需要 npm registry 网络访问。本机可使用系统 Chromium；`C
 
 欢迎通过 [Issues](https://github.com/takboo/dsh-session-bin/issues) 报告问题或提出功能建议。兼容性问题请提供 DSH/Node 版本、操作系统、架构、文件系统和存储提供方；样本使用测试数据。开发和 PR 约定见 [CONTRIBUTING.md](CONTRIBUTING.md)，代理工作入口见 [AGENTS.md](AGENTS.md)。
 
+- [文档索引](docs/README.md)、[开发与验证流程](docs/workflow.md)：全仓文档地图、统一任务门禁与证据分级。
 - [Host 生命周期](docs/host-lifecycle.md)、[客户端接口](docs/client-interface.md)：正式行为、配置及部署边界。
 - [Host 验证](docs/verification/host-lifecycle.md)、[客户端验证](docs/verification/client-interface.md)：分版本的实际检查结果。
 - [设计提案](docs/design-proposal.md)、[架构决定](docs/decisions/)：产品模型、候选设计与已选定决策。

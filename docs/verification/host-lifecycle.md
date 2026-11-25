@@ -12,8 +12,8 @@
 
 | 载体 | 检查及结果 | 本地证据 |
 | --- | --- | --- |
-| Node `24.18.1` / libuv `1.52.1`、macOS ARM64/APFS | 文档、市场静态检查、两端类型、构建、466 项测试（460 通过、6 项 Windows 专用跳过、0 失败）及真实 Loader/tarball 通过 | [平台报告](../../.local/platform/darwin-arm64-uZBjbC/verification.json)、[打包报告](../../.local/lifecycle/package-4yQABm/verification.json) |
-| 已安装 Electron `44.7.0` / Node `24.21.0` / libuv `1.52.1`、真实 ASAR SDK | 生产准入探针及同一 466 项全量回归通过（460 通过、6 跳过、0 失败） | [Desktop 报告](../../.local/desktop/darwin-arm64-iSD4wm/verification.json) |
+| Node `24.18.1` / libuv `1.52.1`、macOS ARM64/APFS | 文档、市场静态检查、两端类型、构建、466 项测试（460 通过、6 项 Windows 专用跳过、0 失败）及真实 Loader/tarball 通过 | 平台报告 (`.local/platform/darwin-arm64-uZBjbC/verification.json`)、打包报告 (`.local/lifecycle/package-4yQABm/verification.json`) |
+| 已安装 Electron `44.7.0` / Node `24.21.0` / libuv `1.52.1`、真实 ASAR SDK | 生产准入探针及同一 466 项全量回归通过（460 通过、6 跳过、0 失败） | Desktop 报告 (`.local/desktop/darwin-arm64-iSD4wm/verification.json`) |
 
 另将先前只读诊断保留的四个真实问题样本复制到新 fixture，以已安装 Electron/ASAR SDK 经生产 `preparePurge` 重放，四个均返回空 blockers、有效 binding/manifest，日志原字节保留且没有迁移或执行删除。该诊断重放不替代上表独立 fixture 的真实清除验收。
 
@@ -37,7 +37,7 @@
 
 ## 0.1.1 打开后归档的阻塞修复
 
-2026-10-09，Linux x64、Node 24.18.1 / libuv 1.52.1、DSH 0.2.0-rc.2。真实 public CLI/GUI 新增先打开会话历史、再原生 Archive 的流程：修复前两次准备均返回 `native/persistence-retained`，与界面报告一致；修复后可以取消一次准备，再确认实际删除，无需重启。中文 0.1.1 [隔离报告](../../.local/gui/client-zh-2Tj0hR/verification.json)通过，英文 0.1.1 的[补验](../../.local/gui/client-en-2LpmZl/verification.json)进一步通过取消删除、取消归档、重新打开历史、再次归档及删除；桌面原生外壳没有在本地运行，未把 Web GUI 写成桌面实机证据。
+2026-10-09，Linux x64、Node 24.18.1 / libuv 1.52.1、DSH 0.2.0-rc.2。真实 public CLI/GUI 新增先打开会话历史、再原生 Archive 的流程：修复前两次准备均返回 `native/persistence-retained`，与界面报告一致；修复后可以取消一次准备，再确认实际删除，无需重启。中文 0.1.1 隔离报告 (`.local/gui/client-zh-2Tj0hR/verification.json`)通过，英文 0.1.1 的补验 (`.local/gui/client-en-2LpmZl/verification.json`)进一步通过取消删除、取消归档、重新打开历史、再次归档及删除；桌面原生外壳没有在本地运行，未把 Web GUI 写成桌面实机证据。
 
 [metadata 回归](../../tests/native-retirement-metadata.test.mjs)的 33 项检查通过；新增使用受控 Agent phases/capabilities 与真实 SessionStore/JSONL 的拒绝与释放验证，以及真实 SDK history stream 的排空验证。本地全量类型、构建、365 项行为检查（另 6 项因平台条件跳过）与真实 Loader tarball 验证通过。目标取消删除后仍有日志与归档；其他 SID 的 writer/stream、running/maintenance/queued work、原生活动提供方、外国 Agent owner 和独立 reader 都保留。真实 Agent factory/controller 的正向路径由 CLI/GUI 验证，而非受控 fixture 自报资格。
 
@@ -65,21 +65,21 @@ Windows 的源码摘要与 POSIX 平台不同源于 checkout 行尾表示；每�
 
 pnpm [上游修复 #13226](https://github.com/pnpm/pnpm/pull/13226)说明：`finishWorkers()` 清空 worker pool 引用后，迟到的可选依赖获取会重新创建无法关闭的 pool；工作线程和 MessagePort 使打印 `Done` 的进程继续存活。[11.23.0 发布记录](https://github.com/pnpm/pnpm/releases/tag/v11.23.0)包含这一修复。此前 Linux 的公共 CLI remove 失败与该现象吻合；采用已发布版本，不按输出推定完成或强制结束进程。
 
-Linux x64 云环境的[实际平台报告](../../.local/platform/linux-x64-Q2luT5/verification.json)为 `passed`，退出码 **0**、`sourcesStable: true`，源码清单摘要 `d95d8b217fcf90ab1b01adc50c0d7a322bd1907b7e835581b645a88acc6d8f11`。`mise run verify:platform` 完成两端类型检查、构建、**343 通过 / 6 项 Windows 专属跳过 / 0 失败**（共 349 项）以及真实 Loader/tarball 检查。公共 CLI 回归从当前构建打包到全新 Web profile，add/remove 均满足原有 **8 秒自然退出**及退出码 0 断言；不再依赖历史 GUI tarball 或跳过该检查。
+Linux x64 云环境的实际平台报告 (`.local/platform/linux-x64-Q2luT5/verification.json`)为 `passed`，退出码 **0**、`sourcesStable: true`，源码清单摘要 `d95d8b217fcf90ab1b01adc50c0d7a322bd1907b7e835581b645a88acc6d8f11`。`mise run verify:platform` 完成两端类型检查、构建、**343 通过 / 6 项 Windows 专属跳过 / 0 失败**（共 349 项）以及真实 Loader/tarball 检查。公共 CLI 回归从当前构建打包到全新 Web profile，add/remove 均满足原有 **8 秒自然退出**及退出码 0 断言；不再依赖历史 GUI tarball 或跳过该检查。
 
-随后 `mise run verify:gui` 的[中文](../../.local/gui/client-zh-F4JozK/verification.json)和[English](../../.local/gui/client-en-EmERFo/verification.json)各 **17 项通过**，包括公共安装、卸载与全新 Web 启动。完整范围见[客户端同轮验证](client-interface.md#linux-云环境-cli-与双语-gui-复验)。这次本地通过不替代远程其他架构的实际 CI；生产删除资格未扩大。
+随后 `mise run verify:gui` 的中文 (`.local/gui/client-zh-F4JozK/verification.json`)和English (`.local/gui/client-en-EmERFo/verification.json`)各 **17 项通过**，包括公共安装、卸载与全新 Web 启动。完整范围见[客户端同轮验证](client-interface.md#linux-云环境-cli-与双语-gui-复验)。这次本地通过不替代远程其他架构的实际 CI；生产删除资格未扩大。
 
 ## dev.2 真实冷 JSONL 删除与固定批次验证
 
 日期：2026-10-09。基线为 `e26e0dbeea2caf7cd6db3021cfbcd85b15c968ec` 加真实 Adapter、跨平台候选、严格 Remote、单项/批量/清空及客户端恢复修复的工作区变更。正式行为见[Host 契约](../host-lifecycle.md)和[客户端契约](../client-interface.md)，采用的决定见 [ADR 0007](../decisions/0007-native-jsonl-deletion-adapter.md)、[ADR 0008](../decisions/0008-cross-platform-retirement.md)和 [ADR 0009](../decisions/0009-fixed-purge-batches.md)。
 
-[macOS ARM64 报告](../../.local/platform/darwin-arm64-ozR31f/verification.json)与[Linux ARM64 容器报告](../../.local/platform/linux-container-rcnaCX/platform/linux-arm64-BzdmL3/verification.json)均为 `passed`、退出码 **0**、`sourcesStable: true`。两端记录同一 90 文件源码/配置清单，清单摘要为 `fe69a7490825cd975f56a8002c47d2812eede583a3dc8f643b345d5cba47ba64`；包含实现、测试、脚本、CI、工具与锁文件，正式验收文档不在该清单内。环境为 Node `24.18.1`、libuv `1.52.1`、pnpm `11.7.0`、SDK `0.2.0-rc.2`。
+macOS ARM64 报告 (`.local/platform/darwin-arm64-ozR31f/verification.json`)与Linux ARM64 容器报告 (`.local/platform/linux-container-rcnaCX/platform/linux-arm64-BzdmL3/verification.json`)均为 `passed`、退出码 **0**、`sourcesStable: true`。两端记录同一 90 文件源码/配置清单，清单摘要为 `fe69a7490825cd975f56a8002c47d2812eede583a3dc8f643b345d5cba47ba64`；包含实现、测试、脚本、CI、工具与锁文件，正式验收文档不在该清单内。环境为 Node `24.18.1`、libuv `1.52.1`、pnpm `11.7.0`、SDK `0.2.0-rc.2`。
 
 | 环境与命令 | 实际结果与边界 |
 | --- | --- |
 | macOS ARM64：`mise run verify:platform` | 两端严格类型检查、构建、**342 项通过 / 6 项 Windows 专属跳过 / 0 失败**，共 348 项；真实 Loader/tarball 检查通过。 |
 | Linux ARM64：`mise run verify:linux` | `node:24.18.1-bookworm`、实际 Linux 内核、独立容器文件系统；相同检查 **341 项通过 / 7 项跳过 / 0 失败**。跳过 6 项 Windows 专属检查及依赖既有 GUI tarball 的 CLI 退出检查，未把缺失 fixture 算作 CLI 验收。 |
-| 文件系统观察 | [同轮 statfs 证据](../../.local/platform/client-recovery-filesystems-20261009.json)：macOS fixture 的 type 为 `0x1a`；Linux `/work` 与 fixture 为 overlayfs `0x794c7630`，block size 均为 4096。源码只读挂载在 `/source`，实际测试根位于容器 `/work`。不外推网络文件系统或其他文件系统。 |
+| 文件系统观察 | 同轮 statfs 证据 (`.local/platform/client-recovery-filesystems-20261009.json`)：macOS fixture 的 type 为 `0x1a`；Linux `/work` 与 fixture 为 overlayfs `0x794c7630`，block size 均为 4096。源码只读挂载在 `/source`，实际测试根位于容器 `/work`。不外推网络文件系统或其他文件系统。 |
 
 | 范围 | 实际验证 |
 | --- | --- |
@@ -90,17 +90,17 @@ Linux x64 云环境的[实际平台报告](../../.local/platform/linux-x64-Q2luT
 | 真实固定批量与清空 | [真实 SDK 批次检查](../../tests/native-deletion-batch-host.test.mjs) raw/zstd 及 durable fence 共 3 项通过。固定对象、未选中日志摘要不变、筛选不改变清空集合、未知项暂停后续 admission；没有跨会话事务。 |
 | 客户端与回执 | 摘要/资源/nonce 连续性、观察见证部分故障、原始缓存容量保护；批次停止/关闭/重载后 missing 项独立重新确认，旧 guard 直到执行新确认才替换，批次来源仍禁止 discard。连接与 baseline 改变、同步通知重入及异步 journal 查询后的旧点击均不能继续发送；未发送队列不重建。客户端三套定向检查 **67/67** 通过，其中批次模型 32 项、批次 DOM 5 项、单项/Remote 30 项；均进入上述全量。 |
 
-本轮[macOS tarball 报告](../../.local/lifecycle/package-qCagP3/verification.json)与[Linux tarball 报告](../../.local/platform/linux-container-rcnaCX/lifecycle/package-T1O92G/verification.json)的 dev.2 包 SHA-256 同为 `9fa5d571d38a9458ac48dbf92250af477b8f1b49bdcecc9fc7484e4523e2ca67`。macOS 的真实 Loader 验证实际单项删除；Linux 的生产 Loader 明确验证 unsupported 拒绝与原字节保留，实际 Linux erasure 来自独立 fixture candidate 资格，二者不可互换。完整公开 CLI/GUI 安装、删除与卸载的当前证据见[客户端验证](client-interface.md)。
+本轮macOS tarball 报告 (`.local/lifecycle/package-qCagP3/verification.json`)与Linux tarball 报告 (`.local/platform/linux-container-rcnaCX/lifecycle/package-T1O92G/verification.json`)的 dev.2 包 SHA-256 同为 `9fa5d571d38a9458ac48dbf92250af477b8f1b49bdcecc9fc7484e4523e2ca67`。macOS 的真实 Loader 验证实际单项删除；Linux 的生产 Loader 明确验证 unsupported 拒绝与原字节保留，实际 Linux erasure 来自独立 fixture candidate 资格，二者不可互换。完整公开 CLI/GUI 安装、删除与卸载的当前证据见[客户端验证](client-interface.md)。
 
 本轮回归先在未修模型上得到 8 项恢复/断线失败，又将独立审阅的 3 个通知重入与查询等待窗口变为确定性失败检查；最终对应回归、67 项定向及上述全量均通过。最终独立静态复核在这些限定窗口未发现剩余问题，静态检查不替代运行验收。较早失败平台报告的源码清单与本轮有差异，不能将其写成本轮失败或用其替代本轮通过。
 
 ### Linux CLI 补验与未通过边界
 
-原 Linux 全量因旧 GUI tarball 缺失跳过了 CLI add/remove。随后把本轮同字节 dev.2 包放入隔离 fixture，补跑原[CLI 回归](../../tests/gui-uninstall.test.mjs)：首次安装失败为 `ERR_PNPM_NO_OFFLINE_TARBALL`，诊断中的[直接 pnpm 输出](../../.local/platform/linux-cli-diagnostic-HYV0Z7/direct-pnpm.json)明确缺少 `zod@4.6.5`；项目 frozen lockfile 的 `4.4.3` 缓存不足以覆盖新 profile 独立解析的传递依赖。另建临时 profile、禁用安装脚本预热缓存后，add 正常完成。
+原 Linux 全量因旧 GUI tarball 缺失跳过了 CLI add/remove。随后把本轮同字节 dev.2 包放入隔离 fixture，补跑原[CLI 回归](../../tests/gui-uninstall.test.mjs)：首次安装失败为 `ERR_PNPM_NO_OFFLINE_TARBALL`，诊断中的直接 pnpm 输出 (`.local/platform/linux-cli-diagnostic-HYV0Z7/direct-pnpm.json`)明确缺少 `zod@4.6.5`；项目 frozen lockfile 的 `4.4.3` 缓存不足以覆盖新 profile 独立解析的传递依赖。另建临时 profile、禁用安装脚本预热缓存后，add 正常完成。
 
-但 **remove 尚未通过自然退出检查**：[Corepack 原始 8 秒补验](../../.local/platform/linux-cli-accepted-6tDBNE/verification.json)失败；[30 秒诊断](../../.local/platform/linux-cli-accepted-GXmSmj/verification.json)仍未自然退出，[6 秒进程树](../../.local/platform/linux-cli-accepted-GXmSmj/process-160.json)显示 DSH CLI 与 pnpm 子进程均存活，[最终关闭记录](../../.local/platform/linux-cli-accepted-GXmSmj/cli-160.json)是外部 SIGTERM，不能把 `Done` 或超时终止算成通过。固定 Corepack 缓存及关闭其网络查询没有解除该等待。
+但 **remove 尚未通过自然退出检查**：Corepack 原始 8 秒补验 (`.local/platform/linux-cli-accepted-6tDBNE/verification.json`)失败；30 秒诊断 (`.local/platform/linux-cli-accepted-GXmSmj/verification.json`)仍未自然退出，6 秒进程树 (`.local/platform/linux-cli-accepted-GXmSmj/process-160.json`)显示 DSH CLI 与 pnpm 子进程均存活，最终关闭记录 (`.local/platform/linux-cli-accepted-GXmSmj/cli-160.json`)是外部 SIGTERM，不能把 `Done` 或超时终止算成通过。固定 Corepack 缓存及关闭其网络查询没有解除该等待。
 
-[同版本原生 pnpm 对照](../../.local/platform/linux-cli-accepted-BquDVb/verification.json)也在原始 8 秒回归中失败，3 项中 2 通过、1 失败；对照使用 Node `24.18.1` 的 DSH CLI、官方 Linux ARM64 pnpm `11.7.0` 二进制及同版本 JS/主包元数据，原测试及自然退出断言未修改。[运行时来源及摘要](../../.local/platform/linux-cli-accepted-BquDVb/pnpm-runtime.json)保存 npm 分发完整性；早期对照目录缺少 JS 载荷/模块元数据的启动失败不作为正式 CLI 结果。30 秒副本仅作诊断，不替代原始回归。
+同版本原生 pnpm 对照 (`.local/platform/linux-cli-accepted-BquDVb/verification.json`)也在原始 8 秒回归中失败，3 项中 2 通过、1 失败；对照使用 Node `24.18.1` 的 DSH CLI、官方 Linux ARM64 pnpm `11.7.0` 二进制及同版本 JS/主包元数据，原测试及自然退出断言未修改。运行时来源及摘要 (`.local/platform/linux-cli-accepted-BquDVb/pnpm-runtime.json`)保存 npm 分发完整性；早期对照目录缺少 JS 载荷/模块元数据的启动失败不作为正式 CLI 结果。30 秒副本仅作诊断，不替代原始回归。
 
 固定 SDK 的 CLI 入口等待 `runPlugin` 返回后才 `process.exit`；remove 不走 add/install 的 registry lookup，CLI 模式继承 stdio且没有 capture idle timer。现有进程证据定位到 pnpm 子进程未退出，尚未证明其具体活动资源根因；没有修改 SDK、按输出推定完成或绕过退出检查。该补验与资源 candidate 全量分别记录，**Linux CLI/GUI 发布条件仍未满足**。
 
@@ -108,7 +108,7 @@ Linux x64 云环境的[实际平台报告](../../.local/platform/linux-x64-Q2luT
 
 ## 原生归档单项删除准备与授权验证
 
-本节基线为 `e26e0dbeea2caf7cd6db3021cfbcd85b15c968ec` 加本轮未提交的 Host 协议、fixture、测试及专题文档变更。九个实现/测试文件的[源码 SHA-256 清单](../../.local/lifecycle/native-retirement-evidence-Fz4VRU/source.sha256)已逐项校验，清单 SHA-256 为 `df199936df5488d695e632c8862a93b516bd277ed89d1d24a05485c61b41d423`。正式合约见[原生单项授权](../host-lifecycle.md#原生归档单项删除准备与授权)，架构决定见 [ADR 0006](../decisions/0006-native-archive-retirement-binding.md)。
+本节基线为 `e26e0dbeea2caf7cd6db3021cfbcd85b15c968ec` 加本轮未提交的 Host 协议、fixture、测试及专题文档变更。九个实现/测试文件的源码 SHA-256 清单 (`.local/lifecycle/native-retirement-evidence-Fz4VRU/source.sha256`)已逐项校验，清单 SHA-256 为 `df199936df5488d695e632c8862a93b516bd277ed89d1d24a05485c61b41d423`。正式合约见[原生单项授权](../host-lifecycle.md#原生归档单项删除准备与授权)，架构决定见 [ADR 0006](../decisions/0006-native-archive-retirement-binding.md)。
 
 最终 `mise run verify` **退出码 0**：两端类型检查、声明/预编译构建、**190/190 项测试**及 tarball/真实 Cordis Loader 检查全部通过。新增[原生目标消费者回归](../../tests/native-retirement.test.mjs) **29 项**，其中实际进程终止一项包含 **7 个 SIGKILL 边界**；此前的 161 项兼容、归档、owner 与资源准入回归也在同次全量通过。运行环境仍为 DSH `0.2.0-rc.2`、Node `24.18.1`、pnpm `11.7.0`、macOS ARM64，命令来源继续使用现有配置，无新增脚本命令或工具版本。
 
@@ -124,15 +124,15 @@ Linux x64 云环境的[实际平台报告](../../.local/platform/linux-x64-Q2luT
 
 独立只读审阅发现并复审了共享 journal 过早 close、跨协议 guard 的收敛死循环、已接受恢复的两段入队关闭窗口、旧 pending 隐藏首次原生观察，以及错误消费者恢复已有 pending 共五项问题。最终回归覆盖对应窗口。首轮定向运行因 descriptor 故障改到了未被消费的 fixture 副本而为 90/91；修正注入返回值后通过本次全量。中间全量尝试在严格可选属性类型检查处退出 2，修正后才得到上述完整通过结果；前两次尝试不计为验收通过。
 
-同次全量的代表样本：[完整授权](../../.local/lifecycle/native-purge-complete-8RRlCh/)、[intent 死亡](../../.local/lifecycle/native-purge-crash-plugin-intent-wLND7M/)、[首次 owner fence](../../.local/lifecycle/native-purge-crash-owner-fenced-Rr7awF/)、[资源效果死亡](../../.local/lifecycle/native-purge-crash-resource-effect-RnMC5d/)、[观察元数据死亡](../../.local/lifecycle/native-purge-crash-plugin-entry-VKQa47/)。所有会话、owner 资源、协调目录与 DSH_HOME 都位于忽略的 `.local/lifecycle/` 随机目录。
+同次全量的代表样本：完整授权 (`.local/lifecycle/native-purge-complete-8RRlCh/`)、intent 死亡 (`.local/lifecycle/native-purge-crash-plugin-intent-wLND7M/`)、首次 owner fence (`.local/lifecycle/native-purge-crash-owner-fenced-Rr7awF/`)、资源效果死亡 (`.local/lifecycle/native-purge-crash-resource-effect-RnMC5d/`)、观察元数据死亡 (`.local/lifecycle/native-purge-crash-plugin-entry-VKQa47/`)。所有会话、owner 资源、协调目录与 DSH_HOME 都位于忽略的 `.local/lifecycle/` 随机目录。
 
-[本轮 tarball 报告](../../.local/lifecycle/package-wAZyDr/verification.json)对应内部验证产物，SHA-256 为 `1fe8ea6ed7d2cf6d180a7bebc4d93f8d483eb69987fe624f83c590671f70e099`。用户待安装的[原 dev.1 包](../../.local/packages/dsh-session-bin-0.1.0-dev.1.tgz)保持不变，SHA-256 仍为 `72d08c9073dfc9a8a71c61e2799452712e0dac73ae40b6b7176ba6cd53251d95`。本轮未重跑 GUI；Client/Remote 回归随全量通过，实际双语 GUI 证据仍限此前原生归档重构的 dev.0 功能源码基线，未把它写作新授权接口的 GUI 验收。
+本轮 tarball 报告 (`.local/lifecycle/package-wAZyDr/verification.json`)对应内部验证产物，SHA-256 为 `1fe8ea6ed7d2cf6d180a7bebc4d93f8d483eb69987fe624f83c590671f70e099`。用户待安装的原 dev.1 包 (`.local/packages/dsh-session-bin-0.1.0-dev.1.tgz`)保持不变，SHA-256 仍为 `72d08c9073dfc9a8a71c61e2799452712e0dac73ae40b6b7176ba6cd53251d95`。本轮未重跑 GUI；Client/Remote 回归随全量通过，实际双语 GUI 证据仍限此前原生归档重构的 dev.0 功能源码基线，未把它写作新授权接口的 GUI 验收。
 
 **支持范围未扩大。** 测试 owner 仅清除自己拥有的临时 domain 资源并保留共享引用与协调记录；其 lifecycle scope 不协调真实 `workspaceRegistry` 的 archive/unarchive/pin，不能证明 native 联合 admission。锁定 SDK 仍缺 durable lifecycle token、完整资源围栏/排空/引用释放、索引缓存收敛和原生 owner 回执；旧 Bin `verified` 无法启用新目标，production 默认 native purge 仍 unsupported。Remote/UI、固定批量永久删除和清空未开放。没有连接当前 `19387` GUI、操作真实用户会话，或删除 native 会话目录、锁文件、共享附件、私有索引；单 Host、相同协调目录及未观察 ABA 的限制不变。
 
 ## 原生归档管理重构验证
 
-本节针对原生 Archive 唯一入口的重构工作区，基线为 `d7d982e35a3603ad4c7d4f63c8540474f988e67d` 加本轮未提交变更，区别于下文旧 Bin、删除消费者和 owner 的历史基线。31 个实现、脚本、locale 和测试文件的[源码指纹](../../.local/lifecycle/native-archive-evidence-2fm_3rlz/source.sha256)已全部校验；清单 SHA-256 为 `fa70b0b40b563e7cb3e122f697db59768d320b9aa6321ce64bf5c53c8696423a`。新正式协议见[Host 生命周期](../host-lifecycle.md)，选定架构见 [ADR 0005](../decisions/0005-native-archive-collection.md)。固定 SDK 与工具仍为 DSH `0.2.0-rc.2`、Node `24.18.1`、pnpm `11.7.0`、macOS ARM64。
+本节针对原生 Archive 唯一入口的重构工作区，基线为 `d7d982e35a3603ad4c7d4f63c8540474f988e67d` 加本轮未提交变更，区别于下文旧 Bin、删除消费者和 owner 的历史基线。31 个实现、脚本、locale 和测试文件的源码指纹 (`.local/lifecycle/native-archive-evidence-2fm_3rlz/source.sha256`)已全部校验；清单 SHA-256 为 `fa70b0b40b563e7cb3e122f697db59768d320b9aa6321ce64bf5c53c8696423a`。新正式协议见[Host 生命周期](../host-lifecycle.md)，选定架构见 [ADR 0005](../decisions/0005-native-archive-collection.md)。固定 SDK 与工具仍为 DSH `0.2.0-rc.2`、Node `24.18.1`、pnpm `11.7.0`、macOS ARM64。
 
 新增[归档回归](../../tests/archive.test.mjs) **32 项**和[新版真实进程中断](../../tests/archive-crash.test.mjs) **1 项（内部 5 个 SIGKILL 边界）**已随最终 `mise run verify` 全部通过：两端类型检查、构建、**161/161 项测试**及 tarball/真实 Loader 检查均成功，退出码 0。此前 31 项定向检查也通过；定向复现使用既有固定工具命令 `mise exec -- node --test --test-concurrency=1 tests/archive.test.mjs tests/archive-crash.test.mjs`。所有会话、日志、故障、协调目录与测试 owner 数据均位于忽略的 `.local/lifecycle/` 随机目录。
 
@@ -149,7 +149,7 @@ Linux x64 云环境的[实际平台报告](../../.local/platform/linux-x64-Q2luT
 
 即时归档帧捕获中的外部 entries/operations 同步读取失败也进入独立 failed 保护，不能绕过队列暂停或中断新版帧的即时捕获；最终两项补充回归已计入上述 161 项。
 
-[最终 tarball 报告](../../.local/lifecycle/package-aUVuyj/verification.json)、[中文 GUI 报告](../../.local/gui/client-zh-LN3ZAO/verification.json)与[English GUI 报告](../../.local/gui/client-en-1wqHFE/verification.json)的 tarball SHA-256 同为 `dc7e1a5970634ba941edb04acd9c25444b1a09c1cbea38cfd3684bdc10bd4cee`。两个独立 profile 各 14 检查/15 覆盖项通过，console/pageErrors 为空。测试端口 `49866/49979` 仅属于脚本临时宿主，均已关闭；未连接当前 `19387` GUI，未改真实用户会话。
+最终 tarball 报告 (`.local/lifecycle/package-aUVuyj/verification.json`)、中文 GUI 报告 (`.local/gui/client-zh-LN3ZAO/verification.json`)与English GUI 报告 (`.local/gui/client-en-1wqHFE/verification.json`)的 tarball SHA-256 同为 `dc7e1a5970634ba941edb04acd9c25444b1a09c1cbea38cfd3684bdc10bd4cee`。两个独立 profile 各 14 检查/15 覆盖项通过，console/pageErrors 为空。测试端口 `49866/49979` 仅属于脚本临时宿主，均已关闭；未连接当前 `19387` GUI，未改真实用户会话。
 
 本轮不扩大原生永久删除资格。旧 Bin core 保留为兼容与 test-only owner 回归，默认生产不提供新的 bin/restore 或 native purge；归档观察不是 exact lifecycle 或删除授权。原生取消归档排队不提供代际/CAS，插件最后复核与宿主实际提交不原子，未观察 ABA 和单 Host 部署限制继续适用。
 
@@ -212,7 +212,7 @@ Node 24.18.1、pnpm 11.7.0、GitHub CLI 2.102.0 由 [mise.toml](../../mise.toml)
 
 新增 **12 项通过**。完整 `mise run verify` 也通过：两端严格类型检查、声明/预编译构建、既有 38 项回归加新增 12 项，合计 **50/50**，以及 tarball/真实 Cordis Loader 的激活、移入、卸载、重载与恢复。退出码为 0。未改交互，本轮未重跑 `verify:gui`；中文/English 浏览器证据仍限[原客户端验收基线](client-interface.md#验证基线)。
 
-本次全量运行的历史 fixture：[raw V3/V4](../../.local/lifecycle/deletion-generation-pjcMbZ/)、[Zstandard V3/V4](../../.local/lifecycle/deletion-generation-gVouEn/)；不可读样本：[raw](../../.local/lifecycle/deletion-unreadable-JcEspo/)、[Zstandard](../../.local/lifecycle/deletion-unreadable-WKF2Bo/)；[共享附件样本](../../.local/lifecycle/deletion-shared-file-rjhtji/)。[tarball 检查报告](../../.local/lifecycle/package-BbQqg7/verification.json)对应[本次 tarball](../../.local/lifecycle/package-BbQqg7/dsh-session-bin-0.1.0-dev.0.tgz)，SHA-256 为 `6045bd415aa3d9d47f6e7a8a11988be7c62cb76ae29e139479035a04b5695667`。这些都是本地测试产物，不是公开分发。
+本次全量运行的历史 fixture：raw V3/V4 (`.local/lifecycle/deletion-generation-pjcMbZ/`)、Zstandard V3/V4 (`.local/lifecycle/deletion-generation-gVouEn/`)；不可读样本：raw (`.local/lifecycle/deletion-unreadable-JcEspo/`)、Zstandard (`.local/lifecycle/deletion-unreadable-WKF2Bo/`)；共享附件样本 (`.local/lifecycle/deletion-shared-file-rjhtji/`)。tarball 检查报告 (`.local/lifecycle/package-BbQqg7/verification.json`)对应本次 tarball (`.local/lifecycle/package-BbQqg7/dsh-session-bin-0.1.0-dev.0.tgz`)，SHA-256 为 `6045bd415aa3d9d47f6e7a8a11988be7c62cb76ae29e139479035a04b5695667`。这些都是本地测试产物，不是公开分发。
 
 复现使用现有固定工具与验证任务，无新增命令或版本来源；若锁定依赖缺失先运行 `mise run install`。在本仓库根目录执行：
 
@@ -230,7 +230,7 @@ mise run verify
 
 ## Host 单项删除协议消费者验证
 
-日期：2026-10-07。代码基线为 `c2f62b612c6b2a0d39943fff1ad8f70b19a7ca09` 加本节描述的未提交实现与测试；不是历史 Host `a151d56` 的删除验收。十个实现/fixture/测试文件的[源码 SHA-256 清单](../../.local/lifecycle/retirement-evidence-L5eLTA/source.sha256)已经逐项校验，清单本身 SHA-256 为 `e2e1ddc66eb5e1582885e343dcb8defe2416fa61f4c75a0faf69f8077b09fcbc`。核心材料为[严格合约](../../src/operations/retirement.ts)、[owner 协调](../../src/host/retirement.ts)、[sidecar](../../src/host/retirement-store.ts)、[消费者回归](../../tests/retirement.test.mjs)及[双 domain 生命周期](../../tests/retirement-lifecycle.test.mjs)。选定的消费者架构见 [ADR 0003](../decisions/0003-retirement-consumer.md)。
+日期：2026-10-07。代码基线为 `c2f62b612c6b2a0d39943fff1ad8f70b19a7ca09` 加本节描述的未提交实现与测试；不是历史 Host `a151d56` 的删除验收。十个实现/fixture/测试文件的源码 SHA-256 清单 (`.local/lifecycle/retirement-evidence-L5eLTA/source.sha256`)已经逐项校验，清单本身 SHA-256 为 `e2e1ddc66eb5e1582885e343dcb8defe2416fa61f4c75a0faf69f8077b09fcbc`。核心材料为[严格合约](../../src/operations/retirement.ts)、[owner 协调](../../src/host/retirement.ts)、[sidecar](../../src/host/retirement-store.ts)、[消费者回归](../../tests/retirement.test.mjs)及[双 domain 生命周期](../../tests/retirement-lifecycle.test.mjs)。选定的消费者架构见 [ADR 0003](../decisions/0003-retirement-consumer.md)。
 
 Node `24.18.1`、pnpm `11.7.0`、DSH `0.2.0-rc.2`、Cordis `4.0.4`，平台 macOS ARM64。使用现有固定工具与任务 `mise run verify`、`mise run verify:gui`，环境设置与上一节相同。未复制参考插件代码或运行其测试；所有会话、fault、owner 数据和浏览器 profile 使用 `.local/` 下随机临时目录。
 
@@ -249,15 +249,15 @@ Node `24.18.1`、pnpm `11.7.0`、DSH `0.2.0-rc.2`、Cordis `4.0.4`，平台 macO
 | 双 domain / lease | 第二 journal 打开失败、第二 open 等待时取消、真实 backend unit close acknowledgement 失败、schema-valid ownership 关联错误；分别验证 domain 清理、写入拒绝、初始化/队列排空和 lease 接手。关闭确认失败的旧 Context 不继续复用。 |
 | 独立审阅 | 独立只读审阅发现并复审了 5 项修复：stamp/handoff、callback 迟到写入、业务错误类绕过未知 I/O、关闭失败的 lease 清理、fixture 构造异常清理。最终静态复审在这些限定范围内未发现剩余 actual bug；运行结果来自上述真实测试，不将静态审阅当运行验收。 |
 
-本次全量资源样本：[完整闭环](../../.local/lifecycle/purge-complete-dABGC0/)；SIGKILL 样本：[intent](../../.local/lifecycle/purge-crash-plugin-intent-SwtCpu/)、[authorizing](../../.local/lifecycle/purge-crash-plugin-authorizing-JYv0UU/)、[fenced](../../.local/lifecycle/purge-crash-owner-fenced-2vLw6S/)、[resource effect](../../.local/lifecycle/purge-crash-resource-effect-JfhwE6/)、[owner done](../../.local/lifecycle/purge-crash-owner-done-9gl9MH/)、[entry](../../.local/lifecycle/purge-crash-plugin-entry-e3Olig/)、[Host done](../../.local/lifecycle/purge-crash-plugin-done-xbTGGi/)。数据均保留在忽略目录供复核。
+本次全量资源样本：完整闭环 (`.local/lifecycle/purge-complete-dABGC0/`)；SIGKILL 样本：intent (`.local/lifecycle/purge-crash-plugin-intent-SwtCpu/`)、authorizing (`.local/lifecycle/purge-crash-plugin-authorizing-JYv0UU/`)、fenced (`.local/lifecycle/purge-crash-owner-fenced-2vLw6S/`)、resource effect (`.local/lifecycle/purge-crash-resource-effect-JfhwE6/`)、owner done (`.local/lifecycle/purge-crash-owner-done-9gl9MH/`)、entry (`.local/lifecycle/purge-crash-plugin-entry-e3Olig/`)、Host done (`.local/lifecycle/purge-crash-plugin-done-xbTGGi/`)。数据均保留在忽略目录供复核。
 
-[Host tarball 报告](../../.local/lifecycle/package-alE3Rq/verification.json)、[中文 GUI 报告](../../.local/gui/client-zh-GA2y5b/verification.json)与[English GUI 报告](../../.local/gui/client-en-RRLeCz/verification.json)使用同一 tarball SHA-256：`d1680640ad92c36396b271b24c5a5cde0acb7b13221b7c7e05ec86dde8a02beb`。Chrome `154.0.8037.98` 每个 profile 18 项检查、27 个覆盖项；脚本测试端口分别为 `62576` 和 `62694`，测试 Host 已由脚本关闭。安装、移入/Undo、单项及固定选择批量恢复、双语切换、浅深色、390px 窄屏、重载、SDK 重开和卸载后新启动均通过。这是原有交互的兼容性复验，没有删除确认界面或删除 Remote 的验收。
+Host tarball 报告 (`.local/lifecycle/package-alE3Rq/verification.json`)、中文 GUI 报告 (`.local/gui/client-zh-GA2y5b/verification.json`)与English GUI 报告 (`.local/gui/client-en-RRLeCz/verification.json`)使用同一 tarball SHA-256：`d1680640ad92c36396b271b24c5a5cde0acb7b13221b7c7e05ec86dde8a02beb`。Chrome `154.0.8037.98` 每个 profile 18 项检查、27 个覆盖项；脚本测试端口分别为 `62576` 和 `62694`，测试 Host 已由脚本关闭。安装、移入/Undo、单项及固定选择批量恢复、双语切换、浅深色、390px 窄屏、重载、SDK 重开和卸载后新启动均通过。这是原有交互的兼容性复验，没有删除确认界面或删除 Remote 的验收。
 
 **范围限制：通过的是 Host 协议消费者与闭世界参考 owner，默认 native 永久删除仍不支持。** 参考 owner 的对象只在测试 domain 内；测试 V3/V4 是它拥有的资源记录，不是本轮擦除 SDK JSONL 文件。没有证明真实 Agent/worker、writer/retained reader 的联合 retirement、native 索引/缓存物理清除、shared attachment GC 或其他 provider 的准入。GUI 使用默认无 owner 组合，仅验证既有功能；中文 synthetic composition 仍不等于真实操作系统输入法。单 Host、相同协调目录、未观察归档 ABA 和平台限制不变，公开发布、删除批量/清空与删除 UI 均未完成。
 
 ## 可复用资源 owner 协调验证
 
-日期：2026-10-07。上一节消费者及研究材料已由本地检查点 `8f0dc3d8d57564dca9da218fc0d114b7402fe1fc` 捕获。本节基线为该提交加可复用 owner 的未提交工作区实现、端口适配和测试；没有将上一节 90 项结果当成本节验收。九个变更实现/测试文件的[源码指纹](../../.local/lifecycle/owner-evidence-KGPxKz/source.sha256)已逐项校验，清单 SHA-256 为 `86e5d229930ebdfdbfff49082c3838753c98a0099b161219e02f3c24f8870be9`；[协调器](../../src/host/retirement-owner.ts)自身 SHA-256 为 `e5cc8b7c5ce0a388a9d765e649f4951ea671e44ba933ab407d7f309fd7774a58`。选定机制见 [ADR 0004](../decisions/0004-retirement-owner-coordination.md)。
+日期：2026-10-07。上一节消费者及研究材料已由本地检查点 `8f0dc3d8d57564dca9da218fc0d114b7402fe1fc` 捕获。本节基线为该提交加可复用 owner 的未提交工作区实现、端口适配和测试；没有将上一节 90 项结果当成本节验收。九个变更实现/测试文件的源码指纹 (`.local/lifecycle/owner-evidence-KGPxKz/source.sha256`)已逐项校验，清单 SHA-256 为 `86e5d229930ebdfdbfff49082c3838753c98a0099b161219e02f3c24f8870be9`；[协调器](../../src/host/retirement-owner.ts)自身 SHA-256 为 `e5cc8b7c5ce0a388a9d765e649f4951ea671e44ba933ab407d7f309fd7774a58`。选定机制见 [ADR 0004](../decisions/0004-retirement-owner-coordination.md)。
 
 `mise run verify` 的两端检查、构建、**123/123 项测试**和真实 Loader/tarball 检查均通过，退出码 0：原有 90 项加[owner 直接测试](../../tests/retirement-owner.test.mjs)33 项。原消费者 36 项已改接生产协调器，参考 helper 只提供独立测试资源端口，没有手写 phase 推进。数据 domain 与 owner journal 分开，四个 domain 在同一原有 lease 下打开和关闭。环境仍为 macOS ARM64、Node `24.18.1`、pnpm `11.7.0`、SDK `0.2.0-rc.2`。
 
@@ -273,10 +273,10 @@ Node `24.18.1`、pnpm `11.7.0`、DSH `0.2.0-rc.2`、Cordis `4.0.4`，平台 macO
 | journal 信任边界 | 拒绝不可能的排空确认顺序、参与者集合/版本不匹配、终态回执改写和确认回退；保存 state 与进度为一个原子 record。initialize 只校验/绑定，不自动 erase。 |
 | 真实进程终止 | [owner worker](../../tests/helpers/retirement-owner-worker.mjs)在 19 个 owner/参与者/生命周期确认处 SIGKILL，重开核对原请求、清单、资源、共享引用、tombstone 和 native 快照；消费者原有 7 个 SIGKILL 边界也在同次全量通过。 |
 
-19 个边界为：owner fenced；三个 participant fenced；lifecycle quiesced；三个 participant quiesced；owner quiesced/erasing；resource effect/receipt；owner converging；三个 participant converged；lifecycle finalize effect/finalized；owner done。代表样本：[完整 owner](../../.local/lifecycle/owner-complete-fmaex0/)、[首次 fence](../../.local/lifecycle/owner-crash-GlgU2i/)、[资源 effect](../../.local/lifecycle/owner-crash-zLAhkj/)、[finalize effect](../../.local/lifecycle/owner-crash-56bAEW/)、[owner done](../../.local/lifecycle/owner-crash-MIWcoP/)。原生 transcript/accounting 前后及重开后保持一致。
+19 个边界为：owner fenced；三个 participant fenced；lifecycle quiesced；三个 participant quiesced；owner quiesced/erasing；resource effect/receipt；owner converging；三个 participant converged；lifecycle finalize effect/finalized；owner done。代表样本：完整 owner (`.local/lifecycle/owner-complete-fmaex0/`)、首次 fence (`.local/lifecycle/owner-crash-GlgU2i/`)、资源 effect (`.local/lifecycle/owner-crash-zLAhkj/`)、finalize effect (`.local/lifecycle/owner-crash-56bAEW/`)、owner done (`.local/lifecycle/owner-crash-MIWcoP/`)。原生 transcript/accounting 前后及重开后保持一致。
 
 独立静态审阅发现并复审了未知失败的释放窗口、并行 control-plane/版本失败后的继续推进、独立观察关闭排空、预算漏检查、falsy 暂停、schema 顺序、返回 ownership 接管和内部 close-drain 共八类修复。运行故障回归覆盖这些具体窗口；静态复审结论仅限被检查代码，不替代 native 资格。直接套件单次曾因测试 helper 的关闭微任务时序失败，该测试改为直接调用生产 Core.close 后，定向及本次统一 33/33 均通过；没有把拆分通过当作本次完整结果。
 
-[Host tarball 报告](../../.local/lifecycle/package-Ejrbkw/verification.json)、[中文 GUI 报告](../../.local/gui/client-zh-WaxHrq/verification.json)与[English GUI 报告](../../.local/gui/client-en-dbREN7/verification.json)的 tarball SHA-256 同为 `68efcf15e636f126bbd99d87d5c3433633f0aa55ad9428c4f9e0d86675f6fdd7`。`mise run verify:gui` 两个独立 profile 各 18 检查/27 覆盖项通过，console/pageErrors 为空。测试端口为 `64909/65062`，由脚本启动并关闭，不连接 `19387`。
+Host tarball 报告 (`.local/lifecycle/package-Ejrbkw/verification.json`)、中文 GUI 报告 (`.local/gui/client-zh-WaxHrq/verification.json`)与English GUI 报告 (`.local/gui/client-en-dbREN7/verification.json`)的 tarball SHA-256 同为 `68efcf15e636f126bbd99d87d5c3433633f0aa55ad9428c4f9e0d86675f6fdd7`。`mise run verify:gui` 两个独立 profile 各 18 检查/27 覆盖项通过，console/pageErrors 为空。测试端口为 `64909/65062`，由脚本启动并关闭，不连接 `19387`。
 
 **本节证明的是可复用协调器与 fixture 端口的实际持久化协议，不是 native 资源删除。** normal/read/write/retained-use 与 fake V3/V4 资源都归测试端口所有；真实 JSONL writer lease、Agent/reader 异步屏障、native 缓存/索引防复活、shared attachment GC 和发布资格仍未证明。维护 scope 在新进程必须重建真实 runtime 排他权，过去的 quiesce ack 本身不是当前 lease。默认 native 仍无 owner，Remote/UI、批量 purge、清空未开放，现有部署与未观察归档 ABA 边界保持。

@@ -8,7 +8,7 @@
 
 Electron 官方 `44.7.0` 发布记录明确列出 Node `24.21.0`、Chromium `152.0.7977.130` 和 V8 `15.2.124.28`。DSH rc.2 的固定上游提交 `687f282e8625c6b8d11ff58211a90524be2e4317` 声明 Electron `^44.7.0`、pnpm `11.28.5`；prepare-runtime 会实际运行目标 Electron 的 Node 模式，把 `process.versions.node` 写入运行时元数据。这与本机安装结果一致，不是把桌面 Node 版本从 CLI 环境猜出来。[Electron 44.7.0](https://releases.electronjs.org/release/v44.7.0)、[Node 24.21.0 官方发布](https://nodejs.org/en/blog/release/v24.21.0)、[DSH Desktop manifest](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/apps/desktop/package.json#L65)、[目标 Electron 版本探测](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/apps/desktop/scripts/prepare-runtime.ts#L23)
 
-本机 `Info.plist` 的产品版本为 `0.2.1-rc.2`；`app.asar/dsh/desktop-runtime.json` 记录同一产品版本、Host protocol `4`、Node `24.21.0`、pnpm `11.28.5`、`darwin/arm64`。实际执行应用二进制的 `ELECTRON_RUN_AS_NODE=1` 进程与这些值相符。系统为 macOS `15.7.9`（`24G830`），工作区探针卷的 `statfs.type` 为 `0x1a`。安装包观测完整保存在[只读审计证据](../../.local/debug/desktop-research-audit.json)；这些值记录本机样本，不是其他安装包的承诺。
+本机 `Info.plist` 的产品版本为 `0.2.1-rc.2`；`app.asar/dsh/desktop-runtime.json` 记录同一产品版本、Host protocol `4`、Node `24.21.0`、pnpm `11.28.5`、`darwin/arm64`。实际执行应用二进制的 `ELECTRON_RUN_AS_NODE=1` 进程与这些值相符。系统为 macOS `15.7.9`（`24G830`），工作区探针卷的 `statfs.type` 为 `0x1a`。安装包观测完整保存在只读审计证据 (`.local/debug/desktop-research-audit.json`)；这些值记录本机样本，不是其他安装包的承诺。
 
 ## SDK、传递依赖与资源契约
 
@@ -41,11 +41,11 @@ Electron 对 `fs`、`require` 等接口提供 ASAR 虚拟目录支持；归档�
 
 上游 Host 和 smoke 的正式方式是应用二进制加 `ELECTRON_RUN_AS_NODE=1`、`--expose-internals`，再以 `createRequire(<app.asar/dsh/package.json>)` 解析实际 runtime 包；没有要求调用另一个全局 SDK bootstrap。原生缓存使用私有 `NARB_NATIVE_CACHE_DIR`；完整 Host smoke 另建临时 `DSH_HOME` 和 profile。不要把上游完整 smoke 直接指向真实 profile。[Host 启动](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/apps/desktop/src/host-process.ts#L187)、[Node 环境](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/apps/desktop/src/node-environment.ts)、[私有 native cache smoke](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/apps/desktop/scripts/smoke-prepared-runtime.ts#L23)、[临时 Host smoke](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/apps/desktop/scripts/smoke-runtime.ts#L29)
 
-仓库 fixture 若要保持已有相对入口、同时把所有 `@deepseek-ai/` 导入统一到安装包，可在 `--import` preload 中注册同步 `module.registerHooks`：对该前缀调用 `next(specifier, { ...context, parentURL: runtimePackageJsonUrl })`，其他请求沿用原解析。应在 fixture 模块加载前安装 hook；不要在 hook 中直接递归调用未设防的 `createRequire.resolve`。本地[最小探针](../../.local/debug/desktop-bootstrap-probe.mjs)已确认实际 JSONL URL 位于 ASAR，Cordis、SessionPersistence、JSONL 插件、内部 ESM loader、原生 `system.node` 的 `tryLock` 导出均可加载；Koffi 调用 `getpid` 与进程 PID 一致。[探针输出](../../.local/debug/desktop-bootstrap-probe.log)只证明加载与符号调用，未创建 Context、Host 或 Session，未执行锁竞争或删除。
+仓库 fixture 若要保持已有相对入口、同时把所有 `@deepseek-ai/` 导入统一到安装包，可在 `--import` preload 中注册同步 `module.registerHooks`：对该前缀调用 `next(specifier, { ...context, parentURL: runtimePackageJsonUrl })`，其他请求沿用原解析。应在 fixture 模块加载前安装 hook；不要在 hook 中直接递归调用未设防的 `createRequire.resolve`。本地最小探针 (`.local/debug/desktop-bootstrap-probe.mjs`)已确认实际 JSONL URL 位于 ASAR，Cordis、SessionPersistence、JSONL 插件、内部 ESM loader、原生 `system.node` 的 `tryLock` 导出均可加载；Koffi 调用 `getpid` 与进程 PID 一致。探针输出 (`.local/debug/desktop-bootstrap-probe.log`)只证明加载与符号调用，未创建 Context、Host 或 Session，未执行锁竞争或删除。
 
 ## 独立验收边界
 
-同一 libuv 不能概括两个运行时的全部行为。实际桌面值与固定 CLI Node 的差异如下，详见[运行时比较证据](../../.local/debug/desktop-runtime-comparison.json)：
+同一 libuv 不能概括两个运行时的全部行为。实际桌面值与固定 CLI Node 的差异如下，详见运行时比较证据 (`.local/debug/desktop-runtime-comparison.json`)：
 
 | 项目 | 已验收的独立 Node | 本机 Electron Node |
 | --- | --- | --- |

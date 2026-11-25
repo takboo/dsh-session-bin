@@ -1,3 +1,5 @@
+min_version = "2026.10.2"
+
 [env]
 PLAYWRIGHT_BROWSERS_PATH = "{{config_root}}/.local/browsers"
 pnpm_config_store_dir = "{{config_root}}/.local/pnpm-store"
@@ -5,6 +7,7 @@ pnpm_config_cache_dir = "{{config_root}}/.local/pnpm-cache"
 pnpm_config_enable_global_virtual_store = "false"
 # Fail on dependency drift; only the explicit frozen install task may refresh it.
 pnpm_config_verify_deps_before_run = "error"
+DSH_ENGINEERING_ACTIVE_RUN_DIR = '{% set _d = get_env(name="DSH_ENGINEERING_RUN_DIR", default="") %}{% if _d != "" %}{{ _d }}{% else %}{{ config_root }}/.local/engineering/run-{{ get_random(start=100000000, end=999999999) }}-{{ get_random(start=100000000, end=999999999) }}{% endif %}'
 
 [tool_alias]
 # The npm distribution also supports macOS Intel, unlike pnpm's standalone assets.
@@ -24,9 +27,21 @@ run = ["node --version", "pnpm --version", "gh --version"]
 description = "Install locked project dependencies without lifecycle scripts"
 run = "pnpm install --frozen-lockfile --ignore-scripts"
 
-[tasks.check]
+[tasks.setup]
+description = "Install locked project dependencies without lifecycle scripts"
+depends = ["install"]
+
+[tasks."check:shell"]
+description = "Check unified v0.2+ plugin shell and EGM documentation against the locked base"
+run = 'node "${DSH_ENGINEERING_CHECKOUT:-../dsh-plugin-engineering}/scripts/locked-run.mjs" check-plugin'
+
+[tasks."check:types"]
 description = "Check Host and Client types against the pinned SDK"
 run = "pnpm run check"
+
+[tasks.check]
+description = "Run unified shell, docs, market, and Host/Client type checks"
+depends = ["check:shell", "verify:docs", "verify:market", "check:types"]
 
 [tasks.build]
 description = "Build precompiled Host and Client artifacts and declarations"
@@ -114,6 +129,16 @@ run = "pnpm run compat:desktop"
 description = "Check current document links and anchors"
 run = "pnpm run verify:docs"
 
-[tasks."verify:engineering"]
-description = "Verify a single clean-source package with the pinned shared engineering base"
-run = "mise exec -- node scripts/engineering/verify.mjs"
+[tasks."verify:pack"]
+description = "Build from clean HEAD archive, E1-verify the candidate tarball, and bundle the Web probe"
+run = "pnpm run verify:pack"
+
+[tasks."verify:host:container"]
+description = "Run the locked Linux host container (CLI + Web) against the verified candidate"
+depends = ["verify:pack"]
+run = 'node "${DSH_ENGINEERING_CHECKOUT:-../dsh-plugin-engineering}/scripts/locked-run.mjs" container all "${DSH_ENGINEERING_ACTIVE_RUN_DIR}/targets.json" "${DSH_ENGINEERING_ACTIVE_RUN_DIR}/probe.mjs" "${DSH_ENGINEERING_ACTIVE_RUN_DIR}/candidate.tgz" HEAD "${DSH_ENGINEERING_ACTIVE_RUN_DIR}/host-report.json"'
+
+[tasks."verify:host"]
+description = "Verify E1-to-E2 candidate provenance and host container report"
+depends = ["verify:host:container"]
+run = "node scripts/engineering/pack-host.mjs --verify-report"

@@ -14,19 +14,19 @@
 
 ## 独立桌面运行时资格
 
-候选阶段先在临时 DSH_HOME 上运行原 389 项回归：383 通过、6 项 Windows 专用检查跳过。随后增加生产准入回归，撤去候选回调，由新正式任务 `mise run verify:desktop` 验证实际 ASAR SDK 和生产组合：391 项，385 通过、0 失败、6 跳过；运行前后源码稳定，清单 SHA-256 为 `68caef32bd345e67ed7f14f42d6e03c15c98b7619b3ddee9cf618b19d864bdf3`。[最终正式报告](../../.local/desktop/darwin-arm64-sv0vXp/verification.json)
+候选阶段先在临时 DSH_HOME 上运行原 389 项回归：383 通过、6 项 Windows 专用检查跳过。随后增加生产准入回归，撤去候选回调，由新正式任务 `mise run verify:desktop` 验证实际 ASAR SDK 和生产组合：391 项，385 通过、0 失败、6 跳过；运行前后源码稳定，清单 SHA-256 为 `68caef32bd345e67ed7f14f42d6e03c15c98b7619b3ddee9cf618b19d864bdf3`。最终正式报告 (`.local/desktop/darwin-arm64-sv0vXp/verification.json`)
 
 正式 probe 逐项核对桌面 ASAR 的 18 个 SDK 文件、版本及 SHA-256，并通过生产 Service 的真实准备路径。完整 Host/lifecycle 测试使用该 ASAR 中的 SDK 和原生模块，覆盖 raw/zstd、已启用 SQLite/cache、API idle release、活动与 reader/writer 拒绝、跨进程锁、实际 SIGKILL 与重开、固定批量、清空及未知结果保护。四组独立浏览器客户端 fixture 使用 npm 的公开预编译客户端，因为桌面 Host 树不包含这些独立浏览器包；它们同样运行于实际 Electron Node。
 
 该运行时 SQLite 为 `3.53.4`、Zstd 为 `1.6.0`、模块 ABI 为 `149`，与固定独立 Node 有差异；上述资格来自实际行为结果，而非仅依赖相同 SDK hash 或 libuv。
 
-最终源码在固定 Node `24.18.1` 下的类型、构建、391 项回归及实际 tarball Loader 也通过，[平台报告](../../.local/platform/darwin-arm64-n1gvAa/verification.json)的源码摘要与桌面全量报告一致。
+最终源码在固定 Node `24.18.1` 下的类型、构建、391 项回归及实际 tarball Loader 也通过，平台报告 (`.local/platform/darwin-arm64-n1gvAa/verification.json`)的源码摘要与桌面全量报告一致。
 
-`mise run verify:desktop:gui` 使用同一实际 Electron 载体运行隔离 npm Web Host/Client，ASAR production probe 另行复核准入；[最终桌面 GUI 报告](../../.local/desktop/darwin-arm64-vYRHFJ/verification.json)通过且源码稳定。中文、英文各 17 项检查通过，覆盖单项、固定批量、清空、重启核对与安装卸载，`browserConsole`、`pageErrors` 均为空，四次 Host 关闭均为 code 0、signal null、forced false。两份 GUI 报告及 Loader 使用同一 tarball，SHA-256 为 `49008d11d0f33219b91fc317a276c55fc16f2162db0a913d1bd493a11e1fd067`。该结果验证桌面运行时载体上的公开 Web 客户端，不代表驱动了原生 Desktop shell。
+`mise run verify:desktop:gui` 使用同一实际 Electron 载体运行隔离 npm Web Host/Client，ASAR production probe 另行复核准入；最终桌面 GUI 报告 (`.local/desktop/darwin-arm64-vYRHFJ/verification.json`)通过且源码稳定。中文、英文各 17 项检查通过，覆盖单项、固定批量、清空、重启核对与安装卸载，`browserConsole`、`pageErrors` 均为空，四次 Host 关闭均为 code 0、signal null、forced false。两份 GUI 报告及 Loader 使用同一 tarball，SHA-256 为 `49008d11d0f33219b91fc317a276c55fc16f2162db0a913d1bd493a11e1fd067`。该结果验证桌面运行时载体上的公开 Web 客户端，不代表驱动了原生 Desktop shell。
 
 ## 原独立 Node 五平台回归
 
-[PR #11 的完整 CI](https://github.com/takboo/dsh-session-bin/actions/runs/39095141483)在修复提交 `4946768034cc574ccac8870edb9b9e2ee0e328c0` 上通过，SDK 均为 `0.2.1-rc.2`、Node 均为 `24.18.1`。下载并逐项核对全部 20 份平台、Loader 和双语 GUI 报告，源码前后稳定、生产删除资格成立，每个平台的 Loader 与两种 GUI 使用相同 tarball，console/pageErrors 为空，Host 均正常退出。[汇总](../../.local/ci-desktop-pr/summary.json)
+[PR #11 的完整 CI](https://github.com/takboo/dsh-session-bin/actions/runs/39095141483)在修复提交 `4946768034cc574ccac8870edb9b9e2ee0e328c0` 上通过，SDK 均为 `0.2.1-rc.2`、Node 均为 `24.18.1`。下载并逐项核对全部 20 份平台、Loader 和双语 GUI 报告，源码前后稳定、生产删除资格成立，每个平台的 Loader 与两种 GUI 使用相同 tarball，console/pageErrors 为空，Host 均正常退出。汇总 (`.local/ci-desktop-pr/summary.json`)
 
 | 平台 | 文件系统 | 全量与 Loader | 中文 / 英文 GUI |
 | --- | --- | --- | --- |
@@ -49,6 +49,6 @@ POSIX 源码清单摘要与上述本地最终报告相同；Windows checkout 的
 | owner-fenced，raw/zstd | 旧进程真实 SIGKILL；沿用已有授权恢复同一操作 | 两种编码通过 |
 | resource-effect，raw/zstd | 文件擦除后、确认前 SIGKILL；重开对账日志/cache/SQLite | 两种编码通过 |
 
-四个中断样本保持旧 request、manifest 和 authorizationId；目标日志及派生记录缺失、sibling transcript 完整，重复提交返回原回执。旧 Zstd 日志从旧编解码运行时进入新运行时，没有改写资源身份或生成新删除授权。[升级报告](../../.local/desktop-upgrade-verification.json)、[中断恢复报告](../../.local/desktop-upgrade-crash-verification.json)。持久化身份继续遵循 [ADR 0011](../decisions/0011-runtime-and-durable-retirement-identity.md)。
+四个中断样本保持旧 request、manifest 和 authorizationId；目标日志及派生记录缺失、sibling transcript 完整，重复提交返回原回执。旧 Zstd 日志从旧编解码运行时进入新运行时，没有改写资源身份或生成新删除授权。升级报告 (`.local/desktop-upgrade-verification.json`)、中断恢复报告 (`.local/desktop-upgrade-crash-verification.json`)。持久化身份继续遵循 [ADR 0011](../decisions/0011-runtime-and-durable-retirement-identity.md)。
 
 全部会话操作均使用隔离 fixture 和临时 DSH_HOME；没有重启用户正在运行的应用或操作真实会话。范围不含其他桌面架构/版本、普通 Node 24.21、其他文件系统、多 Host、原生 Desktop shell、物理 OS 输入法或掉电保证。

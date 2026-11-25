@@ -17,8 +17,8 @@ API Session 已移除 `createOrAdopt`。针对新版 `resumeObserved/claim/creat
 环境：macOS `15.7.9` ARM64、APFS（type `0x1a`）、Node `24.18.1` / libuv `1.52.1`、pnpm `11.23.0`；工具来自 mise 固定配置，依赖以 frozen lockfile 安装且禁用安装脚本。新增 pnpm 配置仅对本次已核对的精确上游发布包列出 release-age 例外，其他版本仍沿用原策略。
 
 - 旧基线 `mise run verify`：386 项，380 通过、6 项 Windows 专用检查跳过；类型、构建与真实 Loader tarball 均通过。
-- 新版 `mise run verify:platform`：389 项，383 通过、6 项 Windows 专用检查跳过；类型、构建、市场元数据、真实进程终止和重开、raw/zstd、owner/cache/SQLite、严格 Remote/Client 及 tarball 加载通过。运行前后源码稳定，SHA-256 为 `1582e57c63491328e7714cb23530826fc219e4092db09c4a8dd84fecc7a601b0`。[本地平台报告](../../.local/platform/darwin-arm64-QM1Al4/verification.json)
-- 同轮真实 Loader tarball 验证实际执行单项永久删除、关闭与重新激活；包 SHA-256 为 `82868b6090849c9950cf57cce7151f3d1b3a62ae6dd5f2a6449588a7ba1ad329`。[打包报告](../../.local/lifecycle/package-2kkNWW/verification.json)
+- 新版 `mise run verify:platform`：389 项，383 通过、6 项 Windows 专用检查跳过；类型、构建、市场元数据、真实进程终止和重开、raw/zstd、owner/cache/SQLite、严格 Remote/Client 及 tarball 加载通过。运行前后源码稳定，SHA-256 为 `1582e57c63491328e7714cb23530826fc219e4092db09c4a8dd84fecc7a601b0`。本地平台报告 (`.local/platform/darwin-arm64-QM1Al4/verification.json`)
+- 同轮真实 Loader tarball 验证实际执行单项永久删除、关闭与重新激活；包 SHA-256 为 `82868b6090849c9950cf57cce7151f3d1b3a62ae6dd5f2a6449588a7ba1ad329`。打包报告 (`.local/lifecycle/package-2kkNWW/verification.json`)
 
 该平台报告只证明本机组合；其他平台须以对应 runner 的独立实际验收为准，candidate 通过不自动晋级生产资格。
 
@@ -40,7 +40,7 @@ POSIX 源码清单 SHA-256 为 `1582e57c63491328e7714cb23530826fc219e4092db09c4a
 
 ## 本地双语 CLI/GUI
 
-`mise run verify:gui` 在独立真实 Web profile 中完成[中文](../../.local/gui/client-zh-V4wh8F/verification.json)与[English](../../.local/gui/client-en-kxiS4s/verification.json)，每种语言各 17 项通过。两者使用同字节 tarball，SHA-256 `a4b7d5cb7da5ff37df66cba97a4f75678067f07c64723a0a5f2e1e6fac68aa2d`；console/pageErrors 均为空，安装后与卸载后共四次 Host 关闭均 code 0、signal null、forced false。
+`mise run verify:gui` 在独立真实 Web profile 中完成中文 (`.local/gui/client-zh-V4wh8F/verification.json`)与English (`.local/gui/client-en-kxiS4s/verification.json`)，每种语言各 17 项通过。两者使用同字节 tarball，SHA-256 `a4b7d5cb7da5ff37df66cba97a4f75678067f07c64723a0a5f2e1e6fac68aa2d`；console/pageErrors 均为空，安装后与卸载后共四次 Host 关闭均 code 0、signal null、forced false。
 
 覆盖真实原生归档/Undo、已有归档、单项及批量取消归档、搜索/分组/筛选、双向语言切换及偏好重载、浅深色/窄屏/键盘/composition，以及打开历史后的取消准备、取消归档再打开、重新归档并实际永久删除。固定选择、清空完整隐藏范围、关闭确认后仅新鲜点击执行、停止和恢复保护均沿用原断言；真正关闭并重开 SDK 后确认日志和派生记录清除、其他会话保留。新版账号引导与账号菜单中的设置只调整测试导航步骤。
 
@@ -57,6 +57,6 @@ POSIX 源码清单 SHA-256 为 `1582e57c63491328e7714cb23530826fc219e4092db09c4a
 | owner-fenced，raw/zstd | 旧进程真实 SIGKILL；新版按已保存授权恢复同一操作 | 两种编码通过 |
 | resource-effect，raw/zstd | 旧进程已擦除文件但未确认回执时 SIGKILL；新版对账文件/cache/SQLite | 两种编码通过 |
 
-四个故障场景逐项保持原 request、manifest 与 authorizationId，最终 owner/Host 回执成功；目标日志与派生记录缺失，sibling transcript 完整，重复 execute 只返回既有结果。恢复沿用旧版明确授权的同一操作，不生成新目标或替换生命周期。prepared/done 与故障恢复的本地证据分别为[升级报告](../../.local/upgrade-verification.json)、[升级故障报告](../../.local/upgrade-crash-verification.json)。
+四个故障场景逐项保持原 request、manifest 与 authorizationId，最终 owner/Host 回执成功；目标日志与派生记录缺失，sibling transcript 完整，重复 execute 只返回既有结果。恢复沿用旧版明确授权的同一操作，不生成新目标或替换生命周期。prepared/done 与故障恢复的本地证据分别为升级报告 (`.local/upgrade-verification.json`)、升级故障报告 (`.local/upgrade-crash-verification.json`)。
 
 所有数据位于临时 DSH_HOME 和独立 fixture；未读取或删除真实用户会话。范围不含跨 SDK 热接管、多 Host、未观察归档 ABA 的修补、共享附件 GC、安全擦除、掉电保证、原生桌面 shell 或物理 OS 输入法验收。
